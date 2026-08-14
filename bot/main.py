@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import signal
 from datetime import datetime, timezone
+from typing import Optional
 
 import discord
 from discord import app_commands
@@ -26,6 +27,7 @@ from .services.automod_service import AutoModService
 from .services.level_service import LevelService
 from .services.log_service import LogService
 from .services.moderation_service import ModerationService
+from .services.platform_service import AccessDenied, PlatformService
 from .services.settings_service import SettingsService
 from .utils import embeds
 from .utils.checks import ActionRefused
@@ -71,6 +73,8 @@ class AhoyBot(commands.Bot):
         self.moderation = ModerationService(self.repo, self.logs)
         self.levels = LevelService(self.repo, self.settings)
         self.automod = AutoModService(self.settings, self.moderation)
+        self.platform = PlatformService(self.repo)
+        self._notification_task: Optional[asyncio.Task[None]] = None
 
     async def setup_hook(self) -> None:
         await self.db.connect()
@@ -83,8 +87,80 @@ class AhoyBot(commands.Bot):
                 log.exception("Failed to load %s: %s", extension, exc)
 
         self.tree.on_error = self.on_app_command_error
+        self.tree.interaction_check = self._platform_gate
         synced = await self.tree.sync()
         log.info("Registered %d slash commands with Discord.", len(synced))
+
+    async def _platform_gate(self, interaction: discord.Interaction) -> bool:
+        """Owner-level access control: runs before every slash command."""
+        command_name = getattr(interaction.command, "name", "")
+        try:
+            await self.platform.ensure_allowed(str(interaction.user.id), command_name)
+        except AccessDenied as exc:
+            raise ActionRefused(str(exc)) from exc
+        except DatabaseError:
+            # Never lock the whole bot out because the database blipped.
+            return True
+        return True
+
+    # -- owner notification delivery ------------------------------------
+    async def _deliver_notifications(self) -> None:
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                for item in await self.repo.pending_notifications():
+                    await self._deliver_one(item)
+            except Exception as exc:  # keep the loop alive
+                log.warning("Notification delivery failed: %s", exc)
+            await asyncio.sleep(30)
+
+    async def _deliver_one(self, item: dict) -> None:
+        title = item.get("title") or "Notice from AHOY"
+        body = item.get("body") or ""
+        embed = embeds.info(title, body)
+        sent = False
+        error = None
+
+        if item.get("via_dm"):
+            targets: list[int] = []
+            if item.get("target_type") == "user" and item.get("target_user_id"):
+                targets = [int(item["target_user_id"])]
+            elif item.get("target_type") == "guild" and item.get("target_guild_id"):
+                guild = self.get_guild(int(item["target_guild_id"]))
+                targets = [m.id for m in (guild.members if guild else []) if not m.bot][:500]
+            for user_id in targets:
+                try:
+                    user = self.get_user(user_id) or await self.fetch_user(user_id)
+                    await user.send(embed=embed)
+                    sent = True
+                except discord.HTTPException:
+                    continue
+
+        if item.get("via_announcement"):
+            guild_ids = (
+                [item["target_guild_id"]]
+                if item.get("target_guild_id")
+                else [str(g.id) for g in self.guilds]
+            )
+            for guild_id in guild_ids:
+                guild = self.get_guild(int(guild_id))
+                if guild is None:
+                    continue
+                channel = None
+                if item.get("announcement_channel_id"):
+                    channel = guild.get_channel(int(item["announcement_channel_id"]))
+                channel = channel or guild.system_channel
+                if channel is None:
+                    continue
+                try:
+                    await channel.send(embed=embed)
+                    sent = True
+                except discord.HTTPException as exc:
+                    error = str(exc)
+
+        await self.repo.mark_notification(
+            item["id"], "sent" if sent else "failed", None if sent else (error or "No reachable target")
+        )
 
     async def on_ready(self) -> None:
         log.info(
@@ -93,6 +169,9 @@ class AhoyBot(commands.Bot):
             getattr(self.user, "id", "?"),
             len(self.guilds),
         )
+        if self._notification_task is None:
+            self._notification_task = asyncio.create_task(self._deliver_notifications())
+
         for guild in self.guilds:
             await self.repo.upsert_server(
                 str(guild.id),
