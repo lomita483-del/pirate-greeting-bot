@@ -146,18 +146,22 @@ export const updatePlatformUser = createServerFn({ method: "POST" })
       throw new Error("You cannot ban a platform owner.");
     }
 
-    const { userId, feature_flags, ...rest } = data;
     const patch = {
-      ...rest,
-      ...(feature_flags ? { feature_flags } : {}),
-      ...(rest.banned === undefined
+      ...(data.banned === undefined
         ? {}
         : {
-            banned_at: rest.banned ? new Date().toISOString() : null,
-            banned_by: rest.banned ? session.userId : null,
-            ...(rest.banned ? {} : { ban_reason: null }),
+            banned: data.banned,
+            banned_at: data.banned ? new Date().toISOString() : null,
+            banned_by: data.banned ? session.userId : null,
+            ban_reason: data.banned ? (data.ban_reason ?? null) : null,
           }),
+      ...(data.bot_blocked === undefined ? {} : { bot_blocked: data.bot_blocked }),
+      ...(data.plan === undefined ? {} : { plan: data.plan }),
+      ...(data.max_servers === undefined ? {} : { max_servers: data.max_servers }),
+      ...(data.notes === undefined ? {} : { notes: data.notes }),
+      ...(data.feature_flags === undefined ? {} : { feature_flags: data.feature_flags }),
     };
+
 
 
     const { error } = await supabaseAdmin
