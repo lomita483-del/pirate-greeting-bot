@@ -13,6 +13,20 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
   const session = await sessionFromHeader(getRequestHeader("cookie") ?? null);
   if (!session) return { signedIn: false as const };
 
+  const { adminRoleFor, isBanned } = await import("@/lib/admin.server");
+  const [adminRole, ban] = await Promise.all([adminRoleFor(session.userId), isBanned(session.userId)]);
+  if (ban.banned) {
+    return {
+      signedIn: true as const,
+      user: publicUser(session),
+      guilds: [],
+      guildsError: false,
+      adminRole: null,
+      banned: true as const,
+      banReason: ban.reason,
+    };
+  }
+
   let guilds: Array<{ id: string; name: string; icon: string | null; owner: boolean }> = [];
   try {
     guilds = (await fetchUserGuilds(session))
@@ -20,7 +34,15 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
       .map((g) => ({ id: g.id, name: g.name, icon: g.icon, owner: g.owner }));
   } catch (error) {
     console.error("Failed to load Discord guilds", error);
-    return { signedIn: true as const, user: publicUser(session), guilds: [], guildsError: true };
+    return {
+      signedIn: true as const,
+      user: publicUser(session),
+      guilds: [],
+      guildsError: true,
+      adminRole,
+      banned: false as const,
+      banReason: null,
+    };
   }
 
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
@@ -34,6 +56,9 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
     signedIn: true as const,
     user: publicUser(session),
     guildsError: false,
+    adminRole,
+    banned: false as const,
+    banReason: null,
     guilds: guilds.map((g) => ({
       ...g,
       botPresent: Boolean(known.get(g.id)?.bot_present),
@@ -61,6 +86,10 @@ async function authorize(guildId: string) {
   const { sessionFromHeader, assertGuildAccess } = await import("@/lib/discord.server");
   const session = await sessionFromHeader(getRequestHeader("cookie") ?? null);
   if (!session) throw new Error("Please sign in with Discord.");
+  const { isBanned } = await import("@/lib/admin.server");
+  if ((await isBanned(session.userId)).banned) {
+    throw new Error("Your access to the AHOY control center has been revoked.");
+  }
   const guild = await assertGuildAccess(session, guildId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   return { session, guild, supabaseAdmin };

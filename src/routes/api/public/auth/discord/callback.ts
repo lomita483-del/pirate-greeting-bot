@@ -36,6 +36,11 @@ export const Route = createFileRoute("/api/public/auth/discord/callback")({
             `${url.origin}/api/public/auth/discord/callback`,
           );
           const user = await fetchCurrentUser(token.access_token);
+
+          const { recordSignIn } = await import("@/lib/admin.server");
+          const { banned } = await recordSignIn(user);
+          if (banned) return fail("banned");
+
           const sealed = await sealSession({
             userId: user.id,
             username: user.username,
