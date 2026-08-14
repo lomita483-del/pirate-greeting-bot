@@ -353,4 +353,43 @@ class Repository:
         )
 
 
+    # -- platform (website owner controls) -----------------------------
+    async def platform_user(self, user_id: str) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("platform_users")
+            .select("banned, bot_blocked, plan, feature_flags")
+            .eq("discord_user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
+
+    async def pending_notifications(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("platform_notifications")
+            .select("*")
+            .eq("delivery_status", "pending")
+            .limit(20)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def mark_notification(
+        self, notification_id: str, status: str, error: Optional[str] = None
+    ) -> None:
+        await self.db.try_run(
+            lambda c: c.table("platform_notifications")
+            .update(
+                {
+                    "delivery_status": status,
+                    "delivery_error": error,
+                    "delivered_at": _now(),
+                }
+            )
+            .eq("id", notification_id)
+            .execute()
+        )
+
+
 __all__ = ["Repository", "DatabaseError"]

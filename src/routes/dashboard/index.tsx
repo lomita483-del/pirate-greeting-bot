@@ -1,11 +1,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Crown, RefreshCw, ShieldAlert } from "lucide-react";
+import { ArrowRight, Ban, Crown, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Inbox } from "@/components/dashboard/inbox";
 import { getViewer } from "@/lib/ahoy.functions";
 
 export const Route = createFileRoute("/dashboard/")({
@@ -42,6 +43,13 @@ function ServerPicker() {
           </Link>
           {data?.signedIn ? (
             <div className="flex items-center gap-3">
+              {data.adminRole ? (
+                <Button asChild size="sm" variant="secondary">
+                  <Link to="/admin">
+                    <ShieldCheck className="mr-1 h-4 w-4" /> Owner console
+                  </Link>
+                </Button>
+              ) : null}
               <span className="hidden text-sm text-muted-foreground sm:inline">
                 {data.user.displayName}
               </span>
@@ -74,6 +82,14 @@ function ServerPicker() {
             <Button asChild className="mt-6">
               <a href="/api/public/auth/discord/start">Sign in with Discord</a>
             </Button>
+          </div>
+        ) : data.banned ? (
+          <div className="glass mt-8 rounded-2xl p-8 text-center">
+            <Ban className="mx-auto h-6 w-6 text-destructive" />
+            <p className="mt-4 text-sm text-muted-foreground">
+              Your access to the AHOY control center has been revoked.
+              {data.banReason ? ` Reason: ${data.banReason}` : ""}
+            </p>
           </div>
         ) : data.guildsError ? (
           <div className="glass mt-8 rounded-2xl p-8 text-center">
@@ -134,6 +150,7 @@ function ServerPicker() {
             })}
           </div>
         )}
+        {data?.signedIn && !data.banned ? <Inbox /> : null}
       </main>
     </div>
   );
