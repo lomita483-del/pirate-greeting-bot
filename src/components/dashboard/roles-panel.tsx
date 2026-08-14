@@ -1,4 +1,5 @@
 import { Plus, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -137,7 +138,10 @@ export function RolesPanel({ guildId, config, onSaved }: PanelProps) {
         dirty={form.dirty}
         saving={form.saving}
         onSave={() => {
-          if (draft.level_roles.some((row) => !row.role_id)) return;
+          if (draft.level_roles.some((row) => !row.role_id)) {
+            toast.error("Pick a role for every level reward first.");
+            return;
+          }
           form.save();
         }}
         onReset={form.reset}
