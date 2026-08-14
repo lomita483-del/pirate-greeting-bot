@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
 import { Route as ApiPublicAuthDiscordStartRouteImport } from './routes/api/public/auth/discord/start'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/dashboard/',
   path: '/dashboard/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DashboardGuildIdRoute = DashboardGuildIdRouteImport.update({
+  id: '/dashboard/$guildId',
+  path: '/dashboard/$guildId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicAuthDiscordCallbackRoute =
@@ -46,6 +52,7 @@ const ApiPublicAuthDiscordStartRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -53,6 +60,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -61,6 +69,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -70,6 +79,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -77,6 +87,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dashboard/$guildId'
     | '/dashboard'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -84,6 +95,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -92,6 +104,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardGuildIdRoute: typeof DashboardGuildIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
   ApiPublicAuthDiscordLogoutRoute: typeof ApiPublicAuthDiscordLogoutRoute
@@ -112,6 +125,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard'
       fullPath: '/dashboard/'
       preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard/$guildId': {
+      id: '/dashboard/$guildId'
+      path: '/dashboard/$guildId'
+      fullPath: '/dashboard/$guildId'
+      preLoaderRoute: typeof DashboardGuildIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/auth/discord/callback': {
@@ -140,6 +160,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardGuildIdRoute: DashboardGuildIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
   ApiPublicAuthDiscordLogoutRoute: ApiPublicAuthDiscordLogoutRoute,
