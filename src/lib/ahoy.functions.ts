@@ -402,3 +402,53 @@ export const deleteCustomCommand = createServerFn({ method: "POST" })
       .eq("guild_id", data.guildId);
     return { ok: true };
   });
+
+/* ---------------------------------------------------------------- */
+/* Leaderboards & reminders                                          */
+/* ---------------------------------------------------------------- */
+
+export const getEngagement = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [xp, economy, reminders] = await Promise.all([
+      supabaseAdmin
+        .from("xp_profiles")
+        .select("user_id, username, xp, level, messages")
+        .eq("guild_id", data.guildId)
+        .order("xp", { ascending: false })
+        .limit(25),
+      supabaseAdmin
+        .from("economy_profiles")
+        .select("user_id, username, balance, bank, daily_streak")
+        .eq("guild_id", data.guildId)
+        .order("balance", { ascending: false })
+        .limit(25),
+      supabaseAdmin
+        .from("reminders")
+        .select("id, user_id, message, remind_at, delivered, channel_id, created_at")
+        .eq("guild_id", data.guildId)
+        .order("remind_at", { ascending: true })
+        .limit(50),
+    ]);
+    return {
+      xp: xp.data ?? [],
+      economy: economy.data ?? [],
+      reminders: reminders.data ?? [],
+    };
+  });
+
+export const deleteReminder = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ guildId: z.string().regex(/^\d{5,25}$/), id: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("reminders")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not cancel that reminder.");
+    return { ok: true };
+  });
