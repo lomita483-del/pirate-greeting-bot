@@ -380,6 +380,185 @@ export type Database = {
           },
         ]
       }
+      notification_reads: {
+        Row: {
+          discord_user_id: string
+          notification_id: string
+          read_at: string
+        }
+        Insert: {
+          discord_user_id: string
+          notification_id: string
+          read_at?: string
+        }
+        Update: {
+          discord_user_id?: string
+          notification_id?: string
+          read_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notification_reads_notification_id_fkey"
+            columns: ["notification_id"]
+            isOneToOne: false
+            referencedRelation: "platform_notifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      platform_admins: {
+        Row: {
+          added_by: string | null
+          created_at: string
+          discord_user_id: string
+          role: string
+          username: string | null
+        }
+        Insert: {
+          added_by?: string | null
+          created_at?: string
+          discord_user_id: string
+          role?: string
+          username?: string | null
+        }
+        Update: {
+          added_by?: string | null
+          created_at?: string
+          discord_user_id?: string
+          role?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
+      platform_notifications: {
+        Row: {
+          announcement_channel_id: string | null
+          body: string
+          created_at: string
+          created_by: string | null
+          delivered_at: string | null
+          delivery_error: string | null
+          delivery_status: string
+          id: string
+          level: string
+          target_guild_id: string | null
+          target_type: string
+          target_user_id: string | null
+          title: string
+          updated_at: string
+          via_announcement: boolean
+          via_dm: boolean
+          via_inbox: boolean
+        }
+        Insert: {
+          announcement_channel_id?: string | null
+          body: string
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          id?: string
+          level?: string
+          target_guild_id?: string | null
+          target_type?: string
+          target_user_id?: string | null
+          title: string
+          updated_at?: string
+          via_announcement?: boolean
+          via_dm?: boolean
+          via_inbox?: boolean
+        }
+        Update: {
+          announcement_channel_id?: string | null
+          body?: string
+          created_at?: string
+          created_by?: string | null
+          delivered_at?: string | null
+          delivery_error?: string | null
+          delivery_status?: string
+          id?: string
+          level?: string
+          target_guild_id?: string | null
+          target_type?: string
+          target_user_id?: string | null
+          title?: string
+          updated_at?: string
+          via_announcement?: boolean
+          via_dm?: boolean
+          via_inbox?: boolean
+        }
+        Relationships: []
+      }
+      platform_users: {
+        Row: {
+          avatar: string | null
+          ban_reason: string | null
+          banned: boolean
+          banned_at: string | null
+          banned_by: string | null
+          bot_blocked: boolean
+          created_at: string
+          discord_user_id: string
+          email: string | null
+          feature_flags: Json
+          first_seen_at: string
+          global_name: string | null
+          last_ip: string | null
+          last_seen_at: string
+          login_count: number
+          max_servers: number | null
+          notes: string | null
+          plan: string
+          updated_at: string
+          username: string | null
+        }
+        Insert: {
+          avatar?: string | null
+          ban_reason?: string | null
+          banned?: boolean
+          banned_at?: string | null
+          banned_by?: string | null
+          bot_blocked?: boolean
+          created_at?: string
+          discord_user_id: string
+          email?: string | null
+          feature_flags?: Json
+          first_seen_at?: string
+          global_name?: string | null
+          last_ip?: string | null
+          last_seen_at?: string
+          login_count?: number
+          max_servers?: number | null
+          notes?: string | null
+          plan?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Update: {
+          avatar?: string | null
+          ban_reason?: string | null
+          banned?: boolean
+          banned_at?: string | null
+          banned_by?: string | null
+          bot_blocked?: boolean
+          created_at?: string
+          discord_user_id?: string
+          email?: string | null
+          feature_flags?: Json
+          first_seen_at?: string
+          global_name?: string | null
+          last_ip?: string | null
+          last_seen_at?: string
+          login_count?: number
+          max_servers?: number | null
+          notes?: string | null
+          plan?: string
+          updated_at?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       reminders: {
         Row: {
           channel_id: string | null
