@@ -171,7 +171,7 @@ export const updatePlatformUser = createServerFn({ method: "POST" })
     if (error) throw new Error("Could not update that user.");
 
     await supabaseAdmin.from("dashboard_access_log").insert({
-      discord_user_id: session.data.userId,
+      discord_user_id: session.userId,
       discord_username: session.username,
       action: `admin:update_user:${data.userId}`,
     });
