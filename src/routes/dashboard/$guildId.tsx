@@ -4,6 +4,8 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
+import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
+import { RolesPanel } from "@/components/dashboard/roles-panel";
 import {
   AutoModPanel,
   GeneralPanel,
@@ -140,6 +142,9 @@ function GuildDashboard() {
                 <TabsTrigger value="welcome">Welcome</TabsTrigger>
                 <TabsTrigger value="automod">AutoMod</TabsTrigger>
                 <TabsTrigger value="logging">Logging</TabsTrigger>
+                <TabsTrigger value="roles">Roles</TabsTrigger>
+                <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
+                <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="commands">Commands</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
               </TabsList>
@@ -162,6 +167,18 @@ function GuildDashboard() {
                   </TabsContent>
                   <TabsContent value="logging" className="mt-6">
                     <LoggingPanel guildId={guildId} config={config.data} onSaved={refresh} />
+                  </TabsContent>
+                  <TabsContent value="roles" className="mt-6">
+                    <RolesPanel guildId={guildId} config={config.data} onSaved={refresh} />
+                  </TabsContent>
+                  <TabsContent value="leaderboards" className="mt-6">
+                    <LeaderboardPanel
+                      guildId={guildId}
+                      currency={config.data.settings?.currency_name ?? "coins"}
+                    />
+                  </TabsContent>
+                  <TabsContent value="reminders" className="mt-6">
+                    <RemindersPanel guildId={guildId} />
                   </TabsContent>
                   <TabsContent value="commands" className="mt-6">
                     <CommandsPanel guildId={guildId} config={config.data} onSaved={refresh} />
