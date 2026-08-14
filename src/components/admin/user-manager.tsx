@@ -16,6 +16,16 @@ type PlatformUser = Awaited<ReturnType<typeof listPlatformUsers>>[number];
 
 const PLANS = ["free", "plus", "pro", "staff"] as const;
 
+type UserPatch = {
+  userId: string;
+  banned?: boolean;
+  ban_reason?: string | null;
+  bot_blocked?: boolean;
+  plan?: (typeof PLANS)[number];
+  notes?: string | null;
+  feature_flags?: Record<FeatureKey, boolean>;
+};
+
 function avatarUrl(user: PlatformUser) {
   return user.avatar
     ? `https://cdn.discordapp.com/avatars/${user.discord_user_id}/${user.avatar}.png?size=64`
@@ -34,8 +44,7 @@ export function UserManager() {
   });
 
   const mutation = useMutation({
-    mutationFn: (input: Parameters<typeof updatePlatformUser>[0]["data"]) =>
-      updatePlatformUser({ data: input }),
+    mutationFn: (input: UserPatch) => updatePlatformUser({ data: input }),
     onSuccess: () => {
       toast.success("User updated");
       void queryClient.invalidateQueries({ queryKey: ["admin"] });
@@ -129,7 +138,7 @@ function UserEditor({
 }: {
   user: PlatformUser;
   saving: boolean;
-  onSave: (input: Parameters<typeof updatePlatformUser>[0]["data"]) => void;
+  onSave: (input: UserPatch) => void;
 }) {
   const flags = (user.feature_flags ?? {}) as Partial<Record<FeatureKey, boolean>>;
   const [draftFlags, setDraftFlags] = useState<Partial<Record<FeatureKey, boolean>>>(flags);
