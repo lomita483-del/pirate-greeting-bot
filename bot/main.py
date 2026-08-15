@@ -77,6 +77,7 @@ class AhoyBot(commands.Bot):
         self.automod = AutoModService(self.settings, self.moderation)
         self.platform = PlatformService(self.repo)
         self._notification_task: Optional[asyncio.Task[None]] = None
+        self._health_runner = None
 
     async def setup_hook(self) -> None:
         await self.db.connect()
@@ -178,6 +179,13 @@ class AhoyBot(commands.Bot):
             self._notification_task = asyncio.create_task(self._deliver_notifications())
 
         for guild in self.guilds:
+            # Guild-scoped sync makes commands appear instantly instead of
+            # waiting on Discord's global command propagation.
+            try:
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
+            except discord.HTTPException as exc:
+                log.warning("Command sync failed for %s: %s", guild.id, exc)
             await self.repo.upsert_server(
                 str(guild.id),
                 guild.name,
@@ -247,6 +255,11 @@ class AhoyBot(commands.Bot):
 
     async def close(self) -> None:
         log.info("AHOY is shutting down gracefully…")
+        if self._health_runner is not None:
+            try:
+                await self._health_runner.cleanup()
+            except Exception:  # pragma: no cover
+                pass
         await super().close()
 
 
