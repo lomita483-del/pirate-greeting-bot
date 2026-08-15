@@ -1180,6 +1180,18 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
         .eq("id", id);
       sent += 1;
 
+      await logJob(supabaseAdmin, {
+        guildId: event["guild_id"] as string,
+        notifierId: notifierId,
+        eventId: event["id"] as string,
+        jobType: "reminder",
+        channelId: j["discord_channel_id"] as string,
+        messageId,
+        attempts: Number(j["attempts"] ?? 0) + 1,
+        metadata: { offset_minutes: Number(j["reminder_minutes"]) },
+      });
+      if (notifierId) await setNotifierHealth(supabaseAdmin, notifierId, "healthy", null);
+
       await writeCalendarAudit(supabaseAdmin, {
         guildId: event["guild_id"] as string,
         action: "REMINDER_SENT",
@@ -1201,6 +1213,24 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
           error: (error as Error).message.slice(0, 500),
         })
         .eq("id", id);
+      await logJob(supabaseAdmin, {
+        guildId: event["guild_id"] as string,
+        notifierId: (j["notifier_id"] as string | null) ?? null,
+        eventId: event["id"] as string,
+        jobType: "reminder",
+        status: attempts >= 5 ? "failed" : "retrying",
+        attempts,
+        error: (error as Error).message,
+        channelId: j["discord_channel_id"] as string,
+      });
+      if (j["notifier_id"]) {
+        await setNotifierHealth(
+          supabaseAdmin,
+          j["notifier_id"] as string,
+          attempts >= 5 ? "unhealthy" : "degraded",
+          (error as Error).message,
+        );
+      }
       failed += 1;
     }
   }
@@ -1281,6 +1311,14 @@ export async function generateSummary(
       { guild_id: guildId, last_run_at: new Date().toISOString() } as any,
       { onConflict: "guild_id" },
     );
+
+  await logJob(supabaseAdmin, {
+    guildId,
+    jobType: "summary",
+    channelId,
+    messageId,
+    metadata: { events: rows.length, cadence },
+  });
 
   await writeCalendarAudit(supabaseAdmin, {
     guildId,
