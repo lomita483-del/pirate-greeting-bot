@@ -194,6 +194,101 @@ class FeatureService:
         )[:4000]
         return embed
 
+    @staticmethod
+    def _fill(template: str, interaction: discord.Interaction, command: str, value: Optional[str]) -> str:
+        guild_name = interaction.guild.name if interaction.guild else "this server"
+        return (
+            str(template)
+            .replace("{user}", interaction.user.mention)
+            .replace("{server}", guild_name)
+            .replace("{command}", f"/{command}")
+            .replace("{value}", value or "")
+        )[:4000]
+
+    async def _confirm(
+        self, interaction: discord.Interaction, command: str, target: str
+    ) -> bool:
+        """Ask the runner to confirm before a state-changing command proceeds."""
+        view = _ConfirmView(str(interaction.user.id))
+        await interaction.followup.send(
+            embed=embeds.info(
+                f"/{command}",
+                f"Confirm this action{target}. This prompt expires in 30 seconds.",
+            ),
+            view=view,
+            ephemeral=True,
+        )
+        await view.wait()
+        return view.confirmed
+
+    async def _record(
+        self,
+        interaction: discord.Interaction,
+        guild: discord.Guild,
+        *,
+        command: str,
+        category: str,
+        kind: str,
+        member: Optional[discord.Member],
+        value: Optional[str],
+        config: dict[str, Any],
+        outcome: str,
+        detail: str,
+    ) -> None:
+        """Emit the machine event + human audit entry, then optional notification."""
+        if not config.get("log_event", True):
+            return
+        guild_id = str(guild.id)
+        payload = {
+            "guild_id": guild_id,
+            "event": f"command.{kind}",
+            "command": command,
+            "category": category,
+            "actor_id": str(interaction.user.id),
+            "actor_name": str(interaction.user),
+            "target_id": str(member.id) if member else None,
+            "target_name": str(member) if member else None,
+            "outcome": outcome,
+            "payload": {"value": value, "detail": detail},
+        }
+        try:
+            await self.repo.emit_event(payload)
+            await self.repo.write_audit_log(
+                {
+                    "guild_id": guild_id,
+                    "command": command,
+                    "category": category,
+                    "actor_id": str(interaction.user.id),
+                    "actor_name": str(interaction.user),
+                    "target_id": str(member.id) if member else None,
+                    "target_name": str(member) if member else None,
+                    "outcome": outcome,
+                    "summary": detail,
+                }
+            )
+        except Exception:  # storage must never break a command
+            log.warning("Could not write audit trail for /%s", command)
+
+        log_id = config.get("log_channel_id")
+        notify_id = config.get("notify_channel_id")
+        role_id = config.get("notify_role_id")
+        entry = embeds.info(
+            f"/{command}",
+            f"{interaction.user.mention} — {detail}",
+        )
+        for target_id, mention in ((log_id, None), (notify_id, role_id)):
+            if not target_id:
+                continue
+            channel = guild.get_channel(int(target_id))
+            if channel is None or not hasattr(channel, "send"):
+                continue
+            try:
+                await channel.send(
+                    content=f"<@&{mention}>" if mention else None, embed=entry
+                )
+            except discord.HTTPException:
+                log.warning("Could not post /%s log to %s", command, target_id)
+
     # -- full run: rules, execution, delivery -------------------------
     async def run(
         self,
@@ -217,11 +312,35 @@ class FeatureService:
 
         guild_id = str(guild.id)
         config = await self.config(guild_id, command)
-        ephemeral = bool(config.get("ephemeral", True)) if config else True
+        visibility = (config.get("response_visibility") or "inherit") if config else "inherit"
+        if visibility == "private":
+            ephemeral = True
+        elif visibility == "public":
+            ephemeral = False
+        else:
+            ephemeral = bool(config.get("ephemeral", True)) if config else True
         await interaction.response.defer(ephemeral=ephemeral)
 
         try:
-            await self.enforce(interaction, command, config)
+            await self.enforce(interaction, command, config, member=member, value=value)
+
+            if config.get("require_confirmation") and kind in WRITE_KINDS:
+                target = f" on {member.mention}" if member else ""
+                if not await self._confirm(interaction, command, target):
+                    await self._record(
+                        interaction,
+                        guild,
+                        command=command,
+                        category=category,
+                        kind=kind,
+                        member=member,
+                        value=value,
+                        config=config,
+                        outcome="cancelled",
+                        detail="Cancelled at the confirmation prompt.",
+                    )
+                    return
+
             embed = await self.execute(
                 interaction,
                 command=command,
@@ -235,8 +354,24 @@ class FeatureService:
                 config=config,
             )
         except ActionRefused as exc:
+            template = (config or {}).get("error_response")
+            message = (
+                self._fill(template, interaction, command, value) if template else str(exc)
+            )
             await interaction.followup.send(
-                embed=embeds.error(f"/{command}", str(exc)), ephemeral=True
+                embed=embeds.error(f"/{command}", message), ephemeral=True
+            )
+            await self._record(
+                interaction,
+                guild,
+                command=command,
+                category=category,
+                kind=kind,
+                member=member,
+                value=value,
+                config=config,
+                outcome="refused",
+                detail=str(exc),
             )
             return
 
@@ -246,6 +381,19 @@ class FeatureService:
 
         if int(config.get("cooldown_seconds") or 0) > 0:
             await self.repo.touch_command_cooldown(guild_id, command, str(interaction.user.id))
+
+        await self._record(
+            interaction,
+            guild,
+            command=command,
+            category=category,
+            kind=kind,
+            member=member,
+            value=value,
+            config=config,
+            outcome="success",
+            detail=f"Ran `/{command}`" + (f" with `{value}`" if value else "") + ".",
+        )
 
         output_id = config.get("output_channel_id")
         if output_id:
@@ -262,6 +410,8 @@ class FeatureService:
                     return
                 except discord.HTTPException:
                     log.warning("Could not deliver /%s output to %s", command, output_id)
+
+
 
         await interaction.followup.send(embed=embed, ephemeral=ephemeral)
 
