@@ -238,7 +238,9 @@ export const getGuildOverview = createServerFn({ method: "GET" })
 
     return {
       guild: { id: guild.id, name: guild.name, icon: guild.icon },
-      botPresent: structure.botInGuild,
+      botPresent: structure.botStatus === "present",
+      botStatus: structure.botStatus,
+
       memberCount: server.data?.member_count ?? null,
       channels: structure.channels.length,
       roles: structure.roles.length,
