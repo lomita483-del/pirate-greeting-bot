@@ -21,7 +21,15 @@ function duration(seconds: number) {
   return `${minutes}m`;
 }
 
-function Metric({ label, value, hint }: { label: string; value: string; hint?: string }) {
+function Metric({
+  label,
+  value,
+  hint,
+}: {
+  label: string;
+  value: string;
+  hint?: string | undefined;
+}) {
   return (
     <div className="rounded-xl border border-border/70 bg-secondary/30 px-4 py-3">
       <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
