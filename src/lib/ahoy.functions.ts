@@ -52,6 +52,7 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
     .in("guild_id", guilds.length ? guilds.map((g) => g.id) : ["0"]);
 
   const known = new Map((data ?? []).map((row) => [row.guild_id, row]));
+  const live = await botMembership(guilds.map((g) => g.id));
   return {
     signedIn: true as const,
     user: publicUser(session),
@@ -61,11 +62,31 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
     banReason: null,
     guilds: guilds.map((g) => ({
       ...g,
-      botPresent: Boolean(known.get(g.id)?.bot_present),
+      botPresent: live.get(g.id) ?? Boolean(known.get(g.id)?.bot_present),
       memberCount: known.get(g.id)?.member_count ?? null,
     })),
   };
 });
+
+/** Ask Discord which of these guilds the bot is actually a member of. */
+async function botMembership(guildIds: string[]): Promise<Map<string, boolean>> {
+  const result = new Map<string, boolean>();
+  const token = process.env["DISCORD_TOKEN"];
+  if (!token || guildIds.length === 0) return result;
+  try {
+    const res = await fetch("https://discord.com/api/v10/users/@me/guilds?limit=200", {
+      headers: { authorization: `Bot ${token}` },
+    });
+    if (!res.ok) return result;
+    const botGuilds = (await res.json()) as Array<{ id: string }>;
+    const ids = new Set(botGuilds.map((g) => g.id));
+    for (const id of guildIds) result.set(id, ids.has(id));
+  } catch (error) {
+    console.error("Failed to read bot guild list", error);
+  }
+  return result;
+}
+
 
 function publicUser(session: { userId: string; username: string; globalName: string | null; avatar: string | null }) {
   return {
@@ -110,14 +131,29 @@ async function ensureServerRow(
 
 /** Discord guild channels/roles, read with the bot token (server-only). */
 async function fetchGuildStructure(guildId: string) {
+  const empty = {
+    channels: [] as Array<{ id: string; name: string; kind: string }>,
+    roles: [] as Array<{ id: string; name: string }>,
+  };
   const token = process.env["DISCORD_TOKEN"];
-  if (!token) return { channels: [], roles: [], botInGuild: false };
+  if (!token) return { ...empty, botStatus: "unknown" as const, botInGuild: false };
   const headers = { authorization: `Bot ${token}` };
+
+  // Membership is decided by the guild lookup: Discord answers 404 (Unknown
+  // Guild) when the bot is not a member, and 401 when the token is bad.
+  const guildRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, { headers });
+  if (!guildRes.ok) {
+    const status = guildRes.status === 404 || guildRes.status === 403 ? "absent" : "unknown";
+    return { ...empty, botStatus: status as "absent" | "unknown", botInGuild: false };
+  }
+
   const [channelsRes, rolesRes] = await Promise.all([
     fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
     fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
   ]);
-  if (!channelsRes.ok || !rolesRes.ok) return { channels: [], roles: [], botInGuild: false };
+  if (!channelsRes.ok || !rolesRes.ok) {
+    return { ...empty, botStatus: "present" as const, botInGuild: true };
+  }
 
   const channels = (await channelsRes.json()) as Array<{ id: string; name: string; type: number }>;
   const roles = (await rolesRes.json()) as Array<{
@@ -127,6 +163,7 @@ async function fetchGuildStructure(guildId: string) {
     position: number;
   }>;
   return {
+    botStatus: "present" as const,
     botInGuild: true,
     channels: channels
       .filter((c) => c.type === 0 || c.type === 4)
@@ -137,6 +174,7 @@ async function fetchGuildStructure(guildId: string) {
       .map((r) => ({ id: r.id, name: r.name })),
   };
 }
+
 
 const SECTION_TABLES = {
   general: "server_settings",
@@ -221,7 +259,9 @@ export const getGuildOverview = createServerFn({ method: "GET" })
 
     return {
       guild: { id: guild.id, name: guild.name, icon: guild.icon },
-      botPresent: structure.botInGuild,
+      botPresent: structure.botStatus === "present",
+      botStatus: structure.botStatus,
+
       memberCount: server.data?.member_count ?? null,
       channels: structure.channels.length,
       roles: structure.roles.length,
