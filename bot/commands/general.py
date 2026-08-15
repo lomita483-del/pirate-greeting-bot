@@ -160,10 +160,10 @@ class General(commands.Cog):
         )
         await interaction.response.send_message(embed=embed)
 
-    @app_commands.command(name="profile", description="Show your AHOY profile.")
+    @app_commands.command(name="userinfo", description="Show a member's AHOY summary (text).")
     @app_commands.describe(member="Member to inspect (defaults to you).")
     @app_commands.guild_only()
-    async def profile(
+    async def userinfo(
         self, interaction: discord.Interaction, member: discord.Member | None = None
     ) -> None:
         guild = interaction.guild
