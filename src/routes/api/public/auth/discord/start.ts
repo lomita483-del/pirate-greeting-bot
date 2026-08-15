@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-import { authorizeUrl } from "@/lib/discord.server";
+import { authorizeUrl, sealState } from "@/lib/discord.server";
 
 export const Route = createFileRoute("/api/public/auth/discord/start")({
   server: {
@@ -8,14 +8,13 @@ export const Route = createFileRoute("/api/public/auth/discord/start")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const redirectUri = `${url.origin}/api/public/auth/discord/callback`;
-        const state = crypto.randomUUID();
 
         try {
+          const state = await sealState();
           return new Response(null, {
             status: 302,
             headers: {
               location: authorizeUrl(redirectUri, state),
-              "set-cookie": `ahoy_oauth_state=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`,
               "cache-control": "no-store",
             },
           });
