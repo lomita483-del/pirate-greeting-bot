@@ -679,6 +679,17 @@ class Repository:
         data = getattr(rows, "data", None) or []
         return data[0] if data else {}
 
+    async def voice_leaderboard(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("voice_stats")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("voice_seconds", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
     async def save_voice_stats(self, payload: dict[str, Any]) -> None:
         await self.db.try_run(
             lambda c: c.table("voice_stats")
