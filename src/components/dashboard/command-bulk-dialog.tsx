@@ -29,16 +29,34 @@ const PERMISSIONS: Option[] = [
   { id: "administrator", name: "Administrator" },
 ];
 
+const VISIBILITY: Option[] = [
+  { id: "inherit", name: "Use the private-reply switch" },
+  { id: "private", name: "Always private" },
+  { id: "public", name: "Always public" },
+];
+
 type Fields = {
   enabled: boolean;
   allowedRoleIds: string[];
   deniedRoleIds: string[];
   requiredPermission: CommandConfig["requiredPermission"];
   allowedChannelIds: string[];
+  blockedChannelIds: string[];
+  allowedCategoryIds: string[];
+  protectedRoleIds: string[];
   outputChannelId: string | null;
   cooldownSeconds: number;
+  rateLimitPerMinute: number;
+  requireReason: boolean;
+  requireConfirmation: boolean;
+  responseVisibility: CommandConfig["responseVisibility"];
   ephemeral: boolean;
+  logEvent: boolean;
+  logChannelId: string | null;
+  notifyChannelId: string | null;
+  notifyRoleId: string | null;
   customResponse: string;
+  errorResponse: string;
   notes: string;
 };
 
@@ -48,12 +66,25 @@ const EMPTY: Fields = {
   deniedRoleIds: [],
   requiredPermission: "none",
   allowedChannelIds: [],
+  blockedChannelIds: [],
+  allowedCategoryIds: [],
+  protectedRoleIds: [],
   outputChannelId: null,
   cooldownSeconds: 0,
+  rateLimitPerMinute: 0,
+  requireReason: false,
+  requireConfirmation: false,
+  responseVisibility: "inherit",
   ephemeral: true,
+  logEvent: true,
+  logChannelId: null,
+  notifyChannelId: null,
+  notifyRoleId: null,
   customResponse: "",
+  errorResponse: "",
   notes: "",
 };
+
 
 type ApplyKey = keyof Fields;
 
