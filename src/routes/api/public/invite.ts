@@ -1,7 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 
-/** Manage Roles, Kick, Ban, Manage Channels, Manage Messages, Moderate Members, Embed Links, Read History, Send Messages */
-const PERMISSIONS = "1099780064310";
+const PERMISSIONS = "8";
 
 export const Route = createFileRoute("/api/public/invite")({
   server: {
