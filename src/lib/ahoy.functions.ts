@@ -521,3 +521,63 @@ export const deleteReminder = createServerFn({ method: "POST" })
     if (error) throw new Error("Could not cancel that reminder.");
     return { ok: true };
   });
+
+/* ---------------------------------------------------------------- */
+/* Reaction roles & giveaways                                        */
+/* ---------------------------------------------------------------- */
+
+export const getCommunityFeatures = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [reactionRoles, giveaways] = await Promise.all([
+      supabaseAdmin
+        .from("reaction_roles")
+        .select("id, channel_id, message_id, emoji, role_id, description, created_at")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: false })
+        .limit(100),
+      supabaseAdmin
+        .from("giveaways")
+        .select("id, channel_id, message_id, prize, winner_count, ends_at, status, winner_ids, host_name")
+        .eq("guild_id", data.guildId)
+        .order("ends_at", { ascending: false })
+        .limit(50),
+    ]);
+    return {
+      reactionRoles: reactionRoles.data ?? [],
+      giveaways: giveaways.data ?? [],
+    };
+  });
+
+const rowInput = z.object({
+  guildId: z.string().regex(/^\d{5,25}$/),
+  id: z.string().uuid(),
+});
+
+export const deleteReactionRole = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("reaction_roles")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not remove that reaction role.");
+    return { ok: true };
+  });
+
+export const cancelGiveaway = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("giveaways")
+      .update({ status: "cancelled" })
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId)
+      .eq("status", "running");
+    if (error) throw new Error("Could not cancel that giveaway.");
+    return { ok: true };
+  });
