@@ -109,21 +109,24 @@ function GuildDashboard() {
           </Card>
         ) : (
           <>
-            {overview.data && !overview.data.botPresent ? (
+            {overview.data && overview.data.botStatus !== "present" ? (
               <Card className="glass mb-6 border-0">
                 <CardContent className="flex flex-wrap items-center gap-3 py-5">
                   <AlertTriangle className="h-5 w-5 text-gold" />
                   <p className="text-sm text-muted-foreground">
-                    AHOY is not in this server yet, so channels and roles can't be listed. Settings
-                    you save here will apply as soon as the bot joins.
+                    {overview.data.botStatus === "absent"
+                      ? "AHOY is not in this server yet, so channels and roles can't be listed. Settings you save here will apply as soon as the bot joins."
+                      : "AHOY's bot token isn't configured or is invalid, so channels and roles can't be listed. Settings you save here still apply."}
                   </p>
-                  <Button asChild size="sm" className="ml-auto">
-                    <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
-                  </Button>
-
+                  {overview.data.botStatus === "absent" ? (
+                    <Button asChild size="sm" className="ml-auto">
+                      <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
+                    </Button>
+                  ) : null}
                 </CardContent>
               </Card>
             ) : null}
+
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {overview.isPending
