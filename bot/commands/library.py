@@ -32,8 +32,7 @@ def _make_callback(bot: commands.Bot, *, command: str, category: str, title: str
         member: Optional[discord.Member] = None,
         value: Optional[str] = None,
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
-        embed = await bot.features.execute(  # type: ignore[attr-defined]
+        await bot.features.run(  # type: ignore[attr-defined]
             interaction,
             command=command,
             category=category,
@@ -44,7 +43,7 @@ def _make_callback(bot: commands.Bot, *, command: str, category: str, title: str
             member=member,
             value=value,
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+
 
     app_commands.describe(
         member="Optional member this command applies to.",
