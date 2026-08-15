@@ -355,9 +355,137 @@ export type Database = {
           },
         ]
       }
+      calendar_filters: {
+        Row: {
+          action: string
+          created_at: string
+          enabled: boolean
+          field: string
+          guild_id: string
+          id: string
+          notifier_id: string | null
+          operator: string
+          priority: number
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          action?: string
+          created_at?: string
+          enabled?: boolean
+          field?: string
+          guild_id: string
+          id?: string
+          notifier_id?: string | null
+          operator?: string
+          priority?: number
+          updated_at?: string
+          value?: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          enabled?: boolean
+          field?: string
+          guild_id?: string
+          id?: string
+          notifier_id?: string | null
+          operator?: string
+          priority?: number
+          updated_at?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_filters_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+          {
+            foreignKeyName: "calendar_filters_notifier_id_fkey"
+            columns: ["notifier_id"]
+            isOneToOne: false
+            referencedRelation: "event_notifiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_job_log: {
+        Row: {
+          attempts: number
+          channel_id: string | null
+          discord_event_id: string | null
+          discord_message_id: string | null
+          error: string | null
+          event_id: string | null
+          executed_at: string
+          guild_id: string
+          id: string
+          job_type: string
+          metadata: Json
+          notifier_id: string | null
+          status: string
+        }
+        Insert: {
+          attempts?: number
+          channel_id?: string | null
+          discord_event_id?: string | null
+          discord_message_id?: string | null
+          error?: string | null
+          event_id?: string | null
+          executed_at?: string
+          guild_id: string
+          id?: string
+          job_type: string
+          metadata?: Json
+          notifier_id?: string | null
+          status?: string
+        }
+        Update: {
+          attempts?: number
+          channel_id?: string | null
+          discord_event_id?: string | null
+          discord_message_id?: string | null
+          error?: string | null
+          event_id?: string | null
+          executed_at?: string
+          guild_id?: string
+          id?: string
+          job_type?: string
+          metadata?: Json
+          notifier_id?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_job_log_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_job_log_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+          {
+            foreignKeyName: "calendar_job_log_notifier_id_fkey"
+            columns: ["notifier_id"]
+            isOneToOne: false
+            referencedRelation: "event_notifiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_sources: {
         Row: {
           access_token_reference: string | null
+          account_label: string | null
           allowed_category_ids: string[]
           calendar_id: string | null
           connected_by: string | null
@@ -378,11 +506,13 @@ export type Database = {
           sync_interval_minutes: number
           sync_status: string
           target_channel_id: string | null
+          timezone: string
           updated_at: string
           voice_channel_duration_default: number
         }
         Insert: {
           access_token_reference?: string | null
+          account_label?: string | null
           allowed_category_ids?: string[]
           calendar_id?: string | null
           connected_by?: string | null
@@ -403,11 +533,13 @@ export type Database = {
           sync_interval_minutes?: number
           sync_status?: string
           target_channel_id?: string | null
+          timezone?: string
           updated_at?: string
           voice_channel_duration_default?: number
         }
         Update: {
           access_token_reference?: string | null
+          account_label?: string | null
           allowed_category_ids?: string[]
           calendar_id?: string | null
           connected_by?: string | null
@@ -428,6 +560,7 @@ export type Database = {
           sync_interval_minutes?: number
           sync_status?: string
           target_channel_id?: string | null
+          timezone?: string
           updated_at?: string
           voice_channel_duration_default?: number
         }
@@ -651,54 +784,130 @@ export type Database = {
       }
       event_notifiers: {
         Row: {
+          activity_channel_id: string | null
+          activity_template_id: string | null
+          announce_cancelled: boolean
+          announce_created: boolean
+          announce_entering_range: boolean
+          announce_updated: boolean
           calendar_source_id: string | null
           category_id: string | null
           channel_id: string
+          cleanup_mode: string
           cleanup_previous: boolean
           created_at: string
           created_by: string | null
+          custom_link: string | null
+          detection_days: number
           enabled: boolean
+          error_channel_id: string | null
+          front_matter: Json
           guild_id: string
+          health_error: string | null
+          health_status: string
           id: string
+          language: string
+          last_run_at: string | null
+          link_mode: string
+          mention_target: string
           name: string
+          recurring_activity_messages: boolean
+          recurring_mode: string
+          reminder_channel_id: string | null
           reminder_offsets: number[]
           role_mentions: string[]
+          summary_channel_id: string | null
           template_id: string | null
+          timezone: string
           updated_at: string
+          use_calendar_reminders: boolean
         }
         Insert: {
+          activity_channel_id?: string | null
+          activity_template_id?: string | null
+          announce_cancelled?: boolean
+          announce_created?: boolean
+          announce_entering_range?: boolean
+          announce_updated?: boolean
           calendar_source_id?: string | null
           category_id?: string | null
           channel_id: string
+          cleanup_mode?: string
           cleanup_previous?: boolean
           created_at?: string
           created_by?: string | null
+          custom_link?: string | null
+          detection_days?: number
           enabled?: boolean
+          error_channel_id?: string | null
+          front_matter?: Json
           guild_id: string
+          health_error?: string | null
+          health_status?: string
           id?: string
+          language?: string
+          last_run_at?: string | null
+          link_mode?: string
+          mention_target?: string
           name?: string
+          recurring_activity_messages?: boolean
+          recurring_mode?: string
+          reminder_channel_id?: string | null
           reminder_offsets?: number[]
           role_mentions?: string[]
+          summary_channel_id?: string | null
           template_id?: string | null
+          timezone?: string
           updated_at?: string
+          use_calendar_reminders?: boolean
         }
         Update: {
+          activity_channel_id?: string | null
+          activity_template_id?: string | null
+          announce_cancelled?: boolean
+          announce_created?: boolean
+          announce_entering_range?: boolean
+          announce_updated?: boolean
           calendar_source_id?: string | null
           category_id?: string | null
           channel_id?: string
+          cleanup_mode?: string
           cleanup_previous?: boolean
           created_at?: string
           created_by?: string | null
+          custom_link?: string | null
+          detection_days?: number
           enabled?: boolean
+          error_channel_id?: string | null
+          front_matter?: Json
           guild_id?: string
+          health_error?: string | null
+          health_status?: string
           id?: string
+          language?: string
+          last_run_at?: string | null
+          link_mode?: string
+          mention_target?: string
           name?: string
+          recurring_activity_messages?: boolean
+          recurring_mode?: string
+          reminder_channel_id?: string | null
           reminder_offsets?: number[]
           role_mentions?: string[]
+          summary_channel_id?: string | null
           template_id?: string | null
+          timezone?: string
           updated_at?: string
+          use_calendar_reminders?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "event_notifiers_activity_template_id_fkey"
+            columns: ["activity_template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_notifiers_calendar_source_id_fkey"
             columns: ["calendar_source_id"]
@@ -887,39 +1096,54 @@ export type Database = {
         Row: {
           cadence: string
           channel_id: string | null
+          cleanup_previous: boolean
           created_at: string
           enabled: boolean
+          group_by_day: boolean
           guild_id: string
           hour_utc: number
           id: string
+          last_message_id: string | null
           last_run_at: string | null
           pin_message: boolean
+          range_days: number
+          skip_empty: boolean
           template_id: string | null
           updated_at: string
         }
         Insert: {
           cadence?: string
           channel_id?: string | null
+          cleanup_previous?: boolean
           created_at?: string
           enabled?: boolean
+          group_by_day?: boolean
           guild_id: string
           hour_utc?: number
           id?: string
+          last_message_id?: string | null
           last_run_at?: string | null
           pin_message?: boolean
+          range_days?: number
+          skip_empty?: boolean
           template_id?: string | null
           updated_at?: string
         }
         Update: {
           cadence?: string
           channel_id?: string | null
+          cleanup_previous?: boolean
           created_at?: string
           enabled?: boolean
+          group_by_day?: boolean
           guild_id?: string
           hour_utc?: number
           id?: string
+          last_message_id?: string | null
           last_run_at?: string | null
           pin_message?: boolean
+          range_days?: number
+          skip_empty?: boolean
           template_id?: string | null
           updated_at?: string
         }
