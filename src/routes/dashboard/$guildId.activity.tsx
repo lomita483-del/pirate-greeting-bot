@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
 
 import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
+import { AuditTrailPanel } from "@/components/dashboard/audit-trail-panel";
 import { useGuild } from "@/components/dashboard/guild-context";
 import { ModuleHeader } from "@/components/dashboard/module-page";
 
