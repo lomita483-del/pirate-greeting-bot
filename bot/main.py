@@ -27,7 +27,9 @@ from .services.automod_service import AutoModService
 from .services.level_service import LevelService
 from .services.log_service import LogService
 from .services.moderation_service import ModerationService
+from .health import start_health_server
 from .services.platform_service import AccessDenied, PlatformService
+
 from .services.settings_service import SettingsService
 from .utils import embeds
 from .utils.checks import ActionRefused
@@ -90,6 +92,9 @@ class AhoyBot(commands.Bot):
         self.tree.interaction_check = self._platform_gate
         synced = await self.tree.sync()
         log.info("Registered %d slash commands with Discord.", len(synced))
+
+        self._health_runner = await start_health_server(self)
+
 
     async def _platform_gate(self, interaction: discord.Interaction) -> bool:
         """Owner-level access control: runs before every slash command."""
