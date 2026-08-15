@@ -353,6 +353,91 @@ class Repository:
         )
 
 
+    # -- reaction roles -----------------------------------------------
+    async def add_reaction_role(self, payload: dict[str, Any]) -> None:
+        await self.db.run(
+            lambda c: c.table("reaction_roles")
+            .upsert(payload, on_conflict="message_id,emoji")
+            .execute()
+        )
+
+    async def reaction_roles_for_message(self, message_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("reaction_roles")
+            .select("*")
+            .eq("message_id", message_id)
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def guild_reaction_roles(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("reaction_roles")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(200)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def remove_reaction_role(self, guild_id: str, message_id: str, emoji: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("reaction_roles")
+            .delete()
+            .eq("guild_id", guild_id)
+            .eq("message_id", message_id)
+            .eq("emoji", emoji)
+            .execute()
+        )
+
+    # -- giveaways ----------------------------------------------------
+    async def create_giveaway(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = await self.db.run(lambda c: c.table("giveaways").insert(payload).execute())
+        rows = getattr(result, "data", None) or [{}]
+        return rows[0]
+
+    async def update_giveaway(self, giveaway_id: str, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("giveaways").update(payload).eq("id", giveaway_id).execute()
+        )
+
+    async def due_giveaways(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("giveaways")
+            .select("*")
+            .eq("status", "running")
+            .lte("ends_at", _now())
+            .limit(25)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def get_giveaway_by_message(self, message_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("giveaways")
+            .select("*")
+            .eq("message_id", message_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def latest_giveaway(self, guild_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("giveaways")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+
     # -- platform (website owner controls) -----------------------------
     async def platform_user(self, user_id: str) -> Optional[dict[str, Any]]:
         rows = await self.db.try_run(

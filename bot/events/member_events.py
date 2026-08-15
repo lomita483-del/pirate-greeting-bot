@@ -59,6 +59,7 @@ class MemberEvents(commands.Cog):
             username=member.name,
             server=guild.name,
             member_count=str(guild.member_count or 0),
+            membercount=str(guild.member_count or 0),
         )
         try:
             if config.get("use_embed", True):
@@ -103,6 +104,7 @@ class MemberEvents(commands.Cog):
                 username=member.name,
                 server=guild.name,
                 member_count=str(guild.member_count or 0),
+            membercount=str(guild.member_count or 0),
             )
             try:
                 await channel.send(text)

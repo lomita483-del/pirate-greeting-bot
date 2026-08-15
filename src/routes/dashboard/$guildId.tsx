@@ -4,6 +4,7 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
+import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
 import { RolesPanel } from "@/components/dashboard/roles-panel";
 import {
@@ -150,6 +151,7 @@ function GuildDashboard() {
                 <TabsTrigger value="automod">AutoMod</TabsTrigger>
                 <TabsTrigger value="logging">Logging</TabsTrigger>
                 <TabsTrigger value="roles">Roles</TabsTrigger>
+                <TabsTrigger value="community">Community</TabsTrigger>
                 <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="commands">Commands</TabsTrigger>
@@ -177,6 +179,12 @@ function GuildDashboard() {
                   </TabsContent>
                   <TabsContent value="roles" className="mt-6">
                     <RolesPanel guildId={guildId} config={config.data} onSaved={refresh} />
+                  </TabsContent>
+                  <TabsContent value="community" className="mt-6">
+                    <div className="space-y-6">
+                      <ReactionRolesPanel guildId={guildId} structure={config.data.structure} />
+                      <GiveawaysPanel guildId={guildId} structure={config.data.structure} />
+                    </div>
                   </TabsContent>
                   <TabsContent value="leaderboards" className="mt-6">
                     <LeaderboardPanel

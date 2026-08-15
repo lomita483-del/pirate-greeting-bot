@@ -221,6 +221,62 @@ export type Database = {
           },
         ]
       }
+      giveaways: {
+        Row: {
+          channel_id: string
+          created_at: string
+          ends_at: string
+          guild_id: string
+          host_id: string | null
+          host_name: string | null
+          id: string
+          message_id: string | null
+          prize: string
+          status: string
+          updated_at: string
+          winner_count: number
+          winner_ids: string[]
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          ends_at: string
+          guild_id: string
+          host_id?: string | null
+          host_name?: string | null
+          id?: string
+          message_id?: string | null
+          prize: string
+          status?: string
+          updated_at?: string
+          winner_count?: number
+          winner_ids?: string[]
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          ends_at?: string
+          guild_id?: string
+          host_id?: string | null
+          host_name?: string | null
+          id?: string
+          message_id?: string | null
+          prize?: string
+          status?: string
+          updated_at?: string
+          winner_count?: number
+          winner_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaways_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       logging_settings: {
         Row: {
           channel_changes: boolean
@@ -558,6 +614,53 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      reaction_roles: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          emoji: string
+          guild_id: string
+          id: string
+          message_id: string
+          role_id: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          emoji: string
+          guild_id: string
+          id?: string
+          message_id: string
+          role_id: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          emoji?: string
+          guild_id?: string
+          id?: string
+          message_id?: string
+          role_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "reaction_roles_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
       }
       reminders: {
         Row: {

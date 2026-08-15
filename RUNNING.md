@@ -62,3 +62,18 @@ docker run --env-file .env ahoy-bot
 | Connects but no XP / AutoMod | Message Content Intent disabled |
 | "Storage unavailable" replies | `SUPABASE_URL` / key missing or wrong |
 | Commands refuse with "restricted" | Your account is banned or feature-limited in the Owner Console |
+
+## Reaction roles & giveaways
+
+New slash commands:
+
+- `/reactionrole create` → posts a picker message, then `/reactionrole add message_id: emoji: role:` for each option (`/reactionrole remove`, `/reactionrole list`).
+- `/giveaway start prize: duration: winners:` → posts a 🎉 entry embed; AHOY draws winners automatically when the timer ends (`/giveaway end`, `/giveaway reroll`).
+
+Level rewards configured under **Dashboard → Roles → Level rewards** are now granted
+automatically on level-up.
+
+Intents: reactions are part of Discord's default (non-privileged) intents, so nothing new
+needs enabling in the Developer Portal — the existing **Server Members** and **Message
+Content** privileged intents are still required. AHOY needs **Manage Roles** in the server,
+with its own role positioned above any role it hands out.
