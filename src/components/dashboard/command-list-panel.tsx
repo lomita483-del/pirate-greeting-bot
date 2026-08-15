@@ -15,11 +15,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { COMMAND_CATEGORIES, commandPath, type CommandEntry } from "@/lib/command-library";
-import { getCommandSettings, setCommandEnabled } from "@/lib/ahoy.functions";
+import {
+  getCommandSettings,
+  saveCommandConfigBulk,
+  setCommandEnabled,
+} from "@/lib/ahoy.functions";
 
+import { CommandBulkDialog } from "./command-bulk-dialog";
 import { CommandConfigDialog, defaultCommandConfig } from "./command-config-dialog";
 import { SectionHeader } from "./fields";
 import type { PanelProps } from "./types";
+
 
 /** Settings key shared with the bot: dedicated commands use their own name. */
 function settingsKey(category: string, entry: CommandEntry): string {
@@ -29,8 +35,11 @@ function settingsKey(category: string, entry: CommandEntry): string {
 export function CommandListPanel({ guildId, config }: PanelProps) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<{ key: string; desc: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<{ commands: string[]; label: string } | null>(null);
   const prefix = config.settings?.prefix ?? "!";
   const queryClient = useQueryClient();
+
 
   const settingsQuery = useQuery({
     queryKey: ["command-settings", guildId],
@@ -56,6 +65,34 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
+  const bulkToggle = useMutation({
+    mutationFn: (vars: { commands: string[]; enabled: boolean }) =>
+      saveCommandConfigBulk({
+        data: { guildId, commands: vars.commands, patch: { enabled: vars.enabled } },
+      }),
+    onSuccess: (res, vars) => {
+      toast.success(`${res.updated} command(s) ${vars.enabled ? "enabled" : "disabled"}`);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const toggleSelected = (key: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const selectMany = (keys: string[], on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      keys.forEach((key) => (on ? next.add(key) : next.delete(key)));
+      return next;
+    });
+
 
 
   const categories = useMemo(() => {
@@ -155,8 +192,74 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
+                    {(() => {
+                      const keys = category.commands.map((entry) =>
+                        settingsKey(category.slug, entry),
+                      );
+                      const chosen = keys.filter((key) => selected.has(key));
+                      return (
+                        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border/40 bg-secondary/30 px-3 py-2">
+                          <span className="text-xs text-muted-foreground">
+                            {chosen.length > 0
+                              ? `${chosen.length} selected`
+                              : "Quick actions for this category"}
+                          </span>
+                          <div className="ml-auto flex flex-wrap gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => selectMany(keys, chosen.length !== keys.length)}
+                            >
+                              {chosen.length === keys.length ? "Clear selection" : "Select all"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={bulkToggle.isPending}
+                              onClick={() =>
+                                bulkToggle.mutate({
+                                  commands: chosen.length ? chosen : keys,
+                                  enabled: true,
+                                })
+                              }
+                            >
+                              Enable
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={bulkToggle.isPending}
+                              onClick={() =>
+                                bulkToggle.mutate({
+                                  commands: chosen.length ? chosen : keys,
+                                  enabled: false,
+                                })
+                              }
+                            >
+                              Disable
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                setBulk({
+                                  commands: chosen.length ? chosen : keys,
+                                  label:
+                                    chosen.length > 0
+                                      ? `${chosen.length} selected command(s)`
+                                      : category.title,
+                                })
+                              }
+                            >
+                              <Settings2 className="h-3.5 w-3.5" /> Mass edit
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <ul className="grid gap-2">
                       {category.commands.map((entry) => {
+
                         const key = settingsKey(category.slug, entry);
                         const cfg = configs[key];
                         const isOn = !disabled.has(key);
@@ -177,8 +280,16 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                             key={key}
                             className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-background/30 p-3"
                           >
-                            <div className="min-w-0">
+                            <input
+                              type="checkbox"
+                              className="mt-1 accent-primary"
+                              checked={selected.has(key)}
+                              onChange={() => toggleSelected(key)}
+                              aria-label={`Select ${key}`}
+                            />
+                            <div className="min-w-0 flex-1">
                               <code className="text-sm font-medium text-primary">
+
                                 {commandPath(category.slug, entry)}
                               </code>
                               <p className="mt-1 text-xs text-muted-foreground">{entry.desc}</p>
@@ -247,6 +358,22 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
           onSaved={refresh}
         />
       ) : null}
+
+      {bulk ? (
+        <CommandBulkDialog
+          open
+          onOpenChange={(open) => !open && setBulk(null)}
+          guildId={guildId}
+          commands={bulk.commands}
+          scopeLabel={bulk.label}
+          structure={config.structure}
+          onSaved={() => {
+            setSelected(new Set());
+            refresh();
+          }}
+        />
+      ) : null}
+
     </div>
 
   );

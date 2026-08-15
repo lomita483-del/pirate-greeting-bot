@@ -197,6 +197,164 @@ export type Database = {
           },
         ]
       }
+      calendar_events: {
+        Row: {
+          calendar_source_id: string
+          created_at: string
+          description: string | null
+          discord_channel_id: string | null
+          end_time: string | null
+          external_event_id: string
+          external_updated_at: string | null
+          guild_id: string
+          html_link: string | null
+          id: string
+          is_all_day: boolean
+          is_recurring: boolean
+          location: string | null
+          mention: string | null
+          parent_external_event_id: string | null
+          recurrence_rule: string | null
+          reminder_offsets: number[] | null
+          reminders_enabled: boolean
+          start_time: string
+          status: string
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_source_id: string
+          created_at?: string
+          description?: string | null
+          discord_channel_id?: string | null
+          end_time?: string | null
+          external_event_id: string
+          external_updated_at?: string | null
+          guild_id: string
+          html_link?: string | null
+          id?: string
+          is_all_day?: boolean
+          is_recurring?: boolean
+          location?: string | null
+          mention?: string | null
+          parent_external_event_id?: string | null
+          recurrence_rule?: string | null
+          reminder_offsets?: number[] | null
+          reminders_enabled?: boolean
+          start_time: string
+          status?: string
+          timezone?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_source_id?: string
+          created_at?: string
+          description?: string | null
+          discord_channel_id?: string | null
+          end_time?: string | null
+          external_event_id?: string
+          external_updated_at?: string | null
+          guild_id?: string
+          html_link?: string | null
+          id?: string
+          is_all_day?: boolean
+          is_recurring?: boolean
+          location?: string | null
+          mention?: string | null
+          parent_external_event_id?: string | null
+          recurrence_rule?: string | null
+          reminder_offsets?: number[] | null
+          reminders_enabled?: boolean
+          start_time?: string
+          status?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_calendar_source_id_fkey"
+            columns: ["calendar_source_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      calendar_sources: {
+        Row: {
+          access_token_reference: string | null
+          connected_by: string | null
+          created_at: string
+          external_calendar_id: string | null
+          guild_id: string
+          ical_url: string | null
+          id: string
+          last_synced_at: string | null
+          name: string
+          refresh_token_reference: string | null
+          source_type: string
+          sync_enabled: boolean
+          sync_error: string | null
+          sync_interval_minutes: number
+          sync_status: string
+          updated_at: string
+        }
+        Insert: {
+          access_token_reference?: string | null
+          connected_by?: string | null
+          created_at?: string
+          external_calendar_id?: string | null
+          guild_id: string
+          ical_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name: string
+          refresh_token_reference?: string | null
+          source_type: string
+          sync_enabled?: boolean
+          sync_error?: string | null
+          sync_interval_minutes?: number
+          sync_status?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token_reference?: string | null
+          connected_by?: string | null
+          created_at?: string
+          external_calendar_id?: string | null
+          guild_id?: string
+          ical_url?: string | null
+          id?: string
+          last_synced_at?: string | null
+          name?: string
+          refresh_token_reference?: string | null
+          source_type?: string
+          sync_enabled?: boolean
+          sync_error?: string | null
+          sync_interval_minutes?: number
+          sync_status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_sources_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       command_cooldowns: {
         Row: {
           command: string
@@ -398,6 +556,110 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "economy_profiles_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      event_reminder_defaults: {
+        Row: {
+          created_at: string
+          discord_channel_id: string | null
+          enabled: boolean
+          guild_id: string
+          mention: string
+          offsets: number[]
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          discord_channel_id?: string | null
+          enabled?: boolean
+          guild_id: string
+          mention?: string
+          offsets?: number[]
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          discord_channel_id?: string | null
+          enabled?: boolean
+          guild_id?: string
+          mention?: string
+          offsets?: number[]
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminder_defaults_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      event_reminders: {
+        Row: {
+          attempts: number
+          created_at: string
+          discord_channel_id: string
+          error: string | null
+          event_id: string
+          guild_id: string
+          id: string
+          mention: string
+          reminder_minutes: number
+          scheduled_for: string
+          sent_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          discord_channel_id: string
+          error?: string | null
+          event_id: string
+          guild_id: string
+          id?: string
+          mention?: string
+          reminder_minutes: number
+          scheduled_for: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          discord_channel_id?: string
+          error?: string | null
+          event_id?: string
+          guild_id?: string
+          id?: string
+          mention?: string
+          reminder_minutes?: number
+          scheduled_for?: string
+          sent_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_reminders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_reminders_guild_id_fkey"
             columns: ["guild_id"]
             isOneToOne: false
             referencedRelation: "servers"
