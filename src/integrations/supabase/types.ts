@@ -257,8 +257,11 @@ export type Database = {
         Row: {
           calendar_source_id: string
           created_at: string
+          created_in_discord: boolean
           description: string | null
           discord_channel_id: string | null
+          discord_event_id: string | null
+          duration_minutes: number | null
           end_time: string | null
           external_event_id: string
           external_updated_at: string | null
@@ -282,8 +285,11 @@ export type Database = {
         Insert: {
           calendar_source_id: string
           created_at?: string
+          created_in_discord?: boolean
           description?: string | null
           discord_channel_id?: string | null
+          discord_event_id?: string | null
+          duration_minutes?: number | null
           end_time?: string | null
           external_event_id: string
           external_updated_at?: string | null
@@ -307,8 +313,11 @@ export type Database = {
         Update: {
           calendar_source_id?: string
           created_at?: string
+          created_in_discord?: boolean
           description?: string | null
           discord_channel_id?: string | null
+          discord_event_id?: string | null
+          duration_minutes?: number | null
           end_time?: string | null
           external_event_id?: string
           external_updated_at?: string | null
@@ -349,57 +358,78 @@ export type Database = {
       calendar_sources: {
         Row: {
           access_token_reference: string | null
+          allowed_category_ids: string[]
+          calendar_id: string | null
           connected_by: string | null
+          create_discord_events: boolean
           created_at: string
           external_calendar_id: string | null
           guild_id: string
           ical_url: string | null
           id: string
           last_synced_at: string | null
+          lookahead_days: number
           name: string
           refresh_token_reference: string | null
           source_type: string
+          sync_direction: string
           sync_enabled: boolean
           sync_error: string | null
           sync_interval_minutes: number
           sync_status: string
+          target_channel_id: string | null
           updated_at: string
+          voice_channel_duration_default: number
         }
         Insert: {
           access_token_reference?: string | null
+          allowed_category_ids?: string[]
+          calendar_id?: string | null
           connected_by?: string | null
+          create_discord_events?: boolean
           created_at?: string
           external_calendar_id?: string | null
           guild_id: string
           ical_url?: string | null
           id?: string
           last_synced_at?: string | null
+          lookahead_days?: number
           name: string
           refresh_token_reference?: string | null
           source_type: string
+          sync_direction?: string
           sync_enabled?: boolean
           sync_error?: string | null
           sync_interval_minutes?: number
           sync_status?: string
+          target_channel_id?: string | null
           updated_at?: string
+          voice_channel_duration_default?: number
         }
         Update: {
           access_token_reference?: string | null
+          allowed_category_ids?: string[]
+          calendar_id?: string | null
           connected_by?: string | null
+          create_discord_events?: boolean
           created_at?: string
           external_calendar_id?: string | null
           guild_id?: string
           ical_url?: string | null
           id?: string
           last_synced_at?: string | null
+          lookahead_days?: number
           name?: string
           refresh_token_reference?: string | null
           source_type?: string
+          sync_direction?: string
           sync_enabled?: boolean
           sync_error?: string | null
           sync_interval_minutes?: number
           sync_status?: string
+          target_channel_id?: string | null
           updated_at?: string
+          voice_channel_duration_default?: number
         }
         Relationships: [
           {
@@ -619,6 +649,72 @@ export type Database = {
           },
         ]
       }
+      event_notifiers: {
+        Row: {
+          calendar_source_id: string | null
+          category_id: string | null
+          channel_id: string
+          cleanup_previous: boolean
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          guild_id: string
+          id: string
+          name: string
+          reminder_offsets: number[]
+          role_mentions: string[]
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          calendar_source_id?: string | null
+          category_id?: string | null
+          channel_id: string
+          cleanup_previous?: boolean
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          name?: string
+          reminder_offsets?: number[]
+          role_mentions?: string[]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          calendar_source_id?: string | null
+          category_id?: string | null
+          channel_id?: string
+          cleanup_previous?: boolean
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          name?: string
+          reminder_offsets?: number[]
+          role_mentions?: string[]
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_notifiers_calendar_source_id_fkey"
+            columns: ["calendar_source_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_sources"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_notifiers_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_reminder_defaults: {
         Row: {
           created_at: string
@@ -670,10 +766,14 @@ export type Database = {
           guild_id: string
           id: string
           mention: string
+          message_id: string | null
+          notifier_id: string | null
           reminder_minutes: number
+          role_mentions: string[]
           scheduled_for: string
           sent_at: string | null
           status: string
+          template_id: string | null
           updated_at: string
         }
         Insert: {
@@ -685,10 +785,14 @@ export type Database = {
           guild_id: string
           id?: string
           mention?: string
+          message_id?: string | null
+          notifier_id?: string | null
           reminder_minutes: number
+          role_mentions?: string[]
           scheduled_for: string
           sent_at?: string | null
           status?: string
+          template_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -700,10 +804,14 @@ export type Database = {
           guild_id?: string
           id?: string
           mention?: string
+          message_id?: string | null
+          notifier_id?: string | null
           reminder_minutes?: number
+          role_mentions?: string[]
           scheduled_for?: string
           sent_at?: string | null
           status?: string
+          template_id?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -720,6 +828,108 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["guild_id"]
+          },
+          {
+            foreignKeyName: "event_reminders_notifier_id_fkey"
+            columns: ["notifier_id"]
+            isOneToOne: false
+            referencedRelation: "event_notifiers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_reminders_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_rsvps: {
+        Row: {
+          created_at: string
+          event_id: string
+          guild_id: string
+          id: string
+          response: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          guild_id: string
+          id?: string
+          response?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          guild_id?: string
+          id?: string
+          response?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_rsvps_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_summary_schedules: {
+        Row: {
+          cadence: string
+          channel_id: string | null
+          created_at: string
+          enabled: boolean
+          guild_id: string
+          hour_utc: number
+          id: string
+          last_run_at: string | null
+          pin_message: boolean
+          template_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          cadence?: string
+          channel_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          guild_id: string
+          hour_utc?: number
+          id?: string
+          last_run_at?: string | null
+          pin_message?: boolean
+          template_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          cadence?: string
+          channel_id?: string | null
+          created_at?: string
+          enabled?: boolean
+          guild_id?: string
+          hour_utc?: number
+          id?: string
+          last_run_at?: string | null
+          pin_message?: boolean
+          template_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_summary_schedules_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "message_templates"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -1007,6 +1217,39 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      message_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          guild_id: string
+          id: string
+          name: string
+          raw_structure: Json
+          template_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          guild_id: string
+          id?: string
+          name: string
+          raw_structure?: Json
+          template_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          guild_id?: string
+          id?: string
+          name?: string
+          raw_structure?: Json
+          template_type?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       moderation_cases: {
         Row: {

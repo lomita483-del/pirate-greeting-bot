@@ -22,12 +22,15 @@ export const Route = createFileRoute("/api/public/hooks/calendar-sync")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { syncAllSources, dispatchDueReminders } = await import("@/lib/calendar.server");
+        const { syncAllSources, dispatchDueReminders, runDueSummaries } = await import(
+          "@/lib/calendar.server"
+        );
 
         const sync = await syncAllSources(supabaseAdmin);
         const reminders = await dispatchDueReminders(supabaseAdmin);
+        const summaries = await runDueSummaries(supabaseAdmin);
 
-        return new Response(JSON.stringify({ ok: true, sync, reminders }), {
+        return new Response(JSON.stringify({ ok: true, sync, reminders, summaries }), {
           headers: { "content-type": "application/json" },
         });
       },
