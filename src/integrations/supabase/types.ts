@@ -197,6 +197,66 @@ export type Database = {
           },
         ]
       }
+      command_records: {
+        Row: {
+          command: string
+          created_at: string
+          created_by: string | null
+          guild_id: string
+          id: string
+          label: string | null
+          namespace: string
+          payload: Json
+        }
+        Insert: {
+          command: string
+          created_at?: string
+          created_by?: string | null
+          guild_id: string
+          id?: string
+          label?: string | null
+          namespace: string
+          payload?: Json
+        }
+        Update: {
+          command?: string
+          created_at?: string
+          created_by?: string | null
+          guild_id?: string
+          id?: string
+          label?: string | null
+          namespace?: string
+          payload?: Json
+        }
+        Relationships: []
+      }
+      command_usage: {
+        Row: {
+          category: string | null
+          command: string
+          created_at: string
+          guild_id: string | null
+          id: string
+          user_id: string | null
+        }
+        Insert: {
+          category?: string | null
+          command: string
+          created_at?: string
+          guild_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Update: {
+          category?: string | null
+          command?: string
+          created_at?: string
+          guild_id?: string | null
+          id?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       custom_commands: {
         Row: {
           created_at: string
@@ -379,6 +439,54 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      guild_command_settings: {
+        Row: {
+          command: string
+          enabled: boolean
+          guild_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          command: string
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          command?: string
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      guild_feature_state: {
+        Row: {
+          guild_id: string
+          id: string
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          guild_id: string
+          id?: string
+          key: string
+          updated_at?: string
+          value?: Json
+        }
+        Update: {
+          guild_id?: string
+          id?: string
+          key?: string
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: []
       }
       logging_settings: {
         Row: {
