@@ -158,6 +158,7 @@ function GuildDashboard() {
                 <TabsTrigger value="logging">Logging</TabsTrigger>
                 <TabsTrigger value="roles">Roles</TabsTrigger>
                 <TabsTrigger value="community">Community</TabsTrigger>
+                <TabsTrigger value="automation">Automation</TabsTrigger>
                 <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
                 <TabsTrigger value="commands">Commands</TabsTrigger>
