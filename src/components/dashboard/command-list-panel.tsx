@@ -35,8 +35,11 @@ function settingsKey(category: string, entry: CommandEntry): string {
 export function CommandListPanel({ guildId, config }: PanelProps) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<{ key: string; desc: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulk, setBulk] = useState<{ commands: string[]; label: string } | null>(null);
   const prefix = config.settings?.prefix ?? "!";
   const queryClient = useQueryClient();
+
 
   const settingsQuery = useQuery({
     queryKey: ["command-settings", guildId],
