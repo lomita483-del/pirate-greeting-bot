@@ -110,14 +110,29 @@ async function ensureServerRow(
 
 /** Discord guild channels/roles, read with the bot token (server-only). */
 async function fetchGuildStructure(guildId: string) {
+  const empty = {
+    channels: [] as Array<{ id: string; name: string; kind: string }>,
+    roles: [] as Array<{ id: string; name: string }>,
+  };
   const token = process.env["DISCORD_TOKEN"];
-  if (!token) return { channels: [], roles: [], botInGuild: false };
+  if (!token) return { ...empty, botStatus: "unknown" as const, botInGuild: false };
   const headers = { authorization: `Bot ${token}` };
+
+  // Membership is decided by the guild lookup: Discord answers 404 (Unknown
+  // Guild) when the bot is not a member, and 401 when the token is bad.
+  const guildRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}`, { headers });
+  if (!guildRes.ok) {
+    const status = guildRes.status === 404 || guildRes.status === 403 ? "absent" : "unknown";
+    return { ...empty, botStatus: status as "absent" | "unknown", botInGuild: false };
+  }
+
   const [channelsRes, rolesRes] = await Promise.all([
     fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
     fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
   ]);
-  if (!channelsRes.ok || !rolesRes.ok) return { channels: [], roles: [], botInGuild: false };
+  if (!channelsRes.ok || !rolesRes.ok) {
+    return { ...empty, botStatus: "present" as const, botInGuild: true };
+  }
 
   const channels = (await channelsRes.json()) as Array<{ id: string; name: string; type: number }>;
   const roles = (await rolesRes.json()) as Array<{
@@ -127,6 +142,7 @@ async function fetchGuildStructure(guildId: string) {
     position: number;
   }>;
   return {
+    botStatus: "present" as const,
     botInGuild: true,
     channels: channels
       .filter((c) => c.type === 0 || c.type === 4)
@@ -137,6 +153,7 @@ async function fetchGuildStructure(guildId: string) {
       .map((r) => ({ id: r.id, name: r.name })),
   };
 }
+
 
 const SECTION_TABLES = {
   general: "server_settings",
