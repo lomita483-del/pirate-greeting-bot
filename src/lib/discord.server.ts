@@ -247,6 +247,22 @@ export async function assertGuildAccess(
   guildId: string,
 ): Promise<DiscordGuildSummary> {
   const guilds = await fetchUserGuilds(session);
+  /** Read one member's role IDs in a guild, using the bot's own token. */
+async function fetchMemberRoles(guildId: string, userId: string): Promise<string[]> {
+  const token = process.env["DISCORD_TOKEN"];
+  if (!token) return [];
+  try {
+    const res = await fetch(
+      `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
+      { headers: { authorization: `Bot ${token}` } },
+    );
+    if (!res.ok) return [];
+    const member = (await res.json()) as { roles?: string[] };
+    return member.roles ?? [];
+  } catch {
+    return [];
+  }
+}
   const guild = guilds.find((g) => g.id === guildId);
   if (!guild || !canManage(guild)) {
     throw new Error("You do not have permission to manage this server.");
