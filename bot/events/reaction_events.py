@@ -40,10 +40,27 @@ class ReactionEvents(commands.Cog):
             return None
         return guild, role
 
+    async def _side_effects(self, payload: discord.RawReactionActionEvent) -> None:
+        """Starboard and live poll counts share the same raw reaction stream."""
+        starboard = getattr(self.bot, "starboard", None)
+        if starboard is not None:
+            try:
+                await starboard.handle(payload)
+            except Exception as exc:  # never break reactions on a database blip
+                log.warning("Starboard update failed: %s", exc)
+
+        polls = self.bot.get_cog("Polls")
+        if polls is not None:
+            try:
+                await polls.refresh(payload.message_id)  # type: ignore[attr-defined]
+            except Exception as exc:
+                log.warning("Poll refresh failed: %s", exc)
+
     @commands.Cog.listener()
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         if payload.user_id == getattr(self.bot.user, "id", None):
             return
+        await self._side_effects(payload)
         try:
             resolved = await self._resolve(payload)
         except Exception as exc:  # never break reactions on a database blip
@@ -63,6 +80,7 @@ class ReactionEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_raw_reaction_remove(self, payload: discord.RawReactionActionEvent) -> None:
+        await self._side_effects(payload)
         try:
             resolved = await self._resolve(payload)
         except Exception as exc:
@@ -83,3 +101,4 @@ class ReactionEvents(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ReactionEvents(bot))
+
