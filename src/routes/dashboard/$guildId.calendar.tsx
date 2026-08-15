@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CalendarDays } from "lucide-react";
 
 import { CalendarPanel } from "@/components/dashboard/calendar-panel";
+import { EventAutomationPanel } from "@/components/dashboard/event-automation-panel";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 
 export const Route = createFileRoute("/dashboard/$guildId/calendar")({
@@ -29,7 +30,10 @@ export const Route = createFileRoute("/dashboard/$guildId/calendar")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <CalendarPanel guildId={guildId} config={config} onSaved={refresh} />
+          <div className="space-y-6">
+            <CalendarPanel guildId={guildId} config={config} onSaved={refresh} />
+            <EventAutomationPanel guildId={guildId} config={config} onSaved={refresh} />
+          </div>
         )}
       </WithConfig>
     </div>
