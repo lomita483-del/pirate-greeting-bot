@@ -1469,23 +1469,7 @@ export const saveCommandConfig = createServerFn({ method: "POST" })
     const { guild, supabaseAdmin } = await authorize(data.guildId);
     await ensureServerRow(supabaseAdmin, guild);
 
-    const row: Record<string, unknown> = {
-      guild_id: data.guildId,
-      command: data.command,
-      updated_at: new Date().toISOString(),
-    };
-    if (data.enabled !== undefined) row["enabled"] = data.enabled;
-    if (data.allowedRoleIds) row["allowed_role_ids"] = data.allowedRoleIds;
-    if (data.deniedRoleIds) row["denied_role_ids"] = data.deniedRoleIds;
-    if (data.allowedChannelIds) row["allowed_channel_ids"] = data.allowedChannelIds;
-    if (data.outputChannelId !== undefined) row["output_channel_id"] = data.outputChannelId;
-    if (data.requiredPermission) row["required_permission"] = data.requiredPermission;
-    if (data.cooldownSeconds !== undefined) row["cooldown_seconds"] = data.cooldownSeconds;
-    if (data.ephemeral !== undefined) row["ephemeral"] = data.ephemeral;
-    if (data.customResponse !== undefined) row["custom_response"] = data.customResponse;
-    if (data.notes !== undefined) row["notes"] = data.notes;
-    if (data.options) row["options"] = data.options;
-
+    const row = commandRow(data.guildId, data.command, data as Record<string, unknown>);
     const { error } = await supabaseAdmin
       .from("guild_command_settings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1511,28 +1495,8 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { guild, supabaseAdmin } = await authorize(data.guildId);
     await ensureServerRow(supabaseAdmin, guild);
-    const now = new Date().toISOString();
-    const p = data.patch;
-
-    const rows = data.commands.map((command) => {
-      const row: Record<string, unknown> = {
-        guild_id: data.guildId,
-        command,
-        updated_at: now,
-      };
-      if (p.enabled !== undefined) row["enabled"] = p.enabled;
-      if (p.allowedRoleIds) row["allowed_role_ids"] = p.allowedRoleIds;
-      if (p.deniedRoleIds) row["denied_role_ids"] = p.deniedRoleIds;
-      if (p.allowedChannelIds) row["allowed_channel_ids"] = p.allowedChannelIds;
-      if (p.outputChannelId !== undefined) row["output_channel_id"] = p.outputChannelId;
-      if (p.requiredPermission) row["required_permission"] = p.requiredPermission;
-      if (p.cooldownSeconds !== undefined) row["cooldown_seconds"] = p.cooldownSeconds;
-      if (p.ephemeral !== undefined) row["ephemeral"] = p.ephemeral;
-      if (p.customResponse !== undefined) row["custom_response"] = p.customResponse;
-      if (p.notes !== undefined) row["notes"] = p.notes;
-      if (p.options) row["options"] = p.options;
-      return row;
-    });
+    const patch = data.patch as Record<string, unknown>;
+    const rows = data.commands.map((command) => commandRow(data.guildId, command, patch));
 
     for (let i = 0; i < rows.length; i += 100) {
       const { error } = await supabaseAdmin
@@ -1546,5 +1510,41 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
     }
     return { ok: true, updated: rows.length };
   });
+
+/** Audit trail for this server only — never mixed with other servers. */
+export const getAuditLog = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        limit: z.number().int().min(1).max(200).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { data: rows, error } = await supabaseAdmin
+      .from("audit_logs")
+      .select("*")
+      .eq("guild_id", data.guildId)
+      .order("created_at", { ascending: false })
+      .limit(data.limit ?? 50);
+    if (error) {
+      console.error("Audit log read failed", error);
+      return { entries: [] };
+    }
+    return {
+      entries: (rows ?? []).map((r) => ({
+        id: r.id as string,
+        action: r.action as string,
+        actorId: (r.actor_id as string | null) ?? null,
+        targetId: (r.target_id as string | null) ?? null,
+        resourceType: (r.resource_type as string | null) ?? null,
+        reason: (r.reason as string | null) ?? null,
+        createdAt: r.created_at as string,
+      })),
+    };
+  });
+
 
 
