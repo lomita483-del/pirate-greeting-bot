@@ -50,8 +50,16 @@ export const Route = createFileRoute("/api/public/auth/discord/callback")({
           headers.append("set-cookie", buildSessionCookie(sealed));
           return new Response(null, { status: 302, headers });
         } catch (error) {
+          // TEMPORARY: surface the real error message for debugging.
+          // Remove this catch block and restore the plain fail("signin_failed")
+          // version once the root cause is fixed.
           console.error("Discord OAuth callback failed", error);
-          return fail("signin_failed");
+          const message = error instanceof Error ? error.message : String(error);
+          const short = encodeURIComponent(message.slice(0, 200));
+          return new Response(null, {
+            status: 302,
+            headers: { location: `/?error=signin_failed&detail=${short}` },
+          });
         }
       },
     },
