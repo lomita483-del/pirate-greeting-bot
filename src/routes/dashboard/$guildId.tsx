@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard/automation-panels";
 import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
 import { CasesPanel } from "@/components/dashboard/cases-panel";
+import { CommandListPanel } from "@/components/dashboard/command-list-panel";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
 import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
@@ -175,6 +176,7 @@ function GuildDashboard() {
                 <TabsTrigger value="cases">Cases</TabsTrigger>
                 <TabsTrigger value="stats">Stats</TabsTrigger>
                 <TabsTrigger value="commands">Commands</TabsTrigger>
+                <TabsTrigger value="command-list">Command list</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
               </TabsList>
 
@@ -235,6 +237,9 @@ function GuildDashboard() {
                   </TabsContent>
                   <TabsContent value="commands" className="mt-6">
                     <CommandsPanel guildId={guildId} config={config.data} onSaved={refresh} />
+                  </TabsContent>
+                  <TabsContent value="command-list" className="mt-6">
+                    <CommandListPanel guildId={guildId} config={config.data} onSaved={refresh} />
                   </TabsContent>
                   <TabsContent value="activity" className="mt-6">
                     <div className="space-y-6">
