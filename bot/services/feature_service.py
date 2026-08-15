@@ -276,35 +276,47 @@ class FeatureService:
         if not config.get("log_event", True):
             return
         guild_id = str(guild.id)
-        payload = {
-            "guild_id": guild_id,
-            "event": f"command.{kind}",
+        channel_id = str(getattr(interaction.channel, "id", "") or "") or None
+        metadata = {
             "command": command,
             "category": category,
-            "actor_id": str(interaction.user.id),
-            "actor_name": str(interaction.user),
-            "target_id": str(member.id) if member else None,
-            "target_name": str(member) if member else None,
+            "kind": kind,
             "outcome": outcome,
-            "payload": {"value": value, "detail": detail},
+            "actor_name": str(interaction.user),
+            "target_name": str(member) if member else None,
+            "value": value,
+            "summary": detail,
         }
         try:
-            await self.repo.emit_event(payload)
+            event_id = await self.repo.emit_event(
+                {
+                    "guild_id": guild_id,
+                    "event_type": f"command.{kind}.{outcome}",
+                    "actor_id": str(interaction.user.id),
+                    "target_id": str(member.id) if member else None,
+                    "resource_type": "command",
+                    "resource_id": command,
+                    "channel_id": channel_id,
+                    "source": "discord",
+                    "metadata": metadata,
+                }
+            )
             await self.repo.write_audit_log(
                 {
                     "guild_id": guild_id,
-                    "command": command,
-                    "category": category,
+                    "event_id": event_id,
+                    "action": f"{command} ({outcome})",
                     "actor_id": str(interaction.user.id),
-                    "actor_name": str(interaction.user),
                     "target_id": str(member.id) if member else None,
-                    "target_name": str(member) if member else None,
-                    "outcome": outcome,
-                    "summary": detail,
+                    "resource_type": "command",
+                    "resource_id": command,
+                    "reason": value or None,
+                    "metadata": metadata,
                 }
             )
         except Exception:  # storage must never break a command
             log.warning("Could not write audit trail for /%s", command)
+
 
         log_id = config.get("log_channel_id")
         notify_id = config.get("notify_channel_id")
