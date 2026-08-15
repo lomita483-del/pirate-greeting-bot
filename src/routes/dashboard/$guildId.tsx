@@ -117,6 +117,10 @@ function GuildDashboard() {
                     AHOY is not in this server yet, so channels and roles can't be listed. Settings
                     you save here will apply as soon as the bot joins.
                   </p>
+                  <Button asChild size="sm" className="ml-auto">
+                    <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
+                  </Button>
+
                 </CardContent>
               </Card>
             ) : null}
