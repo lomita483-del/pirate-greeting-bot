@@ -66,6 +66,34 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const bulkToggle = useMutation({
+    mutationFn: (vars: { commands: string[]; enabled: boolean }) =>
+      saveCommandConfigBulk({
+        data: { guildId, commands: vars.commands, patch: { enabled: vars.enabled } },
+      }),
+    onSuccess: (res, vars) => {
+      toast.success(`${res.updated} command(s) ${vars.enabled ? "enabled" : "disabled"}`);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const toggleSelected = (key: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+  const selectMany = (keys: string[], on: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      keys.forEach((key) => (on ? next.add(key) : next.delete(key)));
+      return next;
+    });
+
+
 
   const categories = useMemo(() => {
     const term = query.trim().toLowerCase();
