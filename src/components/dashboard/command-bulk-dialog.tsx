@@ -133,21 +133,21 @@ export function CommandBulkDialog({
   const textChannels: Option[] = structure.channels
     .filter((c) => c.kind !== "category")
     .map((c) => ({ id: c.id, name: `#${c.name}` }));
+  const categories: Option[] = structure.channels
+    .filter((c) => c.kind === "category")
+    .map((c) => ({ id: c.id, name: c.name }));
 
   const save = useMutation({
     mutationFn: () => {
       const patch: Record<string, unknown> = {};
-      if (apply.has("enabled")) patch["enabled"] = fields.enabled;
-      if (apply.has("allowedRoleIds")) patch["allowedRoleIds"] = fields.allowedRoleIds;
-      if (apply.has("deniedRoleIds")) patch["deniedRoleIds"] = fields.deniedRoleIds;
-      if (apply.has("requiredPermission")) patch["requiredPermission"] = fields.requiredPermission;
-      if (apply.has("allowedChannelIds")) patch["allowedChannelIds"] = fields.allowedChannelIds;
-      if (apply.has("outputChannelId")) patch["outputChannelId"] = fields.outputChannelId;
-      if (apply.has("cooldownSeconds")) patch["cooldownSeconds"] = fields.cooldownSeconds;
-      if (apply.has("ephemeral")) patch["ephemeral"] = fields.ephemeral;
-      if (apply.has("customResponse"))
-        patch["customResponse"] = fields.customResponse.trim() || null;
-      if (apply.has("notes")) patch["notes"] = fields.notes.trim() || null;
+      for (const key of apply) {
+        const value = fields[key];
+        if (key === "customResponse" || key === "errorResponse" || key === "notes") {
+          patch[key] = String(value).trim() || null;
+        } else {
+          patch[key] = value;
+        }
+      }
       return saveCommandConfigBulk({ data: { guildId, commands, patch } });
     },
     onSuccess: (res) => {
