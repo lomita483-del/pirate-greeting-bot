@@ -19,17 +19,17 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AHOY — Discord Bot & Control Center" },
+      { title: "AHOY — Discord Bot & Server Dashboard" },
       {
         name: "description",
         content:
           "AHOY is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets and a real-time web control center.",
       },
-      { property: "og:title", content: "AHOY — Discord Bot & Control Center" },
+      { property: "og:title", content: "AHOY — Discord Bot & Server Dashboard" },
       {
         property: "og:description",
         content:
-          "Moderation, AutoMod, levels, economy and tickets for your Discord crew — configured from one polished dashboard.",
+          "AHOY is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets and a real-time web control center.",
       },
     ],
   }),
