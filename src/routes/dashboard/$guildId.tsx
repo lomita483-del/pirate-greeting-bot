@@ -3,10 +3,16 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
+import {
+  AnnouncementsPanel,
+  StatChannelsPanel,
+} from "@/components/dashboard/automation-panels";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
 import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
+import { PollsPanel } from "@/components/dashboard/polls-panel";
 import { RolesPanel } from "@/components/dashboard/roles-panel";
+import { StarboardPanel } from "@/components/dashboard/starboard-panel";
 import {
   AutoModPanel,
   GeneralPanel,
