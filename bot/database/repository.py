@@ -707,17 +707,51 @@ class Repository:
         )
         return {r["command"]: bool(r["enabled"]) for r in (getattr(rows, "data", None) or [])}
 
-    async def command_enabled(self, guild_id: str, command: str) -> bool:
+    async def command_config(self, guild_id: str, command: str) -> dict[str, Any]:
+        """Full per-command configuration row (empty dict when never configured)."""
         rows = await self.db.try_run(
             lambda c: c.table("guild_command_settings")
-            .select("enabled")
+            .select("*")
             .eq("guild_id", guild_id)
             .eq("command", command)
             .limit(1)
             .execute()
         )
         data = getattr(rows, "data", None) or []
-        return bool(data[0]["enabled"]) if data else True
+        return dict(data[0]) if data else {}
+
+    async def command_cooldown_at(self, guild_id: str, command: str, user_id: str):
+        rows = await self.db.try_run(
+            lambda c: c.table("command_cooldowns")
+            .select("last_used_at")
+            .eq("guild_id", guild_id)
+            .eq("command", command)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0]["last_used_at"] if data else None
+
+    async def touch_command_cooldown(self, guild_id: str, command: str, user_id: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("command_cooldowns")
+            .upsert(
+                {
+                    "guild_id": guild_id,
+                    "command": command,
+                    "user_id": user_id,
+                    "last_used_at": _now(),
+                },
+                on_conflict="guild_id,command,user_id",
+            )
+            .execute()
+        )
+
+    async def command_enabled(self, guild_id: str, command: str) -> bool:
+        config = await self.command_config(guild_id, command)
+        return bool(config.get("enabled", True)) if config else True
+
 
     async def set_command_enabled(self, guild_id: str, command: str, enabled: bool) -> None:
         await self.db.try_run(

@@ -1259,24 +1259,85 @@ export const getMemberProfile = createServerFn({ method: "GET" })
   });
 
 /* ---------------------------------------------------------------- */
-/* Command library toggles                                           */
+/* Command library configuration                                     */
 /* ---------------------------------------------------------------- */
+
+export const COMMAND_PERMISSION_LEVELS = [
+  "none",
+  "manage_messages",
+  "kick_members",
+  "ban_members",
+  "manage_roles",
+  "manage_channels",
+  "manage_guild",
+  "administrator",
+] as const;
+
+const commandConfigInput = z.object({
+  guildId: z.string().regex(/^\d{5,25}$/),
+  command: z.string().min(1).max(120),
+  enabled: z.boolean().optional(),
+  allowedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
+  deniedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
+  allowedChannelIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
+  outputChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  requiredPermission: z.enum(COMMAND_PERMISSION_LEVELS).optional(),
+  cooldownSeconds: z.number().int().min(0).max(86400).optional(),
+  ephemeral: z.boolean().optional(),
+  customResponse: z.string().max(1500).nullable().optional(),
+  notes: z.string().max(500).nullable().optional(),
+  options: z.record(z.string(), z.string().max(500)).optional(),
+});
+
+export type CommandConfig = {
+  command: string;
+  enabled: boolean;
+  allowedRoleIds: string[];
+  deniedRoleIds: string[];
+  allowedChannelIds: string[];
+  outputChannelId: string | null;
+  requiredPermission: (typeof COMMAND_PERMISSION_LEVELS)[number];
+  cooldownSeconds: number;
+  ephemeral: boolean;
+  customResponse: string | null;
+  notes: string | null;
+  options: Record<string, string>;
+};
 
 export const getCommandSettings = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
     const [settings, usage] = await Promise.all([
-      supabaseAdmin
-        .from("guild_command_settings")
-        .select("command, enabled")
-        .eq("guild_id", data.guildId),
+      supabaseAdmin.from("guild_command_settings").select("*").eq("guild_id", data.guildId),
       supabaseAdmin.from("command_usage").select("command").eq("guild_id", data.guildId).limit(2000),
     ]);
     const counts: Record<string, number> = {};
     for (const row of usage.data ?? []) counts[row.command] = (counts[row.command] ?? 0) + 1;
+
+    const configs: Record<string, CommandConfig> = {};
+    for (const row of settings.data ?? []) {
+      const r = row as Record<string, unknown>;
+      configs[row.command] = {
+        command: row.command,
+        enabled: Boolean(row.enabled),
+        allowedRoleIds: (r["allowed_role_ids"] as string[] | null) ?? [],
+        deniedRoleIds: (r["denied_role_ids"] as string[] | null) ?? [],
+        allowedChannelIds: (r["allowed_channel_ids"] as string[] | null) ?? [],
+        outputChannelId: (r["output_channel_id"] as string | null) ?? null,
+        requiredPermission:
+          ((r["required_permission"] as CommandConfig["requiredPermission"]) ?? "none"),
+        cooldownSeconds: Number(r["cooldown_seconds"] ?? 0),
+        ephemeral: r["ephemeral"] === undefined ? true : Boolean(r["ephemeral"]),
+        customResponse: (r["custom_response"] as string | null) ?? null,
+        notes: (r["notes"] as string | null) ?? null,
+        options: ((r["options"] as Record<string, string> | null) ?? {}) as Record<string, string>,
+      };
+    }
+
     return {
       disabled: (settings.data ?? []).filter((r) => !r.enabled).map((r) => r.command),
+      configs,
       usage: counts,
     };
   });
@@ -1311,3 +1372,38 @@ export const setCommandEnabled = createServerFn({ method: "POST" })
     }
     return { ok: true };
   });
+
+export const saveCommandConfig = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => commandConfigInput.parse(data))
+  .handler(async ({ data }) => {
+    const { guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+
+    const row: Record<string, unknown> = {
+      guild_id: data.guildId,
+      command: data.command,
+      updated_at: new Date().toISOString(),
+    };
+    if (data.enabled !== undefined) row["enabled"] = data.enabled;
+    if (data.allowedRoleIds) row["allowed_role_ids"] = data.allowedRoleIds;
+    if (data.deniedRoleIds) row["denied_role_ids"] = data.deniedRoleIds;
+    if (data.allowedChannelIds) row["allowed_channel_ids"] = data.allowedChannelIds;
+    if (data.outputChannelId !== undefined) row["output_channel_id"] = data.outputChannelId;
+    if (data.requiredPermission) row["required_permission"] = data.requiredPermission;
+    if (data.cooldownSeconds !== undefined) row["cooldown_seconds"] = data.cooldownSeconds;
+    if (data.ephemeral !== undefined) row["ephemeral"] = data.ephemeral;
+    if (data.customResponse !== undefined) row["custom_response"] = data.customResponse;
+    if (data.notes !== undefined) row["notes"] = data.notes;
+    if (data.options) row["options"] = data.options;
+
+    const { error } = await supabaseAdmin
+      .from("guild_command_settings")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(row as any, { onConflict: "guild_id,command" });
+    if (error) {
+      console.error("Command config save failed", error);
+      throw new Error("Could not save that command's settings.");
+    }
+    return { ok: true };
+  });
+

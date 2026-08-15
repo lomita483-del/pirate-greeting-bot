@@ -197,6 +197,27 @@ export type Database = {
           },
         ]
       }
+      command_cooldowns: {
+        Row: {
+          command: string
+          guild_id: string
+          last_used_at: string
+          user_id: string
+        }
+        Insert: {
+          command: string
+          guild_id: string
+          last_used_at?: string
+          user_id: string
+        }
+        Update: {
+          command?: string
+          guild_id?: string
+          last_used_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       command_records: {
         Row: {
           command: string
@@ -442,24 +463,57 @@ export type Database = {
       }
       guild_command_settings: {
         Row: {
+          allowed_channel_ids: string[]
+          allowed_role_ids: string[]
           command: string
+          cooldown_seconds: number
+          created_at: string
+          custom_response: string | null
+          denied_role_ids: string[]
           enabled: boolean
+          ephemeral: boolean
           guild_id: string
           id: string
+          notes: string | null
+          options: Json
+          output_channel_id: string | null
+          required_permission: string
           updated_at: string
         }
         Insert: {
+          allowed_channel_ids?: string[]
+          allowed_role_ids?: string[]
           command: string
+          cooldown_seconds?: number
+          created_at?: string
+          custom_response?: string | null
+          denied_role_ids?: string[]
           enabled?: boolean
+          ephemeral?: boolean
           guild_id: string
           id?: string
+          notes?: string | null
+          options?: Json
+          output_channel_id?: string | null
+          required_permission?: string
           updated_at?: string
         }
         Update: {
+          allowed_channel_ids?: string[]
+          allowed_role_ids?: string[]
           command?: string
+          cooldown_seconds?: number
+          created_at?: string
+          custom_response?: string | null
+          denied_role_ids?: string[]
           enabled?: boolean
+          ephemeral?: boolean
           guild_id?: string
           id?: string
+          notes?: string | null
+          options?: Json
+          output_channel_id?: string | null
+          required_permission?: string
           updated_at?: string
         }
         Relationships: []

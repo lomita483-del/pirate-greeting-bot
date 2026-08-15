@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Accordion,
@@ -16,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { COMMAND_CATEGORIES, commandPath, type CommandEntry } from "@/lib/command-library";
 import { getCommandSettings, setCommandEnabled } from "@/lib/ahoy.functions";
 
+import { CommandConfigDialog, defaultCommandConfig } from "./command-config-dialog";
 import { SectionHeader } from "./fields";
 import type { PanelProps } from "./types";
 
@@ -26,6 +28,7 @@ function settingsKey(category: string, entry: CommandEntry): string {
 
 export function CommandListPanel({ guildId, config }: PanelProps) {
   const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<{ key: string; desc: string } | null>(null);
   const prefix = config.settings?.prefix ?? "!";
   const queryClient = useQueryClient();
 
@@ -39,16 +42,21 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
     [settingsQuery.data],
   );
   const usage = settingsQuery.data?.usage ?? {};
+  const configs = settingsQuery.data?.configs ?? {};
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["command-settings", guildId] });
 
   const toggle = useMutation({
     mutationFn: (vars: { command: string; enabled: boolean }) =>
       setCommandEnabled({ data: { guildId, ...vars } }),
     onSuccess: (_r, vars) => {
       toast.success(`${vars.command} ${vars.enabled ? "enabled" : "disabled"}`);
-      queryClient.invalidateQueries({ queryKey: ["command-settings", guildId] });
+      refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
 
   const categories = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -150,7 +158,20 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                     <ul className="grid gap-2">
                       {category.commands.map((entry) => {
                         const key = settingsKey(category.slug, entry);
+                        const cfg = configs[key];
                         const isOn = !disabled.has(key);
+                        const chips: string[] = [];
+                        if (cfg?.allowedRoleIds.length)
+                          chips.push(`${cfg.allowedRoleIds.length} allowed role(s)`);
+                        if (cfg?.deniedRoleIds.length)
+                          chips.push(`${cfg.deniedRoleIds.length} blocked role(s)`);
+                        if (cfg?.requiredPermission && cfg.requiredPermission !== "none")
+                          chips.push(cfg.requiredPermission.replace(/_/g, " "));
+                        if (cfg?.allowedChannelIds.length)
+                          chips.push(`${cfg.allowedChannelIds.length} channel(s)`);
+                        if (cfg?.outputChannelId) chips.push("routed output");
+                        if (cfg?.cooldownSeconds) chips.push(`${cfg.cooldownSeconds}s cooldown`);
+                        if (cfg?.customResponse) chips.push("custom reply");
                         return (
                           <li
                             key={key}
@@ -161,20 +182,47 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                                 {commandPath(category.slug, entry)}
                               </code>
                               <p className="mt-1 text-xs text-muted-foreground">{entry.desc}</p>
+                              {cfg?.notes ? (
+                                <p className="mt-1 text-xs text-foreground/80">{cfg.notes}</p>
+                              ) : null}
+                              {chips.length > 0 ? (
+                                <div className="mt-1.5 flex flex-wrap gap-1">
+                                  {chips.map((chip) => (
+                                    <Badge
+                                      key={chip}
+                                      variant="outline"
+                                      className="text-[10px] font-normal"
+                                    >
+                                      {chip}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              ) : null}
                               {usage[key] ? (
                                 <p className="mt-1 text-[10px] text-muted-foreground">
                                   Used {usage[key]} time{usage[key] === 1 ? "" : "s"}
                                 </p>
                               ) : null}
                             </div>
-                            <Switch
-                              checked={isOn}
-                              disabled={toggle.isPending || settingsQuery.isLoading}
-                              onCheckedChange={(checked) =>
-                                toggle.mutate({ command: key, enabled: checked })
-                              }
-                              aria-label={`Toggle ${key}`}
-                            />
+                            <div className="flex shrink-0 items-center gap-1">
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="ghost"
+                                aria-label={`Configure ${key}`}
+                                onClick={() => setEditing({ key, desc: entry.desc })}
+                              >
+                                <Settings2 className="h-4 w-4" />
+                              </Button>
+                              <Switch
+                                checked={isOn}
+                                disabled={toggle.isPending || settingsQuery.isLoading}
+                                onCheckedChange={(checked) =>
+                                  toggle.mutate({ command: key, enabled: checked })
+                                }
+                                aria-label={`Toggle ${key}`}
+                              />
+                            </div>
                           </li>
                         );
                       })}
@@ -186,6 +234,20 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
           </CardContent>
         </Card>
       )}
+
+      {editing ? (
+        <CommandConfigDialog
+          open
+          onOpenChange={(open) => !open && setEditing(null)}
+          guildId={guildId}
+          command={editing.key}
+          description={editing.desc}
+          config={configs[editing.key] ?? defaultCommandConfig(editing.key)}
+          structure={config.structure}
+          onSaved={refresh}
+        />
+      ) : null}
     </div>
+
   );
 }
