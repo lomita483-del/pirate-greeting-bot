@@ -648,7 +648,7 @@ export const listEventAutomation = createServerFn({ method: "GET" })
         channelId: (r["channel_id"] as string | null) ?? null,
         notifierId: (r["notifier_id"] as string | null) ?? null,
         createdAt: r["created_at"] as string,
-        metadata: (r["metadata"] ?? {}) as Record<string, unknown>,
+        detail: JSON.stringify(r["metadata"] ?? {}).slice(0, 300),
       };
     });
 
