@@ -385,3 +385,43 @@ CREATE TABLE public.notification_reads (
 );
 GRANT ALL ON public.notification_reads TO service_role;
 ALTER TABLE public.notification_reads ENABLE ROW LEVEL SECURITY;
+-- ---------------------------------------------------------------
+-- Reaction roles & giveaways
+-- ---------------------------------------------------------------
+create table if not exists public.reaction_roles (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  channel_id text not null,
+  message_id text not null,
+  emoji text not null,
+  role_id text not null,
+  description text,
+  created_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (message_id, emoji)
+);
+grant all on public.reaction_roles to service_role;
+alter table public.reaction_roles enable row level security;
+create index if not exists reaction_roles_guild_idx on public.reaction_roles (guild_id);
+create index if not exists reaction_roles_message_idx on public.reaction_roles (message_id);
+
+create table if not exists public.giveaways (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  channel_id text not null,
+  message_id text,
+  prize text not null,
+  winner_count integer not null default 1,
+  ends_at timestamptz not null,
+  status text not null default 'running',
+  winner_ids text[] not null default '{}'::text[],
+  host_id text,
+  host_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant all on public.giveaways to service_role;
+alter table public.giveaways enable row level security;
+create index if not exists giveaways_guild_idx on public.giveaways (guild_id);
+create index if not exists giveaways_due_idx on public.giveaways (status, ends_at);
