@@ -7,12 +7,19 @@ import {
   AnnouncementsPanel,
   StatChannelsPanel,
 } from "@/components/dashboard/automation-panels";
+import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
+import { CasesPanel } from "@/components/dashboard/cases-panel";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
 import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
 import { PollsPanel } from "@/components/dashboard/polls-panel";
 import { RolesPanel } from "@/components/dashboard/roles-panel";
 import { StarboardPanel } from "@/components/dashboard/starboard-panel";
+import {
+  MemberProfilePanel,
+  RanksPanel,
+  ServerStatsPanel,
+} from "@/components/dashboard/stats-panels";
 import {
   AutoModPanel,
   GeneralPanel,
@@ -161,6 +168,8 @@ function GuildDashboard() {
                 <TabsTrigger value="automation">Automation</TabsTrigger>
                 <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
                 <TabsTrigger value="reminders">Reminders</TabsTrigger>
+                <TabsTrigger value="cases">Cases</TabsTrigger>
+                <TabsTrigger value="stats">Stats</TabsTrigger>
                 <TabsTrigger value="commands">Commands</TabsTrigger>
                 <TabsTrigger value="activity">Activity</TabsTrigger>
               </TabsList>
@@ -210,10 +219,22 @@ function GuildDashboard() {
                   <TabsContent value="reminders" className="mt-6">
                     <RemindersPanel guildId={guildId} />
                   </TabsContent>
+                  <TabsContent value="cases" className="mt-6">
+                    <CasesPanel guildId={guildId} />
+                  </TabsContent>
+                  <TabsContent value="stats" className="mt-6">
+                    <div className="space-y-6">
+                      <ServerStatsPanel guildId={guildId} />
+                      <RanksPanel guildId={guildId} />
+                      <MemberProfilePanel guildId={guildId} />
+                    </div>
+                  </TabsContent>
                   <TabsContent value="commands" className="mt-6">
                     <CommandsPanel guildId={guildId} config={config.data} onSaved={refresh} />
                   </TabsContent>
                   <TabsContent value="activity" className="mt-6">
+                    <div className="space-y-6">
+                    <ActivityLogPanel guildId={guildId} />
                     <Card className="glass border-0">
                       <CardContent className="space-y-3 pt-6">
                         <h2 className="text-lg font-semibold">Recent moderation</h2>
@@ -244,6 +265,7 @@ function GuildDashboard() {
                         )}
                       </CardContent>
                     </Card>
+                    </div>
                   </TabsContent>
                 </>
               )}

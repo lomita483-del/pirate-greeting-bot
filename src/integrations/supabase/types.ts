@@ -14,6 +14,59 @@ export type Database = {
   }
   public: {
     Tables: {
+      activity_logs: {
+        Row: {
+          actor_id: string | null
+          actor_name: string | null
+          category: string
+          channel_id: string | null
+          channel_name: string | null
+          created_at: string
+          guild_id: string
+          id: string
+          metadata: Json
+          summary: string
+          target_id: string | null
+          target_name: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_name?: string | null
+          category: string
+          channel_id?: string | null
+          channel_name?: string | null
+          created_at?: string
+          guild_id: string
+          id?: string
+          metadata?: Json
+          summary?: string
+          target_id?: string | null
+          target_name?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name?: string | null
+          category?: string
+          channel_id?: string | null
+          channel_name?: string | null
+          created_at?: string
+          guild_id?: string
+          id?: string
+          metadata?: Json
+          summary?: string
+          target_id?: string | null
+          target_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "activity_logs_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       automod_settings: {
         Row: {
           anti_spam_action: string
@@ -89,6 +142,56 @@ export type Database = {
             foreignKeyName: "automod_settings_guild_id_fkey"
             columns: ["guild_id"]
             isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      bot_action_queue: {
+        Row: {
+          action: string
+          created_at: string
+          error: string | null
+          guild_id: string
+          id: string
+          payload: Json
+          processed_at: string | null
+          requested_by: string | null
+          requested_by_name: string | null
+          status: string
+          target_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          error?: string | null
+          guild_id: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          status?: string
+          target_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          error?: string | null
+          guild_id?: string
+          id?: string
+          payload?: Json
+          processed_at?: string | null
+          requested_by?: string | null
+          requested_by_name?: string | null
+          status?: string
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bot_action_queue_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["guild_id"]
           },
@@ -379,6 +482,77 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "members_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      moderation_cases: {
+        Row: {
+          action: string
+          active: boolean
+          case_number: number
+          created_at: string
+          duration_seconds: number | null
+          expires_at: string | null
+          guild_id: string
+          id: string
+          metadata: Json
+          moderator_id: string | null
+          moderator_name: string | null
+          reason: string
+          target_id: string | null
+          target_name: string | null
+          updated_at: string
+          voided: boolean
+          voided_at: string | null
+          voided_by: string | null
+        }
+        Insert: {
+          action: string
+          active?: boolean
+          case_number: number
+          created_at?: string
+          duration_seconds?: number | null
+          expires_at?: string | null
+          guild_id: string
+          id?: string
+          metadata?: Json
+          moderator_id?: string | null
+          moderator_name?: string | null
+          reason?: string
+          target_id?: string | null
+          target_name?: string | null
+          updated_at?: string
+          voided?: boolean
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Update: {
+          action?: string
+          active?: boolean
+          case_number?: number
+          created_at?: string
+          duration_seconds?: number | null
+          expires_at?: string | null
+          guild_id?: string
+          id?: string
+          metadata?: Json
+          moderator_id?: string | null
+          moderator_name?: string | null
+          reason?: string
+          target_id?: string | null
+          target_name?: string | null
+          updated_at?: string
+          voided?: boolean
+          voided_at?: string | null
+          voided_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "moderation_cases_guild_id_fkey"
             columns: ["guild_id"]
             isOneToOne: false
             referencedRelation: "servers"
@@ -1223,6 +1397,53 @@ export type Database = {
           },
         ]
       }
+      voice_stats: {
+        Row: {
+          created_at: string
+          guild_id: string
+          id: string
+          last_joined_at: string | null
+          last_left_at: string | null
+          sessions: number
+          updated_at: string
+          user_id: string
+          username: string | null
+          voice_seconds: number
+        }
+        Insert: {
+          created_at?: string
+          guild_id: string
+          id?: string
+          last_joined_at?: string | null
+          last_left_at?: string | null
+          sessions?: number
+          updated_at?: string
+          user_id: string
+          username?: string | null
+          voice_seconds?: number
+        }
+        Update: {
+          created_at?: string
+          guild_id?: string
+          id?: string
+          last_joined_at?: string | null
+          last_left_at?: string | null
+          sessions?: number
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+          voice_seconds?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "voice_stats_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       warnings: {
         Row: {
           active: boolean
@@ -1378,7 +1599,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      next_case_number: { Args: { _guild_id: string }; Returns: number }
     }
     Enums: {
       [_ in never]: never

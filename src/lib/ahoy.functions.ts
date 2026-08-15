@@ -818,3 +818,442 @@ export const deleteStatChannel = createServerFn({ method: "POST" })
     if (error) throw new Error("Could not remove that stat channel.");
     return { ok: true };
   });
+
+/* ---------------------------------------------------------------- */
+/* Moderation cases                                                  */
+/* ---------------------------------------------------------------- */
+
+const CASE_ACTIONS = [
+  "warn",
+  "timeout",
+  "untimeout",
+  "kick",
+  "ban",
+  "unban",
+  "mute",
+  "unmute",
+  "purge",
+  "note",
+] as const;
+
+export const getCases = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        action: z.string().max(30).optional(),
+        userId: z.string().max(25).optional(),
+        page: z.number().int().min(0).max(500).default(0),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const pageSize = 25;
+    let query = supabaseAdmin
+      .from("moderation_cases")
+      .select("*", { count: "exact" })
+      .eq("guild_id", data.guildId);
+    if (data.action && data.action !== "all") query = query.eq("action", data.action);
+    if (data.userId) query = query.eq("target_id", data.userId);
+
+    const { data: rows, count } = await query
+      .order("case_number", { ascending: false })
+      .range(data.page * pageSize, data.page * pageSize + pageSize - 1);
+
+    return { cases: rows ?? [], total: count ?? 0, page: data.page, pageSize };
+  });
+
+export const createCase = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        action: z.enum(CASE_ACTIONS),
+        target_id: z.string().regex(/^\d{5,25}$/),
+        target_name: z.string().max(120).optional(),
+        reason: z.string().min(1).max(1000),
+        duration_seconds: z.number().int().min(0).max(2419200).nullable().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { session, guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+
+    const { data: caseNumber, error: numberError } = await supabaseAdmin.rpc(
+      "next_case_number",
+      { _guild_id: data.guildId },
+    );
+    if (numberError) {
+      console.error("Case number lookup failed", numberError);
+      throw new Error("Could not open a new case.");
+    }
+
+    const { error } = await supabaseAdmin.from("moderation_cases").insert({
+      guild_id: data.guildId,
+      case_number: caseNumber as number,
+      action: data.action,
+      target_id: data.target_id,
+      target_name: data.target_name ?? null,
+      moderator_id: session.userId,
+      moderator_name: session.username ?? "Dashboard",
+      reason: data.reason,
+      duration_seconds: data.duration_seconds ?? null,
+      active: ["timeout", "ban", "mute"].includes(data.action),
+      metadata: { source: "dashboard" },
+    });
+    if (error) {
+      console.error("Case insert failed", error);
+      throw new Error("Could not create that case.");
+    }
+    return { ok: true, caseNumber };
+  });
+
+export const updateCase = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        id: z.string().uuid(),
+        reason: z.string().min(1).max(1000).optional(),
+        voided: z.boolean().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { session, supabaseAdmin } = await authorize(data.guildId);
+    const payload: {
+      reason?: string;
+      voided?: boolean;
+      voided_by?: string | null;
+      voided_at?: string | null;
+      active?: boolean;
+    } = {};
+    if (data.reason !== undefined) payload.reason = data.reason;
+    if (data.voided !== undefined) {
+      payload.voided = data.voided;
+      payload.voided_by = data.voided ? session.userId : null;
+      payload.voided_at = data.voided ? new Date().toISOString() : null;
+      if (data.voided) payload.active = false;
+    }
+
+    const { error } = await supabaseAdmin
+      .from("moderation_cases")
+      .update(payload)
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not update that case.");
+    return { ok: true };
+  });
+
+export const deleteCase = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("moderation_cases")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not delete that case.");
+    return { ok: true };
+  });
+
+/** Queue an action for the bot's dashboard-action loop (runs every 20s). */
+export const requestBotAction = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        action: z.enum(["unban", "untimeout", "kick"]),
+        target_id: z.string().regex(/^\d{5,25}$/),
+        reason: z.string().max(500).optional(),
+        caseId: z.string().uuid().optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { session, guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
+      guild_id: data.guildId,
+      action: data.action,
+      target_id: data.target_id,
+      payload: {
+        reason: data.reason ?? "Requested from the AHOY dashboard",
+        moderator_name: session.username ?? session.userId,
+        case_id: data.caseId ?? null,
+      },
+      requested_by: session.userId,
+      requested_by_name: session.username ?? null,
+    });
+    if (error) {
+      console.error("Bot action queue insert failed", error);
+      throw new Error("Could not queue that action.");
+    }
+    if (data.caseId) {
+      await supabaseAdmin
+        .from("moderation_cases")
+        .update({ active: false })
+        .eq("id", data.caseId)
+        .eq("guild_id", data.guildId);
+    }
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Activity log                                                      */
+/* ---------------------------------------------------------------- */
+
+export const getActivityLog = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        category: z.string().max(40).optional(),
+        userId: z.string().max(25).optional(),
+        page: z.number().int().min(0).max(500).default(0),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const pageSize = 50;
+    let query = supabaseAdmin
+      .from("activity_logs")
+      .select("*", { count: "exact" })
+      .eq("guild_id", data.guildId);
+    if (data.category && data.category !== "all") query = query.eq("category", data.category);
+    if (data.userId) query = query.eq("actor_id", data.userId);
+
+    const { data: rows, count } = await query
+      .order("created_at", { ascending: false })
+      .range(data.page * pageSize, data.page * pageSize + pageSize - 1);
+
+    return { entries: rows ?? [], total: count ?? 0, page: data.page, pageSize };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Server stats, ranks and member profiles                           */
+/* ---------------------------------------------------------------- */
+
+type DiscordGuildPreview = {
+  approximate_member_count?: number;
+  approximate_presence_count?: number;
+  premium_subscription_count?: number;
+  premium_tier?: number;
+  created_at?: string;
+};
+
+export const getServerStats = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const token = process.env["DISCORD_TOKEN"];
+    const since = new Date(Date.now() - 30 * 86400_000).toISOString();
+    const week = new Date(Date.now() - 7 * 86400_000).toISOString();
+
+    let live: DiscordGuildPreview = {};
+    let channelCounts = { text: 0, voice: 0, category: 0, stage: 0 };
+    let roleCount = 0;
+    if (token) {
+      const headers = { authorization: `Bot ${token}` };
+      const [guildRes, channelsRes, rolesRes] = await Promise.all([
+        fetch(
+          `https://discord.com/api/v10/guilds/${data.guildId}?with_counts=true`,
+          { headers },
+        ),
+        fetch(`https://discord.com/api/v10/guilds/${data.guildId}/channels`, { headers }),
+        fetch(`https://discord.com/api/v10/guilds/${data.guildId}/roles`, { headers }),
+      ]);
+      if (guildRes.ok) live = (await guildRes.json()) as DiscordGuildPreview;
+      if (channelsRes.ok) {
+        const channels = (await channelsRes.json()) as Array<{ type: number }>;
+        channelCounts = {
+          text: channels.filter((c) => c.type === 0 || c.type === 5).length,
+          voice: channels.filter((c) => c.type === 2).length,
+          category: channels.filter((c) => c.type === 4).length,
+          stage: channels.filter((c) => c.type === 13).length,
+        };
+      }
+      if (rolesRes.ok) roleCount = ((await rolesRes.json()) as unknown[]).length - 1;
+    }
+
+    const [joins, leaves, messages, cases, voiceRows, activity] = await Promise.all([
+      supabaseAdmin
+        .from("activity_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("guild_id", data.guildId)
+        .eq("category", "member_join")
+        .gte("created_at", since),
+      supabaseAdmin
+        .from("activity_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("guild_id", data.guildId)
+        .eq("category", "member_leave")
+        .gte("created_at", since),
+      supabaseAdmin
+        .from("xp_profiles")
+        .select("messages")
+        .eq("guild_id", data.guildId)
+        .limit(1000),
+      supabaseAdmin
+        .from("moderation_cases")
+        .select("id", { count: "exact", head: true })
+        .eq("guild_id", data.guildId)
+        .gte("created_at", week),
+      supabaseAdmin
+        .from("voice_stats")
+        .select("voice_seconds, sessions")
+        .eq("guild_id", data.guildId)
+        .limit(1000),
+      supabaseAdmin
+        .from("activity_logs")
+        .select("id", { count: "exact", head: true })
+        .eq("guild_id", data.guildId)
+        .gte("created_at", week),
+    ]);
+
+    return {
+      members: live.approximate_member_count ?? null,
+      online: live.approximate_presence_count ?? null,
+      boosts: live.premium_subscription_count ?? 0,
+      boostTier: live.premium_tier ?? 0,
+      channels: channelCounts,
+      roles: Math.max(0, roleCount),
+      joins30d: joins.count ?? 0,
+      leaves30d: leaves.count ?? 0,
+      trackedMessages: (messages.data ?? []).reduce(
+        (sum, row) => sum + Number(row.messages ?? 0),
+        0,
+      ),
+      casesThisWeek: cases.count ?? 0,
+      activityThisWeek: activity.count ?? 0,
+      voiceSeconds: (voiceRows.data ?? []).reduce(
+        (sum, row) => sum + Number(row.voice_seconds ?? 0),
+        0,
+      ),
+      voiceSessions: (voiceRows.data ?? []).reduce(
+        (sum, row) => sum + Number(row.sessions ?? 0),
+        0,
+      ),
+      hasToken: Boolean(token),
+    };
+  });
+
+export const getRanks = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        page: z.number().int().min(0).max(200).default(0),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const pageSize = 25;
+    const [{ data: rows, count }, voice] = await Promise.all([
+      supabaseAdmin
+        .from("xp_profiles")
+        .select("user_id, username, xp, level, messages", { count: "exact" })
+        .eq("guild_id", data.guildId)
+        .order("xp", { ascending: false })
+        .range(data.page * pageSize, data.page * pageSize + pageSize - 1),
+      supabaseAdmin
+        .from("voice_stats")
+        .select("user_id, voice_seconds")
+        .eq("guild_id", data.guildId)
+        .limit(1000),
+    ]);
+    const voiceByUser = new Map(
+      (voice.data ?? []).map((row) => [row.user_id, Number(row.voice_seconds ?? 0)]),
+    );
+    return {
+      ranks: (rows ?? []).map((row, index) => ({
+        ...row,
+        rank: data.page * pageSize + index + 1,
+        voice_seconds: voiceByUser.get(row.user_id) ?? 0,
+      })),
+      total: count ?? 0,
+      page: data.page,
+      pageSize,
+    };
+  });
+
+/** Everything the /profile card shows, for the dashboard's member view. */
+export const getMemberProfile = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        userId: z.string().regex(/^\d{5,25}$/),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [xp, voice, member, wallet, cases] = await Promise.all([
+      supabaseAdmin
+        .from("xp_profiles")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .eq("user_id", data.userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("voice_stats")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .eq("user_id", data.userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("members")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .eq("user_id", data.userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("economy_profiles")
+        .select("balance, bank")
+        .eq("guild_id", data.guildId)
+        .eq("user_id", data.userId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("moderation_cases")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .eq("target_id", data.userId)
+        .order("case_number", { ascending: false })
+        .limit(10),
+    ]);
+
+    const totalXp = Number(xp.data?.xp ?? 0);
+    const level = Number(xp.data?.level ?? 0);
+    // Mirrors bot/services/level_service: level n needs 5n^2 + 50n + 100 XP.
+    const xpForLevel = (n: number) => (n <= 0 ? 0 : 5 * n * n + 50 * n + 100);
+    const floor = xpForLevel(level);
+    const ceiling = xpForLevel(level + 1);
+
+    const { count: ahead } = await supabaseAdmin
+      .from("xp_profiles")
+      .select("user_id", { count: "exact", head: true })
+      .eq("guild_id", data.guildId)
+      .gt("xp", totalXp);
+
+    return {
+      userId: data.userId,
+      member: member.data,
+      level,
+      totalXp,
+      xpCurrent: Math.max(0, totalXp - floor),
+      xpNeeded: Math.max(1, ceiling - floor),
+      rank: (ahead ?? 0) + 1,
+      messages: Number(xp.data?.messages ?? 0),
+      voiceSeconds: Number(voice.data?.voice_seconds ?? 0),
+      voiceSessions: Number(voice.data?.sessions ?? 0),
+      balance: Number(wallet.data?.balance ?? 0),
+      bank: Number(wallet.data?.bank ?? 0),
+      cases: cases.data ?? [],
+    };
+  });
