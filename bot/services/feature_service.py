@@ -236,17 +236,17 @@ class FeatureService:
         description: str,
         member: Optional[discord.Member],
         value: Optional[str],
+        config: Optional[dict[str, Any]] = None,
     ) -> discord.Embed:
         guild = interaction.guild
         if guild is None:
             raise ActionRefused("This command only works inside a server.")
         guild_id = str(guild.id)
 
-        if not await self.is_enabled(guild_id, command):
-            raise ActionRefused(
-                f"`/{command}` is disabled for this server. "
-                "A server manager can turn it back on from the AHOY dashboard."
-            )
+        if config is None:
+            config = await self.config(guild_id, command)
+            await self.enforce(interaction, command, config)
+
 
         key = self.state_key(category, sub)
         actor = str(interaction.user.id)
