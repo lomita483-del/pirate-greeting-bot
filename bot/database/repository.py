@@ -332,6 +332,47 @@ class Repository:
             .execute()
         )
 
+    # -- calendar events / RSVPs ---------------------------------------
+    async def calendar_event(self, event_id: str) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_events")
+            .select("*")
+            .eq("id", event_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
+
+    async def set_event_rsvp(self, event_id: str, guild_id: str, user_id: str, response: str) -> None:
+        payload = {
+            "event_id": event_id,
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "response": response,
+            "updated_at": _now(),
+        }
+        await self.db.try_run(
+            lambda c: c.table("event_rsvps")
+            .upsert(payload, on_conflict="event_id,user_id")
+            .execute()
+        )
+
+    async def event_rsvp_counts(self, event_id: str) -> dict[str, int]:
+        rows = await self.db.try_run(
+            lambda c: c.table("event_rsvps")
+            .select("response")
+            .eq("event_id", event_id)
+            .limit(1000)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        counts = {"attending": 0, "declined": 0, "maybe": 0}
+        for row in data:
+            key = str(row.get("response") or "attending")
+            counts[key] = counts.get(key, 0) + 1
+        return counts
+
     # -- custom commands ----------------------------------------------
     async def custom_commands(self, guild_id: str) -> list[dict[str, Any]]:
         rows = await self.db.try_run(
