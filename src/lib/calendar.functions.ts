@@ -2,6 +2,8 @@ import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
 
+import type { TemplateStructure } from "@/lib/event-templates";
+
 const guildId = z.string().regex(/^\d{5,25}$/);
 const snowflake = z.string().regex(/^\d{5,25}$/);
 
@@ -463,4 +465,416 @@ export const sendTestReminder = createServerFn({ method: "POST" })
       "none",
     );
     return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Feed settings (Chronicle-style EventFeed model)                    */
+/* ---------------------------------------------------------------- */
+
+export const saveFeedSettings = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId,
+        sourceId: z.string().uuid(),
+        targetChannelId: snowflake.nullable(),
+        calendarId: z.string().max(200).nullable(),
+        voiceDurationDefault: z.number().int().min(5).max(1440),
+        lookaheadDays: z.number().int().min(1).max(365),
+        syncDirection: z.enum(["gcal_to_discord", "discord_to_gcal", "two_way"]),
+        allowedCategoryIds: z.array(snowflake).max(25),
+        createDiscordEvents: z.boolean(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("calendar_sources")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .update({
+        target_channel_id: data.targetChannelId,
+        calendar_id: data.calendarId,
+        voice_channel_duration_default: data.voiceDurationDefault,
+        lookahead_days: data.lookaheadDays,
+        sync_direction: data.syncDirection,
+        allowed_category_ids: data.allowedCategoryIds,
+        create_discord_events: data.createDiscordEvents,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+      .eq("id", data.sourceId)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not save the feed settings.");
+
+    const { writeCalendarAudit } = await import("@/lib/calendar.server");
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: "FEED_UPDATED",
+      actorId: session.userId,
+      resourceType: "calendar_source",
+      resourceId: data.sourceId,
+      endpoint: "/api/v1/feeds",
+      details: { sync_direction: data.syncDirection, lookahead_days: data.lookaheadDays },
+    });
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Message templates                                                  */
+/* ---------------------------------------------------------------- */
+
+export type StoredTemplate = {
+  id: string;
+  name: string;
+  templateType: "reminder" | "summary";
+  structure: TemplateStructure;
+};
+
+export const listEventAutomation = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ guildId }).parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [templatesRes, notifiersRes, summaryRes, feedRes] = await Promise.all([
+      supabaseAdmin
+        .from("message_templates")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: true }),
+      supabaseAdmin
+        .from("event_notifiers")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: true }),
+      supabaseAdmin
+        .from("event_summary_schedules")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .maybeSingle(),
+      supabaseAdmin.from("calendar_sources").select("*").eq("guild_id", data.guildId),
+    ]);
+
+    const templates = (templatesRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r["id"] as string,
+        name: r["name"] as string,
+        templateType: (r["template_type"] as "reminder" | "summary") ?? "reminder",
+        structure: (r["raw_structure"] ?? {}) as TemplateStructure,
+      };
+    });
+
+    const notifiers = (notifiersRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r["id"] as string,
+        name: r["name"] as string,
+        channelId: r["channel_id"] as string,
+        categoryId: (r["category_id"] as string | null) ?? null,
+        calendarSourceId: (r["calendar_source_id"] as string | null) ?? null,
+        offsets: (r["reminder_offsets"] as number[] | null) ?? [],
+        roleMentions: (r["role_mentions"] as string[] | null) ?? [],
+        cleanupPrevious: Boolean(r["cleanup_previous"]),
+        templateId: (r["template_id"] as string | null) ?? null,
+        enabled: r["enabled"] !== false,
+      };
+    });
+
+    const feeds = (feedRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r["id"] as string,
+        name: r["name"] as string,
+        targetChannelId: (r["target_channel_id"] as string | null) ?? null,
+        calendarId: (r["calendar_id"] as string | null) ?? null,
+        voiceDurationDefault: Number(r["voice_channel_duration_default"] ?? 30),
+        lookaheadDays: Number(r["lookahead_days"] ?? 30),
+        syncDirection: (r["sync_direction"] as string) ?? "gcal_to_discord",
+        allowedCategoryIds: (r["allowed_category_ids"] as string[] | null) ?? [],
+        createDiscordEvents: Boolean(r["create_discord_events"]),
+      };
+    });
+
+    const s = (summaryRes.data ?? {}) as Record<string, unknown>;
+    return {
+      templates,
+      notifiers,
+      feeds,
+      summary: {
+        enabled: Boolean(s["enabled"]),
+        channelId: (s["channel_id"] as string | null) ?? null,
+        cadence: ((s["cadence"] as string) ?? "daily") as "daily" | "weekly",
+        hourUtc: Number(s["hour_utc"] ?? 8),
+        pinMessage: s["pin_message"] === undefined ? true : Boolean(s["pin_message"]),
+        templateId: (s["template_id"] as string | null) ?? null,
+        lastRunAt: (s["last_run_at"] as string | null) ?? null,
+      },
+    };
+  });
+
+export const saveTemplate = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId,
+        templateId: z.string().uuid().nullable(),
+        name: z.string().min(1).max(80),
+        templateType: z.enum(["reminder", "summary"]),
+        structure: z.object({
+          title: z.string().max(400).optional(),
+          description: z.string().max(4000).optional(),
+          color: z.string().max(16).nullable().optional(),
+          thumbnail: z.string().max(500).nullable().optional(),
+          image: z.string().max(500).nullable().optional(),
+          footer: z.string().max(300).nullable().optional(),
+          content: z.string().max(1500).nullable().optional(),
+          fields: z
+            .array(
+              z.object({
+                name: z.string().max(256),
+                value: z.string().max(1024),
+                inline: z.boolean().optional(),
+              }),
+            )
+            .max(10)
+            .optional(),
+        }),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const payload = {
+      guild_id: data.guildId,
+      name: data.name,
+      template_type: data.templateType,
+      raw_structure: data.structure,
+      created_by: session.userId,
+      updated_at: new Date().toISOString(),
+    };
+    const query = data.templateId
+      ? supabaseAdmin
+          .from("message_templates")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update(payload as any)
+          .eq("id", data.templateId)
+          .eq("guild_id", data.guildId)
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        supabaseAdmin.from("message_templates").insert(payload as any);
+    const { error } = await query;
+    if (error) {
+      console.error("Template save failed", error);
+      throw new Error("Could not save that template (names must be unique).");
+    }
+
+    const { writeCalendarAudit } = await import("@/lib/calendar.server");
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: data.templateId ? "TEMPLATE_UPDATED" : "TEMPLATE_CREATED",
+      actorId: session.userId,
+      resourceType: "message_template",
+      resourceId: data.templateId,
+      endpoint: "/api/v1/templates",
+      details: { name: data.name, type: data.templateType },
+    });
+    return { ok: true };
+  });
+
+export const deleteTemplate = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ guildId, templateId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    await supabaseAdmin
+      .from("message_templates")
+      .delete()
+      .eq("id", data.templateId)
+      .eq("guild_id", data.guildId);
+    const { writeCalendarAudit } = await import("@/lib/calendar.server");
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: "TEMPLATE_DELETED",
+      actorId: session.userId,
+      resourceType: "message_template",
+      resourceId: data.templateId,
+      endpoint: "/api/v1/templates",
+    });
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Notifiers                                                          */
+/* ---------------------------------------------------------------- */
+
+export const saveNotifier = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId,
+        notifierId: z.string().uuid().nullable(),
+        name: z.string().min(1).max(80),
+        channelId: snowflake,
+        categoryId: snowflake.nullable(),
+        calendarSourceId: z.string().uuid().nullable(),
+        offsets: offsetsSchema,
+        roleMentions: z.array(mentionSchema).max(10),
+        cleanupPrevious: z.boolean(),
+        templateId: z.string().uuid().nullable(),
+        enabled: z.boolean(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const payload = {
+      guild_id: data.guildId,
+      name: data.name,
+      channel_id: data.channelId,
+      category_id: data.categoryId,
+      calendar_source_id: data.calendarSourceId,
+      reminder_offsets: [...new Set(data.offsets)].sort((a, b) => b - a),
+      role_mentions: data.roleMentions.filter((m) => m !== "none"),
+      cleanup_previous: data.cleanupPrevious,
+      template_id: data.templateId,
+      enabled: data.enabled,
+      created_by: session.userId,
+      updated_at: new Date().toISOString(),
+    };
+    const { error } = data.notifierId
+      ? await supabaseAdmin
+          .from("event_notifiers")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update(payload as any)
+          .eq("id", data.notifierId)
+          .eq("guild_id", data.guildId)
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await supabaseAdmin.from("event_notifiers").insert(payload as any);
+    if (error) {
+      console.error("Notifier save failed", error);
+      throw new Error("Could not save that notifier.");
+    }
+
+    const { rebuildRemindersForGuild, writeCalendarAudit } = await import("@/lib/calendar.server");
+    await rebuildRemindersForGuild(supabaseAdmin, data.guildId);
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: data.notifierId ? "NOTIFIER_UPDATED" : "NOTIFIER_CREATED",
+      actorId: session.userId,
+      resourceType: "event_notifier",
+      resourceId: data.notifierId,
+      endpoint: "/api/v1/notifiers",
+      details: { channel_id: data.channelId, offsets: payload.reminder_offsets },
+    });
+    return { ok: true };
+  });
+
+export const deleteNotifier = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ guildId, notifierId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    await supabaseAdmin
+      .from("event_notifiers")
+      .delete()
+      .eq("id", data.notifierId)
+      .eq("guild_id", data.guildId);
+    const { rebuildRemindersForGuild, writeCalendarAudit } = await import("@/lib/calendar.server");
+    await rebuildRemindersForGuild(supabaseAdmin, data.guildId);
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: "NOTIFIER_DELETED",
+      actorId: session.userId,
+      resourceType: "event_notifier",
+      resourceId: data.notifierId,
+      endpoint: "/api/v1/notifiers",
+    });
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Summaries                                                          */
+/* ---------------------------------------------------------------- */
+
+export const saveSummarySchedule = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId,
+        enabled: z.boolean(),
+        channelId: snowflake.nullable(),
+        cadence: z.enum(["daily", "weekly"]),
+        hourUtc: z.number().int().min(0).max(23),
+        pinMessage: z.boolean(),
+        templateId: z.string().uuid().nullable(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("event_summary_schedules")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(
+        {
+          guild_id: data.guildId,
+          enabled: data.enabled,
+          channel_id: data.channelId,
+          cadence: data.cadence,
+          hour_utc: data.hourUtc,
+          pin_message: data.pinMessage,
+          template_id: data.templateId,
+          updated_at: new Date().toISOString(),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any,
+        { onConflict: "guild_id" },
+      );
+    if (error) throw new Error("Could not save the summary schedule.");
+    const { writeCalendarAudit } = await import("@/lib/calendar.server");
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: "SUMMARY_SCHEDULE_UPDATED",
+      actorId: session.userId,
+      resourceType: "summary",
+      endpoint: "/api/v1/summaries",
+      details: { cadence: data.cadence, hour_utc: data.hourUtc },
+    });
+    return { ok: true };
+  });
+
+export const generateSummaryNow = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ guildId, channelId: snowflake.nullable() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { generateSummary } = await import("@/lib/calendar.server");
+    return await generateSummary(supabaseAdmin, data.guildId, { channelId: data.channelId });
+  });
+
+/* ---------------------------------------------------------------- */
+/* RSVPs                                                              */
+/* ---------------------------------------------------------------- */
+
+export const getEventRsvps = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => z.object({ guildId, eventId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { data: rows } = await supabaseAdmin
+      .from("event_rsvps")
+      .select("user_id, response, updated_at")
+      .eq("event_id", data.eventId)
+      .limit(500);
+    const list = (rows ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        userId: r["user_id"] as string,
+        response: (r["response"] as string) ?? "attending",
+      };
+    });
+    return {
+      attending: list.filter((r) => r.response === "attending").length,
+      declined: list.filter((r) => r.response === "declined").length,
+      list,
+    };
   });
