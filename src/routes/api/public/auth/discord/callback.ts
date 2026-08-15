@@ -4,7 +4,7 @@ import {
   buildSessionCookie,
   exchangeCode,
   fetchCurrentUser,
-  readCookie,
+  openState,
   sealSession,
 } from "@/lib/discord.server";
 
@@ -15,18 +15,14 @@ export const Route = createFileRoute("/api/public/auth/discord/callback")({
         const url = new URL(request.url);
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
-        const expectedState = readCookie(request.headers.get("cookie"), "ahoy_oauth_state");
 
         const fail = (reason: string) =>
           new Response(null, {
             status: 302,
-            headers: {
-              location: `/?error=${reason}`,
-              "set-cookie": "ahoy_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
-            },
+            headers: { location: `/?error=${reason}` },
           });
 
-        if (!code || !state || !expectedState || state !== expectedState) {
+        if (!code || !state || !(await openState(state))) {
           return fail("invalid_state");
         }
 
@@ -52,10 +48,6 @@ export const Route = createFileRoute("/api/public/auth/discord/callback")({
 
           const headers = new Headers({ location: "/dashboard", "cache-control": "no-store" });
           headers.append("set-cookie", buildSessionCookie(sealed));
-          headers.append(
-            "set-cookie",
-            "ahoy_oauth_state=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0",
-          );
           return new Response(null, { status: 302, headers });
         } catch (error) {
           console.error("Discord OAuth callback failed", error);
