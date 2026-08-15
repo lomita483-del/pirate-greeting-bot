@@ -28,6 +28,7 @@ import { Route as DashboardGuildIdModerationRouteImport } from './routes/dashboa
 import { Route as DashboardGuildIdRolesRouteImport } from './routes/dashboard/$guildId.roles'
 import { Route as DashboardGuildIdStatsRouteImport } from './routes/dashboard/$guildId.stats'
 import { Route as DashboardGuildIdWelcomeRouteImport } from './routes/dashboard/$guildId.welcome'
+import { Route as ApiPublicHooksCalendarSyncRouteImport } from './routes/api/public/hooks/calendar-sync'
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
 import { Route as ApiPublicAuthDiscordStartRouteImport } from './routes/api/public/auth/discord/start'
@@ -134,6 +135,12 @@ const DashboardGuildIdWelcomeRoute = DashboardGuildIdWelcomeRouteImport.update({
   path: '/welcome',
   getParentRoute: () => DashboardGuildIdRoute,
 } as any)
+const ApiPublicHooksCalendarSyncRoute =
+  ApiPublicHooksCalendarSyncRouteImport.update({
+    id: '/api/public/hooks/calendar-sync',
+    path: '/api/public/hooks/calendar-sync',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicAuthDiscordCallbackRoute =
   ApiPublicAuthDiscordCallbackRouteImport.update({
     id: '/api/public/auth/discord/callback',
@@ -173,6 +180,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
+  '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -196,6 +204,7 @@ export interface FileRoutesByTo {
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId': typeof DashboardGuildIdIndexRoute
+  '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -221,6 +230,7 @@ export interface FileRoutesById {
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
+  '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -247,6 +257,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId/'
+    | '/api/public/hooks/calendar-sync'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId'
+    | '/api/public/hooks/calendar-sync'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -294,6 +306,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId/'
+    | '/api/public/hooks/calendar-sync'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -305,6 +318,7 @@ export interface RootRouteChildren {
   DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
+  ApiPublicHooksCalendarSyncRoute: typeof ApiPublicHooksCalendarSyncRoute
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
   ApiPublicAuthDiscordLogoutRoute: typeof ApiPublicAuthDiscordLogoutRoute
   ApiPublicAuthDiscordStartRoute: typeof ApiPublicAuthDiscordStartRoute
@@ -445,6 +459,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardGuildIdWelcomeRouteImport
       parentRoute: typeof DashboardGuildIdRoute
     }
+    '/api/public/hooks/calendar-sync': {
+      id: '/api/public/hooks/calendar-sync'
+      path: '/api/public/hooks/calendar-sync'
+      fullPath: '/api/public/hooks/calendar-sync'
+      preLoaderRoute: typeof ApiPublicHooksCalendarSyncRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/auth/discord/callback': {
       id: '/api/public/auth/discord/callback'
       path: '/api/public/auth/discord/callback'
@@ -512,6 +533,7 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
+  ApiPublicHooksCalendarSyncRoute: ApiPublicHooksCalendarSyncRoute,
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
   ApiPublicAuthDiscordLogoutRoute: ApiPublicAuthDiscordLogoutRoute,
   ApiPublicAuthDiscordStartRoute: ApiPublicAuthDiscordStartRoute,
