@@ -13,14 +13,18 @@ must run somewhere you control (your machine, a VPS, Railway, Fly, Render…).
 
 ## 2. Environment variables
 
+The bot uses its own Supabase project — see [`BOT_DATABASE.md`](BOT_DATABASE.md) for the
+5-minute setup (create project → run `bot/sql/schema.sql` → copy URL + service role key).
+
 ```
 DISCORD_TOKEN=...                 # bot token
-SUPABASE_URL=...                  # backend URL
-SUPABASE_SERVICE_ROLE_KEY=...     # or SUPABASE_ANON_KEY
+SUPABASE_URL=...                  # your bot Supabase project URL
+SUPABASE_SERVICE_ROLE_KEY=...     # that project's service_role key
 OWNER_DISCORD_IDS=...             # your Discord user ID
 LOG_LEVEL=INFO
 PORT=8080                         # optional: enables /health
 ```
+
 
 ## 3. Run locally
 
