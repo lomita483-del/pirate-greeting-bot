@@ -1273,18 +1273,35 @@ export const COMMAND_PERMISSION_LEVELS = [
   "administrator",
 ] as const;
 
+export const RESPONSE_VISIBILITY = ["inherit", "private", "public"] as const;
+
+const snowflakes = (max: number) => z.array(z.string().regex(/^\d{5,25}$/)).max(max);
+
 const commandConfigInput = z.object({
   guildId: z.string().regex(/^\d{5,25}$/),
   command: z.string().min(1).max(120),
   enabled: z.boolean().optional(),
-  allowedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
-  deniedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
-  allowedChannelIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
+  allowedRoleIds: snowflakes(25).optional(),
+  deniedRoleIds: snowflakes(25).optional(),
+  allowedChannelIds: snowflakes(25).optional(),
+  blockedChannelIds: snowflakes(25).optional(),
+  allowedCategoryIds: snowflakes(25).optional(),
+  protectedRoleIds: snowflakes(25).optional(),
+  protectedUserIds: snowflakes(25).optional(),
   outputChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
   requiredPermission: z.enum(COMMAND_PERMISSION_LEVELS).optional(),
   cooldownSeconds: z.number().int().min(0).max(86400).optional(),
+  rateLimitPerMinute: z.number().int().min(0).max(600).optional(),
+  requireReason: z.boolean().optional(),
+  requireConfirmation: z.boolean().optional(),
+  responseVisibility: z.enum(RESPONSE_VISIBILITY).optional(),
   ephemeral: z.boolean().optional(),
   customResponse: z.string().max(1500).nullable().optional(),
+  errorResponse: z.string().max(1500).nullable().optional(),
+  logEvent: z.boolean().optional(),
+  logChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  notifyRoleId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  notifyChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
   options: z.record(z.string(), z.string().max(500)).optional(),
 });
@@ -1295,14 +1312,73 @@ export type CommandConfig = {
   allowedRoleIds: string[];
   deniedRoleIds: string[];
   allowedChannelIds: string[];
+  blockedChannelIds: string[];
+  allowedCategoryIds: string[];
+  protectedRoleIds: string[];
+  protectedUserIds: string[];
   outputChannelId: string | null;
   requiredPermission: (typeof COMMAND_PERMISSION_LEVELS)[number];
   cooldownSeconds: number;
+  rateLimitPerMinute: number;
+  requireReason: boolean;
+  requireConfirmation: boolean;
+  responseVisibility: (typeof RESPONSE_VISIBILITY)[number];
   ephemeral: boolean;
   customResponse: string | null;
+  errorResponse: string | null;
+  logEvent: boolean;
+  logChannelId: string | null;
+  notifyRoleId: string | null;
+  notifyChannelId: string | null;
   notes: string | null;
   options: Record<string, string>;
 };
+
+/** Column mapping shared by the single-command and bulk writers. */
+const COMMAND_COLUMNS: Array<[keyof CommandConfig, string]> = [
+  ["enabled", "enabled"],
+  ["allowedRoleIds", "allowed_role_ids"],
+  ["deniedRoleIds", "denied_role_ids"],
+  ["allowedChannelIds", "allowed_channel_ids"],
+  ["blockedChannelIds", "blocked_channel_ids"],
+  ["allowedCategoryIds", "allowed_category_ids"],
+  ["protectedRoleIds", "protected_role_ids"],
+  ["protectedUserIds", "protected_user_ids"],
+  ["outputChannelId", "output_channel_id"],
+  ["requiredPermission", "required_permission"],
+  ["cooldownSeconds", "cooldown_seconds"],
+  ["rateLimitPerMinute", "rate_limit_per_minute"],
+  ["requireReason", "require_reason"],
+  ["requireConfirmation", "require_confirmation"],
+  ["responseVisibility", "response_visibility"],
+  ["ephemeral", "ephemeral"],
+  ["customResponse", "custom_response"],
+  ["errorResponse", "error_response"],
+  ["logEvent", "log_event"],
+  ["logChannelId", "log_channel_id"],
+  ["notifyRoleId", "notify_role_id"],
+  ["notifyChannelId", "notify_channel_id"],
+  ["notes", "notes"],
+  ["options", "options"],
+];
+
+function commandRow(
+  guildId: string,
+  command: string,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {
+    guild_id: guildId,
+    command,
+    updated_at: new Date().toISOString(),
+  };
+  for (const [key, column] of COMMAND_COLUMNS) {
+    const value = patch[key as string];
+    if (value !== undefined) row[column] = value;
+  }
+  return row;
+}
+
 
 export const getCommandSettings = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
