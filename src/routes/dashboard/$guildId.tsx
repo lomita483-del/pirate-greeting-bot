@@ -184,6 +184,14 @@ function GuildDashboard() {
                     <div className="space-y-6">
                       <ReactionRolesPanel guildId={guildId} structure={config.data.structure} />
                       <GiveawaysPanel guildId={guildId} structure={config.data.structure} />
+                      <PollsPanel guildId={guildId} structure={config.data.structure} />
+                      <StarboardPanel guildId={guildId} config={config.data} onSaved={refresh} />
+                    </div>
+                  </TabsContent>
+                  <TabsContent value="automation" className="mt-6">
+                    <div className="space-y-6">
+                      <AnnouncementsPanel guildId={guildId} structure={config.data.structure} />
+                      <StatChannelsPanel guildId={guildId} structure={config.data.structure} />
                     </div>
                   </TabsContent>
                   <TabsContent value="leaderboards" className="mt-6">
