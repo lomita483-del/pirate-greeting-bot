@@ -76,6 +76,9 @@ class FeatureService:
         interaction: discord.Interaction,
         command: str,
         config: dict[str, Any],
+        *,
+        member: Optional[discord.Member] = None,
+        value: Optional[str] = None,
     ) -> None:
         """Apply the dashboard's per-command rules before running anything."""
         if not config:
@@ -87,8 +90,8 @@ class FeatureService:
             )
 
         user = interaction.user
-        member = user if isinstance(user, discord.Member) else None
-        role_ids = {str(r.id) for r in getattr(member, "roles", [])}
+        actor = user if isinstance(user, discord.Member) else None
+        role_ids = {str(r.id) for r in getattr(actor, "roles", [])}
 
         denied = set(config.get("denied_role_ids") or [])
         if denied & role_ids:
@@ -101,15 +104,43 @@ class FeatureService:
             )
 
         permission = config.get("required_permission") or "none"
-        if permission != "none" and member is not None:
-            if not getattr(member.guild_permissions, permission, False):
+        if permission != "none" and actor is not None:
+            if not getattr(actor.guild_permissions, permission, False):
                 label = PERMISSION_LABELS.get(permission, permission)
                 raise ActionRefused(f"You need the **{label}** permission to use this command.")
 
+        channel = interaction.channel
+        channel_id = str(getattr(channel, "id", ""))
+        parent_id = str(getattr(getattr(channel, "category", None), "id", "") or "")
+
+        blocked = set(config.get("blocked_channel_ids") or [])
+        if channel_id in blocked:
+            raise ActionRefused("This command is switched off in this channel.")
+
         channels = set(config.get("allowed_channel_ids") or [])
-        if channels and str(getattr(interaction.channel, "id", "")) not in channels:
-            mentions = ", ".join(f"<#{cid}>" for cid in list(channels)[:5])
-            raise ActionRefused(f"This command can only be used in {mentions}.")
+        categories = set(config.get("allowed_category_ids") or [])
+        if channels or categories:
+            if channel_id not in channels and parent_id not in categories:
+                places = [f"<#{cid}>" for cid in list(channels)[:5]]
+                if categories and not places:
+                    places = ["the allowed channel categories"]
+                raise ActionRefused(
+                    "This command can only be used in " + (", ".join(places) or "other channels")
+                    + "."
+                )
+
+        # Protected targets: some members may never be acted upon.
+        if member is not None:
+            protected_users = set(config.get("protected_user_ids") or [])
+            protected_roles = set(config.get("protected_role_ids") or [])
+            target_roles = {str(r.id) for r in getattr(member, "roles", [])}
+            if str(member.id) in protected_users or (protected_roles & target_roles):
+                raise ActionRefused(f"{member.mention} is protected from this command.")
+
+        if config.get("require_reason") and not (value or "").strip():
+            raise ActionRefused(
+                "This command needs a reason — re-run it and fill in the `value` field."
+            )
 
         cooldown = int(config.get("cooldown_seconds") or 0)
         if cooldown > 0 and interaction.guild:
@@ -128,6 +159,18 @@ class FeatureService:
                             f"That command is on cooldown — try again in "
                             f"{int(cooldown - elapsed)}s."
                         )
+
+        rate_limit = int(config.get("rate_limit_per_minute") or 0)
+        if rate_limit > 0 and interaction.guild:
+            since = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+            used = await self.repo.command_uses_since(
+                str(interaction.guild.id), command, str(user.id), since
+            )
+            if used >= rate_limit:
+                raise ActionRefused(
+                    f"You've hit the limit of {rate_limit} use(s) per minute for this command."
+                )
+
 
     @staticmethod
     def apply_custom_response(
