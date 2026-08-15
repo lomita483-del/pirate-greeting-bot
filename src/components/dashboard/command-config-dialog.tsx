@@ -95,24 +95,19 @@ export function CommandConfigDialog({
     setDraft((current) => ({ ...current, [key]: value }));
 
   const save = useMutation({
-    mutationFn: () =>
-      saveCommandConfig({
+    mutationFn: () => {
+      const { command: _ignored, ...rest } = draft;
+      return saveCommandConfig({
         data: {
+          ...rest,
           guildId,
           command,
-          enabled: draft.enabled,
-          allowedRoleIds: draft.allowedRoleIds,
-          deniedRoleIds: draft.deniedRoleIds,
-          allowedChannelIds: draft.allowedChannelIds,
-          outputChannelId: draft.outputChannelId,
-          requiredPermission: draft.requiredPermission,
-          cooldownSeconds: draft.cooldownSeconds,
-          ephemeral: draft.ephemeral,
           customResponse: draft.customResponse?.trim() ? draft.customResponse : null,
+          errorResponse: draft.errorResponse?.trim() ? draft.errorResponse : null,
           notes: draft.notes?.trim() ? draft.notes : null,
-          options: draft.options,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success(`Saved settings for ${command}`);
       onSaved();
@@ -121,10 +116,12 @@ export function CommandConfigDialog({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const textChannels: Option[] = structure.channels.map((c) => ({
-    id: c.id,
-    name: `#${c.name}`,
-  }));
+  const textChannels: Option[] = structure.channels
+    .filter((c) => c.kind !== "category")
+    .map((c) => ({ id: c.id, name: `#${c.name}` }));
+  const categories: Option[] = structure.channels
+    .filter((c) => c.kind === "category")
+    .map((c) => ({ id: c.id, name: c.name }));
   const roles: Option[] = structure.roles.map((r) => ({ id: r.id, name: r.name }));
 
   return (
