@@ -42,9 +42,12 @@ EXTENSIONS = (
     "bot.commands.economy",
     "bot.commands.tickets",
     "bot.commands.reminders",
+    "bot.commands.reaction_roles",
+    "bot.commands.giveaways",
     "bot.events.guild_events",
     "bot.events.member_events",
     "bot.events.message_events",
+    "bot.events.reaction_events",
 )
 
 log = get_logger("core")
@@ -56,6 +59,7 @@ class AhoyBot(commands.Bot):
         intents.members = True
         intents.message_content = True
         intents.voice_states = True
+        intents.reactions = True
 
         super().__init__(
             command_prefix=commands.when_mentioned,
