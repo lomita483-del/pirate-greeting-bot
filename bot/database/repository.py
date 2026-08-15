@@ -697,5 +697,137 @@ class Repository:
             .execute()
         )
 
+    # -- command library ----------------------------------------------------
+    async def command_settings(self, guild_id: str) -> dict[str, bool]:
+        rows = await self.db.try_run(
+            lambda c: c.table("guild_command_settings")
+            .select("command, enabled")
+            .eq("guild_id", guild_id)
+            .execute()
+        )
+        return {r["command"]: bool(r["enabled"]) for r in (getattr(rows, "data", None) or [])}
+
+    async def command_enabled(self, guild_id: str, command: str) -> bool:
+        rows = await self.db.try_run(
+            lambda c: c.table("guild_command_settings")
+            .select("enabled")
+            .eq("guild_id", guild_id)
+            .eq("command", command)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return bool(data[0]["enabled"]) if data else True
+
+    async def set_command_enabled(self, guild_id: str, command: str, enabled: bool) -> None:
+        await self.db.try_run(
+            lambda c: c.table("guild_command_settings")
+            .upsert(
+                {
+                    "guild_id": guild_id,
+                    "command": command,
+                    "enabled": enabled,
+                    "updated_at": _now(),
+                },
+                on_conflict="guild_id,command",
+            )
+            .execute()
+        )
+
+    async def get_feature_state(self, guild_id: str, key: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("guild_feature_state")
+            .select("value")
+            .eq("guild_id", guild_id)
+            .eq("key", key)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return dict(data[0].get("value") or {}) if data else {}
+
+    async def set_feature_state(self, guild_id: str, key: str, value: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("guild_feature_state")
+            .upsert(
+                {"guild_id": guild_id, "key": key, "value": value, "updated_at": _now()},
+                on_conflict="guild_id,key",
+            )
+            .execute()
+        )
+
+    async def add_command_record(self, payload: dict[str, Any]) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("command_records").insert(payload).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def list_command_records(
+        self, guild_id: str, namespace: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("command_records")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("namespace", namespace)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def edit_command_record(self, guild_id: str, namespace: str, label: str) -> bool:
+        latest = await self.list_command_records(guild_id, namespace, limit=1)
+        if not latest:
+            return False
+        await self.db.try_run(
+            lambda c: c.table("command_records")
+            .update({"label": label[:200]})
+            .eq("id", latest[0]["id"])
+            .execute()
+        )
+        return True
+
+    async def delete_command_records(
+        self, guild_id: str, namespace: str, label: Optional[str] = None
+    ) -> int:
+        existing = await self.list_command_records(guild_id, namespace, limit=100)
+        targets = [
+            r for r in existing if not label or (r.get("label") or "").lower() == label.lower()
+        ]
+        for row in targets:
+            await self.db.try_run(
+                lambda c, i=row["id"]: c.table("command_records").delete().eq("id", i).execute()
+            )
+        return len(targets)
+
+    async def log_command_usage(
+        self, guild_id: str, command: str, category: str, user_id: str
+    ) -> None:
+        await self.db.try_run(
+            lambda c: c.table("command_usage")
+            .insert(
+                {
+                    "guild_id": guild_id,
+                    "command": command,
+                    "category": category,
+                    "user_id": user_id,
+                }
+            )
+            .execute()
+        )
+
+    async def command_usage_count(self, guild_id: str, command: str) -> int:
+        rows = await self.db.try_run(
+            lambda c: c.table("command_usage")
+            .select("id")
+            .eq("guild_id", guild_id)
+            .eq("command", command)
+            .limit(1000)
+            .execute()
+        )
+        return len(getattr(rows, "data", None) or [])
+
 
 __all__ = ["Repository", "DatabaseError"]
