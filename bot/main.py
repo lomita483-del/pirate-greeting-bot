@@ -94,6 +94,7 @@ class AhoyBot(commands.Bot):
         self.features = FeatureService(self.repo)
         self._notification_task: Optional[asyncio.Task[None]] = None
         self._health_runner = None
+        self._synced_guild_ids: set[int] = set()
 
     async def setup_hook(self) -> None:
         await self.db.connect()
@@ -107,8 +108,17 @@ class AhoyBot(commands.Bot):
 
         self.tree.on_error = self.on_app_command_error
         self.tree.interaction_check = self._platform_gate
-        synced = await self.tree.sync()
-        log.info("Registered %d slash commands with Discord.", len(synced))
+
+        # Commands are registered per-guild in on_ready instead (instant
+        # propagation — Discord can take up to an hour to roll out global
+        # command changes). Registering them globally *as well* would leave
+        # a second, duplicate copy of every command sitting alongside the
+        # guild-scoped one in Discord's command picker, so make sure no
+        # global commands are registered — clearing and syncing an empty
+        # global command list removes any left over from earlier deploys.
+        self.tree.clear_commands(guild=None)
+        await self.tree.sync()
+        log.info("Cleared global command registrations; guild sync happens in on_ready.")
 
         self._health_runner = await start_health_server(self)
 
@@ -196,10 +206,16 @@ class AhoyBot(commands.Bot):
 
         for guild in self.guilds:
             # Guild-scoped sync makes commands appear instantly instead of
-            # waiting on Discord's global command propagation.
+            # waiting on Discord's global command propagation. Skip guilds
+            # we've already synced this session — re-copying and re-syncing
+            # on every reconnect is unnecessary API traffic, not just a
+            # cosmetic issue, since Discord rate-limits command syncs.
+            if guild.id in self._synced_guild_ids:
+                continue
             try:
                 self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
+                self._synced_guild_ids.add(guild.id)
             except discord.HTTPException as exc:
                 log.warning("Command sync failed for %s: %s", guild.id, exc)
             await self.repo.upsert_server(
