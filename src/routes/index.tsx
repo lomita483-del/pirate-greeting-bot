@@ -124,9 +124,13 @@ function LandingPage() {
                 {signedIn ? "Continue with Discord" : "Sign in with Discord"}
               </a>
             </Button>
+            <Button asChild size="lg" variant="secondary">
+              <a href="/api/public/invite">Add AHOY to your server</a>
+            </Button>
             <Button asChild size="lg" variant="outline">
               <a href="#features">Explore the systems</a>
             </Button>
+
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
             We only request <code className="text-foreground">identify</code> and{" "}
