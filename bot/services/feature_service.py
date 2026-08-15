@@ -50,6 +50,43 @@ PERMISSION_LABELS = {
 }
 
 
+class _ConfirmView(discord.ui.View):
+    """Two-button confirmation, usable only by the member who ran the command."""
+
+    def __init__(self, owner_id: str, timeout: float = 30.0) -> None:
+        super().__init__(timeout=timeout)
+        self.owner_id = owner_id
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.owner_id:
+            await interaction.response.send_message(
+                "This confirmation isn't yours.", ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(
+        self, interaction: discord.Interaction, _button: discord.ui.Button
+    ) -> None:
+        self.confirmed = True
+        await interaction.response.edit_message(
+            embed=embeds.success("Confirmed", "Carrying out the action…"), view=None
+        )
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(
+        self, interaction: discord.Interaction, _button: discord.ui.Button
+    ) -> None:
+        self.confirmed = False
+        await interaction.response.edit_message(
+            embed=embeds.warning("Cancelled", "Nothing was changed."), view=None
+        )
+        self.stop()
+
+
 class FeatureService:
     def __init__(self, repo: Repository) -> None:
         self.repo = repo
