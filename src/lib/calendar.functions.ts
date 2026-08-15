@@ -270,7 +270,10 @@ export const addCalendarSource = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !inserted) {
       console.error("Calendar source insert failed", error);
-      throw new Error("Could not add that calendar.");
+      // TEMPORARY: surface the real database error for debugging. Revert
+      // this to `throw new Error("Could not add that calendar.");` once
+      // the root cause is fixed.
+      throw new Error(`Could not add that calendar: ${error?.message ?? "no row returned"}`);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
