@@ -29,20 +29,40 @@ const PERMISSIONS: Option[] = [
   { id: "administrator", name: "Administrator" },
 ];
 
+const VISIBILITY: Option[] = [
+  { id: "inherit", name: "Use the private-reply switch below" },
+  { id: "private", name: "Always private (only the runner sees it)" },
+  { id: "public", name: "Always public (everyone in the channel)" },
+];
+
 export const defaultCommandConfig = (command: string): CommandConfig => ({
   command,
   enabled: true,
   allowedRoleIds: [],
   deniedRoleIds: [],
   allowedChannelIds: [],
+  blockedChannelIds: [],
+  allowedCategoryIds: [],
+  protectedRoleIds: [],
+  protectedUserIds: [],
   outputChannelId: null,
   requiredPermission: "none",
   cooldownSeconds: 0,
+  rateLimitPerMinute: 0,
+  requireReason: false,
+  requireConfirmation: false,
+  responseVisibility: "inherit",
   ephemeral: true,
   customResponse: null,
+  errorResponse: null,
+  logEvent: true,
+  logChannelId: null,
+  notifyRoleId: null,
+  notifyChannelId: null,
   notes: null,
   options: {},
 });
+
 
 export function CommandConfigDialog({
   open,
