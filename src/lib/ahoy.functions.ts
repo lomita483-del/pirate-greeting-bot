@@ -1257,3 +1257,57 @@ export const getMemberProfile = createServerFn({ method: "GET" })
       cases: cases.data ?? [],
     };
   });
+
+/* ---------------------------------------------------------------- */
+/* Command library toggles                                           */
+/* ---------------------------------------------------------------- */
+
+export const getCommandSettings = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [settings, usage] = await Promise.all([
+      supabaseAdmin
+        .from("guild_command_settings")
+        .select("command, enabled")
+        .eq("guild_id", data.guildId),
+      supabaseAdmin.from("command_usage").select("command").eq("guild_id", data.guildId).limit(2000),
+    ]);
+    const counts: Record<string, number> = {};
+    for (const row of usage.data ?? []) counts[row.command] = (counts[row.command] ?? 0) + 1;
+    return {
+      disabled: (settings.data ?? []).filter((r) => !r.enabled).map((r) => r.command),
+      usage: counts,
+    };
+  });
+
+export const setCommandEnabled = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        command: z.string().min(1).max(120),
+        enabled: z.boolean(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+    const { error } = await supabaseAdmin
+      .from("guild_command_settings")
+      .upsert(
+        {
+          guild_id: data.guildId,
+          command: data.command,
+          enabled: data.enabled,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "guild_id,command" },
+      );
+    if (error) {
+      console.error("Command toggle failed", error);
+      throw new Error("Could not update that command.");
+    }
+    return { ok: true };
+  });

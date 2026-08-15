@@ -31,6 +31,7 @@ from .health import start_health_server
 from .services.platform_service import AccessDenied, PlatformService
 from .services.activity_service import ActivityService
 from .services.starboard_service import StarboardService
+from .services.feature_service import FeatureService
 
 from .services.settings_service import SettingsService
 from .utils import embeds
@@ -49,6 +50,7 @@ EXTENSIONS = (
     "bot.commands.polls",
     "bot.commands.profile",
     "bot.commands.stats",
+    "bot.commands.library",
     "bot.events.guild_events",
     "bot.events.member_events",
     "bot.events.message_events",
@@ -89,6 +91,7 @@ class AhoyBot(commands.Bot):
         self.platform = PlatformService(self.repo)
         self.starboard = StarboardService(self, self.repo)
         self.activity_log = ActivityService(self.repo, self.logs)
+        self.features = FeatureService(self.repo)
         self._notification_task: Optional[asyncio.Task[None]] = None
         self._health_runner = None
 
