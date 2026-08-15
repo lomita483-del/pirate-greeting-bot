@@ -133,6 +133,7 @@ async function ensureServerRow(
 async function fetchGuildStructure(guildId: string) {
   const empty = {
     channels: [] as Array<{ id: string; name: string; kind: string }>,
+    voiceChannels: [] as Array<{ id: string; name: string }>,
     roles: [] as Array<{ id: string; name: string }>,
   };
   const token = process.env["DISCORD_TOKEN"];
@@ -168,6 +169,9 @@ async function fetchGuildStructure(guildId: string) {
     channels: channels
       .filter((c) => c.type === 0 || c.type === 4)
       .map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })),
+    voiceChannels: channels
+      .filter((c) => c.type === 2)
+      .map((c) => ({ id: c.id, name: c.name })),
     roles: roles
       .filter((r) => !r.managed && r.name !== "@everyone")
       .sort((a, b) => b.position - a.position)
@@ -182,6 +186,7 @@ const SECTION_TABLES = {
   logging: "logging_settings",
   automod: "automod_settings",
   roles: "role_settings",
+  starboard: "starboard_settings",
 } as const;
 
 /* ---------------------------------------------------------------- */
@@ -192,7 +197,7 @@ export const getGuildConfig = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
   .handler(async ({ data }) => {
     const { guild, supabaseAdmin } = await authorize(data.guildId);
-    const [server, settings, welcome, logging, automod, roles, commands, structure] =
+    const [server, settings, welcome, logging, automod, roles, starboard, commands, structure] =
       await Promise.all([
         supabaseAdmin.from("servers").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("server_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
@@ -200,6 +205,11 @@ export const getGuildConfig = createServerFn({ method: "GET" })
         supabaseAdmin.from("logging_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("automod_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("role_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
+        supabaseAdmin
+          .from("starboard_settings")
+          .select("*")
+          .eq("guild_id", data.guildId)
+          .maybeSingle(),
         supabaseAdmin
           .from("custom_commands")
           .select("*")
@@ -216,6 +226,7 @@ export const getGuildConfig = createServerFn({ method: "GET" })
       logging: logging.data,
       automod: automod.data,
       roles: roles.data,
+      starboard: starboard.data,
       commands: commands.data ?? [],
       structure,
     };
@@ -386,11 +397,19 @@ const sectionSchemas = {
       .array(z.object({ level: z.number().int().min(1).max(500), role_id: z.string().regex(/^\d{5,25}$/) }))
       .max(50),
   }).partial(),
+  starboard: z.object({
+    enabled: z.boolean(),
+    channel_id: snowflake,
+    emoji: z.string().min(1).max(64),
+    threshold: z.number().int().min(1).max(100),
+    allow_self_star: z.boolean(),
+    ignored_channel_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(25),
+  }).partial(),
 } as const;
 
 const updateInput = z.object({
   guildId: z.string().regex(/^\d{5,25}$/),
-  section: z.enum(["general", "welcome", "logging", "automod", "roles"]),
+  section: z.enum(["general", "welcome", "logging", "automod", "roles", "starboard"]),
   values: z.record(z.string(), z.unknown()),
 });
 
