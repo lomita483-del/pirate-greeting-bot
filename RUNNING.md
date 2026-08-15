@@ -1,0 +1,60 @@
+# Running the AHOY bot
+
+The website is hosted for you. The Python bot is a long-running process, so it
+must run somewhere you control (your machine, a VPS, Railway, Fly, Render…).
+
+## 1. Discord Developer Portal
+
+- **Bot → Privileged Gateway Intents**: enable **Server Members Intent** and
+  **Message Content Intent**. Without them the bot connects but ignores
+  messages (no XP, AutoMod, custom commands, transcripts).
+- **OAuth2 → Redirects**: add
+  `https://pirate-greeting-bot.lovable.app/api/public/auth/discord/callback`
+
+## 2. Environment variables
+
+```
+DISCORD_TOKEN=...                 # bot token
+SUPABASE_URL=...                  # backend URL
+SUPABASE_SERVICE_ROLE_KEY=...     # or SUPABASE_ANON_KEY
+OWNER_DISCORD_IDS=...             # your Discord user ID
+LOG_LEVEL=INFO
+PORT=8080                         # optional: enables /health
+```
+
+## 3. Run locally
+
+```bash
+pip install -r requirements.txt
+python -m bot.main
+```
+
+Expected log lines:
+
+```
+Loaded extension bot.commands.general
+Registered N slash commands with Discord.
+AHOY is online as AHOY#1234 (…) across N server(s).
+```
+
+## 4. Run with Docker
+
+```bash
+docker build -t ahoy-bot .
+docker run --env-file .env ahoy-bot
+```
+
+## 5. Deploy as a worker
+
+- **Railway / Heroku-style**: the `Procfile` declares `worker: python -m bot.main`.
+- **Render**: use a *Background Worker* (start command `python -m bot.main`), or a
+  *Web Service* with `PORT` set so the `/health` endpoint answers.
+
+## Troubleshooting
+
+| Symptom | Cause |
+| --- | --- |
+| No response to any slash command | Process not running, or commands not synced yet (global sync can take up to an hour; re-invite the bot with `applications.commands`) |
+| Connects but no XP / AutoMod | Message Content Intent disabled |
+| "Storage unavailable" replies | `SUPABASE_URL` / key missing or wrong |
+| Commands refuse with "restricted" | Your account is banned or feature-limited in the Owner Console |

@@ -27,7 +27,9 @@ from .services.automod_service import AutoModService
 from .services.level_service import LevelService
 from .services.log_service import LogService
 from .services.moderation_service import ModerationService
+from .health import start_health_server
 from .services.platform_service import AccessDenied, PlatformService
+
 from .services.settings_service import SettingsService
 from .utils import embeds
 from .utils.checks import ActionRefused
@@ -75,6 +77,7 @@ class AhoyBot(commands.Bot):
         self.automod = AutoModService(self.settings, self.moderation)
         self.platform = PlatformService(self.repo)
         self._notification_task: Optional[asyncio.Task[None]] = None
+        self._health_runner = None
 
     async def setup_hook(self) -> None:
         await self.db.connect()
@@ -90,6 +93,9 @@ class AhoyBot(commands.Bot):
         self.tree.interaction_check = self._platform_gate
         synced = await self.tree.sync()
         log.info("Registered %d slash commands with Discord.", len(synced))
+
+        self._health_runner = await start_health_server(self)
+
 
     async def _platform_gate(self, interaction: discord.Interaction) -> bool:
         """Owner-level access control: runs before every slash command."""
@@ -173,6 +179,13 @@ class AhoyBot(commands.Bot):
             self._notification_task = asyncio.create_task(self._deliver_notifications())
 
         for guild in self.guilds:
+            # Guild-scoped sync makes commands appear instantly instead of
+            # waiting on Discord's global command propagation.
+            try:
+                self.tree.copy_global_to(guild=guild)
+                await self.tree.sync(guild=guild)
+            except discord.HTTPException as exc:
+                log.warning("Command sync failed for %s: %s", guild.id, exc)
             await self.repo.upsert_server(
                 str(guild.id),
                 guild.name,
@@ -242,6 +255,11 @@ class AhoyBot(commands.Bot):
 
     async def close(self) -> None:
         log.info("AHOY is shutting down gracefully…")
+        if self._health_runner is not None:
+            try:
+                await self._health_runner.cleanup()
+            except Exception:  # pragma: no cover
+                pass
         await super().close()
 
 
