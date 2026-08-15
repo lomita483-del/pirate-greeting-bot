@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
+import { Route as ApiPublicDiagRouteImport } from './routes/api/public/diag'
 import { Route as ApiPublicInviteRouteImport } from './routes/api/public/invite'
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
@@ -36,6 +37,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
 const DashboardGuildIdRoute = DashboardGuildIdRouteImport.update({
   id: '/dashboard/$guildId',
   path: '/dashboard/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicDiagRoute = ApiPublicDiagRouteImport.update({
+  id: '/api/public/diag',
+  path: '/api/public/diag',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicInviteRoute = ApiPublicInviteRouteImport.update({
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -77,6 +84,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -88,6 +96,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/api/public/diag': typeof ApiPublicDiagRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -100,6 +109,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard/$guildId'
     | '/dashboard/'
+    | '/api/public/diag'
     | '/api/public/invite'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -110,6 +120,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard/$guildId'
     | '/dashboard'
+    | '/api/public/diag'
     | '/api/public/invite'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -120,6 +131,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/dashboard/$guildId'
     | '/dashboard/'
+    | '/api/public/diag'
     | '/api/public/invite'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   DashboardGuildIdRoute: typeof DashboardGuildIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  ApiPublicDiagRoute: typeof ApiPublicDiagRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
   ApiPublicAuthDiscordLogoutRoute: typeof ApiPublicAuthDiscordLogoutRoute
@@ -165,6 +178,13 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$guildId'
       fullPath: '/dashboard/$guildId'
       preLoaderRoute: typeof DashboardGuildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/diag': {
+      id: '/api/public/diag'
+      path: '/api/public/diag'
+      fullPath: '/api/public/diag'
+      preLoaderRoute: typeof ApiPublicDiagRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/invite': {
@@ -203,6 +223,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   DashboardGuildIdRoute: DashboardGuildIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  ApiPublicDiagRoute: ApiPublicDiagRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
   ApiPublicAuthDiscordLogoutRoute: ApiPublicAuthDiscordLogoutRoute,
