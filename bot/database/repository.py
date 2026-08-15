@@ -588,5 +588,103 @@ class Repository:
             .execute()
         )
 
+    # -- moderation cases -------------------------------------------------
+    async def next_case_number(self, guild_id: str) -> int:
+        result = await self.db.try_run(
+            lambda c: c.rpc("next_case_number", {"_guild_id": guild_id}).execute()
+        )
+        value = getattr(result, "data", None)
+        if isinstance(value, list):
+            value = value[0] if value else None
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 1
+
+    async def create_case(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(payload)
+        payload.setdefault("case_number", await self.next_case_number(payload["guild_id"]))
+        result = await self.db.try_run(
+            lambda c: c.table("moderation_cases").insert(payload).execute()
+        )
+        rows = getattr(result, "data", None) or [{}]
+        return rows[0]
+
+    async def close_active_cases(self, guild_id: str, user_id: str, actions: list[str]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("moderation_cases")
+            .update({"active": False})
+            .eq("guild_id", guild_id)
+            .eq("target_id", user_id)
+            .eq("active", True)
+            .in_("action", actions)
+            .execute()
+        )
+
+    async def expired_cases(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("moderation_cases")
+            .select("*")
+            .eq("active", True)
+            .not_.is_("expires_at", "null")
+            .lte("expires_at", _now())
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def update_case(self, case_id: str, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("moderation_cases").update(payload).eq("id", case_id).execute()
+        )
+
+    # -- activity log -----------------------------------------------------
+    async def log_activity(self, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("activity_logs").insert(payload).execute()
+        )
+
+    # -- dashboard action queue -------------------------------------------
+    async def pending_bot_actions(self, limit: int = 20) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("bot_action_queue")
+            .select("*")
+            .eq("status", "pending")
+            .order("created_at")
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def finish_bot_action(
+        self, action_id: str, status: str, error: Optional[str] = None
+    ) -> None:
+        await self.db.try_run(
+            lambda c: c.table("bot_action_queue")
+            .update({"status": status, "error": error, "processed_at": _now()})
+            .eq("id", action_id)
+            .execute()
+        )
+
+    # -- voice stats --------------------------------------------------------
+    async def get_voice_stats(self, guild_id: str, user_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("voice_stats")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def save_voice_stats(self, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("voice_stats")
+            .upsert(payload, on_conflict="guild_id,user_id")
+            .execute()
+        )
+
 
 __all__ = ["Repository", "DatabaseError"]
