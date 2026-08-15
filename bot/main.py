@@ -109,16 +109,26 @@ class AhoyBot(commands.Bot):
         self.tree.on_error = self.on_app_command_error
         self.tree.interaction_check = self._platform_gate
 
-        # Commands are registered per-guild in on_ready instead (instant
-        # propagation — Discord can take up to an hour to roll out global
-        # command changes). Registering them globally *as well* would leave
-        # a second, duplicate copy of every command sitting alongside the
-        # guild-scoped one in Discord's command picker, so make sure no
-        # global commands are registered — clearing and syncing an empty
-        # global command list removes any left over from earlier deploys.
-        self.tree.clear_commands(guild=None)
-        await self.tree.sync()
-        log.info("Cleared global command registrations; guild sync happens in on_ready.")
+        # Commands are registered per-guild in on_ready (instant propagation —
+        # Discord can take up to an hour to roll out global command changes).
+        # An earlier deploy registered everything globally as well, which left
+        # a duplicate copy of every command sitting in Discord's picker.
+        #
+        # To undo that we push an *empty* global command list to Discord once,
+        # which clears those stale registrations. clear_commands() also empties
+        # the tree's own in-memory global bucket though, and copy_global_to()
+        # (used below in on_ready, and by any future guild-join sync) copies
+        # FROM that same bucket — so we save the commands first and add them
+        # straight back into the tree afterward, without re-syncing them to
+        # Discord's global scope. This keeps them available locally for
+        # per-guild copying while staying un-registered globally.
+        global_commands = self.tree.get_commands(guild=None)
+        if global_commands:
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
+            for command in global_commands:
+                self.tree.add_command(command)
+            log.info("Cleared %d stale global command registration(s).", len(global_commands))
 
         self._health_runner = await start_health_server(self)
 
