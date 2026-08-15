@@ -15,11 +15,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { COMMAND_CATEGORIES, commandPath, type CommandEntry } from "@/lib/command-library";
-import { getCommandSettings, setCommandEnabled } from "@/lib/ahoy.functions";
+import {
+  getCommandSettings,
+  saveCommandConfigBulk,
+  setCommandEnabled,
+} from "@/lib/ahoy.functions";
 
+import { CommandBulkDialog } from "./command-bulk-dialog";
 import { CommandConfigDialog, defaultCommandConfig } from "./command-config-dialog";
 import { SectionHeader } from "./fields";
 import type { PanelProps } from "./types";
+
 
 /** Settings key shared with the bot: dedicated commands use their own name. */
 function settingsKey(category: string, entry: CommandEntry): string {
