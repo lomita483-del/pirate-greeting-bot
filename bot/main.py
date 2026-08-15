@@ -56,6 +56,7 @@ EXTENSIONS = (
     "bot.events.message_events",
     "bot.events.reaction_events",
     "bot.events.activity_events",
+    "bot.events.calendar_events",
     "bot.events.scheduler",
 )
 
