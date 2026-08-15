@@ -923,7 +923,13 @@ export const updateCase = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { session, supabaseAdmin } = await authorize(data.guildId);
-    const payload: Record<string, unknown> = {};
+    const payload: {
+      reason?: string;
+      voided?: boolean;
+      voided_by?: string | null;
+      voided_at?: string | null;
+      active?: boolean;
+    } = {};
     if (data.reason !== undefined) payload.reason = data.reason;
     if (data.voided !== undefined) {
       payload.voided = data.voided;
@@ -931,6 +937,7 @@ export const updateCase = createServerFn({ method: "POST" })
       payload.voided_at = data.voided ? new Date().toISOString() : null;
       if (data.voided) payload.active = false;
     }
+
     const { error } = await supabaseAdmin
       .from("moderation_cases")
       .update(payload)
