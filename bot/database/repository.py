@@ -373,6 +373,103 @@ class Repository:
             counts[key] = counts.get(key, 0) + 1
         return counts
 
+    async def calendar_sources(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_sources")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def upcoming_events(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_events")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("status", "confirmed")
+            .gte("start_time", _now())
+            .order("start_time")
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def events_between(
+        self, guild_id: str, start_iso: str, end_iso: str, limit: int = 25
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_events")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("status", "confirmed")
+            .gte("start_time", start_iso)
+            .lte("start_time", end_iso)
+            .order("start_time")
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def event_notifiers(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("event_notifiers")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def calendar_filters(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_filters")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("priority", desc=True)
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def calendar_job_log(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("calendar_job_log")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def pending_reminder_count(self, guild_id: str) -> int:
+        rows = await self.db.try_run(
+            lambda c: c.table("event_reminders")
+            .select("id")
+            .eq("guild_id", guild_id)
+            .eq("status", "pending")
+            .limit(1000)
+            .execute()
+        )
+        return len(getattr(rows, "data", None) or [])
+
+    async def queue_calendar_sync(self, guild_id: str, requested_by: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("bot_action_queue")
+            .insert(
+                {
+                    "guild_id": guild_id,
+                    "action": "calendar_sync",
+                    "payload": {},
+                    "requested_by": requested_by,
+                    "status": "pending",
+                }
+            )
+            .execute()
+        )
+
     # -- custom commands ----------------------------------------------
     async def custom_commands(self, guild_id: str) -> list[dict[str, Any]]:
         rows = await self.db.try_run(
