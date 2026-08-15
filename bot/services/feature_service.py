@@ -258,45 +258,44 @@ class FeatureService:
 
         await self.repo.log_command_usage(guild_id, command, category, actor)
 
+        headline: Optional[str] = None
+
         if kind in ("enable", "disable"):
             enabled = kind == "enable"
             await self.repo.set_feature_state(
                 guild_id, key, {"enabled": enabled, "by": actor, "at": _now(), "value": value}
             )
-            return embeds.success(
-                f"/{command}",
-                f"**{key}** is now **{'enabled' if enabled else 'disabled'}** for this server.",
-            )
+            headline = f"**{key}** is now **{'enabled' if enabled else 'disabled'}** for this server."
 
-        if kind == "reset":
+        elif kind == "reset":
             await self.repo.set_feature_state(guild_id, key, {"reset_at": _now(), "by": actor})
             await self.repo.delete_command_records(guild_id, key)
-            return embeds.success(f"/{command}", f"**{key}** has been reset to its defaults.")
+            headline = f"**{key}** has been reset to its defaults."
 
-        if kind == "config":
+        elif kind == "config":
             state = await self.repo.get_feature_state(guild_id, key)
-            config = dict(state.get("config") or {})
+            feature_cfg = dict(state.get("config") or {})
             if value:
                 field, _, raw = value.partition("=")
                 if raw:
-                    config[field.strip()] = raw.strip()
+                    feature_cfg[field.strip()] = raw.strip()
                 else:
-                    config["value"] = value.strip()
+                    feature_cfg["value"] = value.strip()
             await self.repo.set_feature_state(
-                guild_id, key, {**state, "config": config, "by": actor, "at": _now()}
+                guild_id, key, {**state, "config": feature_cfg, "by": actor, "at": _now()}
             )
-            body = "\n".join(f"• **{k}** — {v}" for k, v in config.items()) or "No values set yet."
-            return embeds.success(
-                f"/{command}",
-                f"Configuration for **{key}**:\n{body}\n\n"
-                "_Tip: pass `field=value` to set a specific field._",
+            headline = (
+                f"Configuration saved for **{key}**."
+                if value
+                else f"Current configuration for **{key}** "
+                "— pass `field=value` to change a setting."
             )
 
-        if kind == "create":
+        elif kind == "create":
             if not value and member is None:
                 raise ActionRefused("Provide a `value` (or a `member`) to create this entry.")
             label = value or (member.display_name if member else "entry")
-            record = await self.repo.add_command_record(
+            await self.repo.add_command_record(
                 {
                     "guild_id": guild_id,
                     "namespace": key,
@@ -306,33 +305,26 @@ class FeatureService:
                     "created_by": actor,
                 }
             )
-            return embeds.success(
-                f"/{command}",
-                f"Added **{label[:200]}** to **{key}**."
-                + (f"\nReference: `{record.get('id', '')[:8]}`" if record else ""),
-            )
+            headline = f"Added **{label[:200]}** to **{key}**."
 
-        if kind == "edit":
+        elif kind == "edit":
             if not value:
                 raise ActionRefused("Provide a `value` describing the change.")
             updated = await self.repo.edit_command_record(guild_id, key, value)
             if not updated:
                 raise ActionRefused(f"No matching entry in **{key}** to edit.")
-            return embeds.success(f"/{command}", f"Updated the latest entry in **{key}**.")
+            headline = f"Updated the latest entry in **{key}**."
 
-        if kind == "delete":
+        elif kind == "delete":
             removed = await self.repo.delete_command_records(guild_id, key, label=value)
             if not removed:
                 raise ActionRefused(f"Nothing to remove from **{key}**.")
-            return embeds.success(f"/{command}", f"Removed **{removed}** entr(y/ies) from **{key}**.")
+            headline = f"Removed **{removed}** entr(y/ies) from **{key}**."
 
-        if kind == "action":
-            # One-off operations (bans, purges, toggles buried under a category, etc.)
-            # must still leave a real record behind — this was previously falling
-            # through to the read-only branch below and never persisting anything,
-            # which is why commands showed "No data yet" despite a usage count.
+        elif kind == "action":
+            # One-off operations must leave a real record behind.
             label = value or (member.display_name if member else description)
-            record = await self.repo.add_command_record(
+            await self.repo.add_command_record(
                 {
                     "guild_id": guild_id,
                     "namespace": key,
@@ -342,20 +334,18 @@ class FeatureService:
                     "created_by": actor,
                 }
             )
-            return embeds.success(
-                f"/{command}",
-                f"**{description}**"
-                + (f"\n{value}" if value else "")
-                + (f"\nReference: `{record.get('id', '')[:8]}`" if record else ""),
-            )
+            headline = f"**{description}**" + (f"\n{value}" if value else "")
 
-        # ---- read-only kinds ----
+        # ---- every kind returns the full configuration + stats view ----
         state = await self.repo.get_feature_state(guild_id, key)
         records = await self.repo.list_command_records(guild_id, key, limit=10)
         usage = await self.repo.command_usage_count(guild_id, command)
 
-        embed = embeds.brand(f"/{command}", description)
+        embed = embeds.brand(
+            f"/{command}", f"{headline}\n\n{description}" if headline else description
+        )
         embed.add_field(name="Area", value=category_title, inline=True)
+
         embed.add_field(
             name="State",
             value="🟢 Enabled" if state.get("enabled", True) else "🔴 Disabled",
