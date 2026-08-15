@@ -358,6 +358,22 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
           onSaved={refresh}
         />
       ) : null}
+
+      {bulk ? (
+        <CommandBulkDialog
+          open
+          onOpenChange={(open) => !open && setBulk(null)}
+          guildId={guildId}
+          commands={bulk.commands}
+          scopeLabel={bulk.label}
+          structure={config.structure}
+          onSaved={() => {
+            setSelected(new Set());
+            refresh();
+          }}
+        />
+      ) : null}
+
     </div>
 
   );
