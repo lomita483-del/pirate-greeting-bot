@@ -425,3 +425,100 @@ grant all on public.giveaways to service_role;
 alter table public.giveaways enable row level security;
 create index if not exists giveaways_guild_idx on public.giveaways (guild_id);
 create index if not exists giveaways_due_idx on public.giveaways (status, ends_at);
+
+-- ---------------------------------------------------------------
+-- Polls, starboard, scheduled announcements & stat channels
+-- ---------------------------------------------------------------
+create table if not exists public.polls (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  channel_id text not null,
+  message_id text,
+  question text not null,
+  options text[] not null default '{}'::text[],
+  votes jsonb not null default '{}'::jsonb,
+  multi_choice boolean not null default false,
+  ends_at timestamptz,
+  status text not null default 'open',
+  created_by text,
+  created_by_name text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant all on public.polls to service_role;
+alter table public.polls enable row level security;
+create index if not exists polls_guild_idx on public.polls (guild_id);
+create index if not exists polls_message_idx on public.polls (message_id);
+create index if not exists polls_due_idx on public.polls (status, ends_at);
+
+create table if not exists public.starboard_settings (
+  guild_id text primary key references public.servers(guild_id) on delete cascade,
+  enabled boolean not null default false,
+  channel_id text,
+  emoji text not null default '⭐',
+  threshold integer not null default 3,
+  allow_self_star boolean not null default false,
+  ignored_channel_ids text[] not null default '{}'::text[],
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant all on public.starboard_settings to service_role;
+alter table public.starboard_settings enable row level security;
+
+create table if not exists public.starboard_entries (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  source_message_id text not null unique,
+  source_channel_id text not null,
+  author_id text,
+  author_name text,
+  starboard_message_id text,
+  star_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant all on public.starboard_entries to service_role;
+alter table public.starboard_entries enable row level security;
+create index if not exists starboard_entries_guild_idx on public.starboard_entries (guild_id);
+
+create table if not exists public.scheduled_announcements (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  channel_id text not null,
+  name text not null default 'Announcement',
+  message text not null,
+  use_embed boolean not null default false,
+  embed_title text,
+  embed_color text not null default '#1FB6A6',
+  recurrence text not null default 'daily',
+  weekday integer,
+  time_of_day text not null default '12:00',
+  timezone text not null default 'UTC',
+  enabled boolean not null default true,
+  next_run_at timestamptz not null default now(),
+  last_run_at timestamptz,
+  created_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+grant all on public.scheduled_announcements to service_role;
+alter table public.scheduled_announcements enable row level security;
+create index if not exists scheduled_announcements_due_idx on public.scheduled_announcements (enabled, next_run_at);
+
+create table if not exists public.stat_channels (
+  id uuid primary key default gen_random_uuid(),
+  guild_id text not null references public.servers(guild_id) on delete cascade,
+  channel_id text not null,
+  kind text not null default 'members',
+  name_template text not null default 'Members: {count}',
+  enabled boolean not null default true,
+  last_value integer,
+  last_updated_at timestamptz,
+  created_by text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (guild_id, channel_id)
+);
+grant all on public.stat_channels to service_role;
+alter table public.stat_channels enable row level security;
+create index if not exists stat_channels_guild_idx on public.stat_channels (guild_id);

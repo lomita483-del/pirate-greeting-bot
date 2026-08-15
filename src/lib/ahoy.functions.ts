@@ -133,6 +133,7 @@ async function ensureServerRow(
 async function fetchGuildStructure(guildId: string) {
   const empty = {
     channels: [] as Array<{ id: string; name: string; kind: string }>,
+    voiceChannels: [] as Array<{ id: string; name: string }>,
     roles: [] as Array<{ id: string; name: string }>,
   };
   const token = process.env["DISCORD_TOKEN"];
@@ -168,6 +169,9 @@ async function fetchGuildStructure(guildId: string) {
     channels: channels
       .filter((c) => c.type === 0 || c.type === 4)
       .map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })),
+    voiceChannels: channels
+      .filter((c) => c.type === 2)
+      .map((c) => ({ id: c.id, name: c.name })),
     roles: roles
       .filter((r) => !r.managed && r.name !== "@everyone")
       .sort((a, b) => b.position - a.position)
@@ -182,6 +186,7 @@ const SECTION_TABLES = {
   logging: "logging_settings",
   automod: "automod_settings",
   roles: "role_settings",
+  starboard: "starboard_settings",
 } as const;
 
 /* ---------------------------------------------------------------- */
@@ -192,7 +197,7 @@ export const getGuildConfig = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
   .handler(async ({ data }) => {
     const { guild, supabaseAdmin } = await authorize(data.guildId);
-    const [server, settings, welcome, logging, automod, roles, commands, structure] =
+    const [server, settings, welcome, logging, automod, roles, starboard, commands, structure] =
       await Promise.all([
         supabaseAdmin.from("servers").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("server_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
@@ -200,6 +205,11 @@ export const getGuildConfig = createServerFn({ method: "GET" })
         supabaseAdmin.from("logging_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("automod_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
         supabaseAdmin.from("role_settings").select("*").eq("guild_id", data.guildId).maybeSingle(),
+        supabaseAdmin
+          .from("starboard_settings")
+          .select("*")
+          .eq("guild_id", data.guildId)
+          .maybeSingle(),
         supabaseAdmin
           .from("custom_commands")
           .select("*")
@@ -216,6 +226,7 @@ export const getGuildConfig = createServerFn({ method: "GET" })
       logging: logging.data,
       automod: automod.data,
       roles: roles.data,
+      starboard: starboard.data,
       commands: commands.data ?? [],
       structure,
     };
@@ -386,11 +397,19 @@ const sectionSchemas = {
       .array(z.object({ level: z.number().int().min(1).max(500), role_id: z.string().regex(/^\d{5,25}$/) }))
       .max(50),
   }).partial(),
+  starboard: z.object({
+    enabled: z.boolean(),
+    channel_id: snowflake,
+    emoji: z.string().min(1).max(64),
+    threshold: z.number().int().min(1).max(100),
+    allow_self_star: z.boolean(),
+    ignored_channel_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(25),
+  }).partial(),
 } as const;
 
 const updateInput = z.object({
   guildId: z.string().regex(/^\d{5,25}$/),
-  section: z.enum(["general", "welcome", "logging", "automod", "roles"]),
+  section: z.enum(["general", "welcome", "logging", "automod", "roles", "starboard"]),
   values: z.record(z.string(), z.unknown()),
 });
 
@@ -579,5 +598,223 @@ export const cancelGiveaway = createServerFn({ method: "POST" })
       .eq("guild_id", data.guildId)
       .eq("status", "running");
     if (error) throw new Error("Could not cancel that giveaway.");
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Polls                                                             */
+/* ---------------------------------------------------------------- */
+
+export const getPolls = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { data: polls } = await supabaseAdmin
+      .from("polls")
+      .select("id, channel_id, message_id, question, options, votes, ends_at, status, created_by_name, created_at")
+      .eq("guild_id", data.guildId)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    return { polls: polls ?? [] };
+  });
+
+export const closePoll = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("polls")
+      .update({ status: "closed" })
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId)
+      .eq("status", "open");
+    if (error) throw new Error("Could not close that poll.");
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Scheduled announcements & stat channels                           */
+/* ---------------------------------------------------------------- */
+
+/** Mirrors bot/services/schedule_service.compute_next_run (UTC). */
+function computeNextRun(
+  recurrence: "once" | "hourly" | "daily" | "weekly",
+  timeOfDay: string,
+  weekday: number | null,
+  runAt?: string | null,
+): string {
+  const now = new Date();
+  const [hourRaw, minuteRaw] = timeOfDay.split(":");
+  const hour = Math.min(23, Math.max(0, Number(hourRaw) || 0));
+  const minute = Math.min(59, Math.max(0, Number(minuteRaw) || 0));
+
+  if (recurrence === "once") {
+    const at = runAt ? new Date(runAt) : new Date(now.getTime() + 60_000);
+    return (Number.isNaN(at.getTime()) ? new Date(now.getTime() + 60_000) : at).toISOString();
+  }
+
+  const candidate = new Date(now);
+  candidate.setUTCSeconds(0, 0);
+  if (recurrence === "hourly") {
+    candidate.setUTCMinutes(minute);
+    if (candidate <= now) candidate.setUTCHours(candidate.getUTCHours() + 1);
+    return candidate.toISOString();
+  }
+
+  candidate.setUTCHours(hour, minute, 0, 0);
+  if (recurrence === "weekly") {
+    const target = Math.min(6, Math.max(0, weekday ?? 0));
+    // JS: 0 = Sunday, Python: 0 = Monday — align to Python's weekday numbering.
+    const currentPy = (candidate.getUTCDay() + 6) % 7;
+    candidate.setUTCDate(candidate.getUTCDate() + ((target - currentPy + 7) % 7));
+    if (candidate <= now) candidate.setUTCDate(candidate.getUTCDate() + 7);
+    return candidate.toISOString();
+  }
+
+  if (candidate <= now) candidate.setUTCDate(candidate.getUTCDate() + 1);
+  return candidate.toISOString();
+}
+
+export const getAutomation = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) => guildInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const [announcements, statChannels] = await Promise.all([
+      supabaseAdmin
+        .from("scheduled_announcements")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: false })
+        .limit(50),
+      supabaseAdmin
+        .from("stat_channels")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: true })
+        .limit(25),
+    ]);
+    return {
+      announcements: announcements.data ?? [],
+      statChannels: statChannels.data ?? [],
+    };
+  });
+
+const announcementInput = z.object({
+  guildId: z.string().regex(/^\d{5,25}$/),
+  id: z.string().uuid().optional(),
+  name: z.string().min(1).max(80),
+  channel_id: z.string().regex(/^\d{5,25}$/),
+  message: z.string().min(1).max(2000),
+  use_embed: z.boolean(),
+  embed_title: z.string().max(200).nullable().optional(),
+  recurrence: z.enum(["once", "hourly", "daily", "weekly"]),
+  weekday: z.number().int().min(0).max(6).nullable().optional(),
+  time_of_day: z.string().regex(/^\d{1,2}:\d{2}$/),
+  enabled: z.boolean(),
+  run_at: z.string().datetime().nullable().optional(),
+});
+
+export const saveAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => announcementInput.parse(data))
+  .handler(async ({ data }) => {
+    const { session, guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+    const payload = {
+      guild_id: data.guildId,
+      name: data.name,
+      channel_id: data.channel_id,
+      message: data.message,
+      use_embed: data.use_embed,
+      embed_title: data.embed_title ?? null,
+      recurrence: data.recurrence,
+      weekday: data.recurrence === "weekly" ? (data.weekday ?? 0) : null,
+      time_of_day: data.time_of_day,
+      enabled: data.enabled,
+      next_run_at: computeNextRun(
+        data.recurrence,
+        data.time_of_day,
+        data.weekday ?? null,
+        data.run_at ?? null,
+      ),
+      created_by: session.userId,
+    };
+    const { error } = data.id
+      ? await supabaseAdmin
+          .from("scheduled_announcements")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("guild_id", data.guildId)
+      : await supabaseAdmin.from("scheduled_announcements").insert(payload);
+    if (error) {
+      console.error("Announcement save failed", error);
+      throw new Error("Could not save that announcement.");
+    }
+    return { ok: true };
+  });
+
+export const deleteAnnouncement = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("scheduled_announcements")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not delete that announcement.");
+    return { ok: true };
+  });
+
+const statChannelInput = z.object({
+  guildId: z.string().regex(/^\d{5,25}$/),
+  id: z.string().uuid().optional(),
+  channel_id: z.string().regex(/^\d{5,25}$/),
+  kind: z.enum(["members", "humans", "bots", "online", "boosters"]),
+  name_template: z.string().min(1).max(90),
+  enabled: z.boolean(),
+});
+
+export const saveStatChannel = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => statChannelInput.parse(data))
+  .handler(async ({ data }) => {
+    const { session, guild, supabaseAdmin } = await authorize(data.guildId);
+    await ensureServerRow(supabaseAdmin, guild);
+    const payload = {
+      guild_id: data.guildId,
+      channel_id: data.channel_id,
+      kind: data.kind,
+      name_template: data.name_template,
+      enabled: data.enabled,
+      last_value: null,
+      created_by: session.userId,
+    };
+    const { error } = data.id
+      ? await supabaseAdmin
+          .from("stat_channels")
+          .update(payload)
+          .eq("id", data.id)
+          .eq("guild_id", data.guildId)
+      : await supabaseAdmin.from("stat_channels").insert(payload);
+    if (error) {
+      console.error("Stat channel save failed", error);
+      throw new Error(
+        error.code === "23505"
+          ? "That voice channel is already used for a stat counter."
+          : "Could not save that stat channel.",
+      );
+    }
+    return { ok: true };
+  });
+
+export const deleteStatChannel = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => rowInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin
+      .from("stat_channels")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not remove that stat channel.");
     return { ok: true };
   });

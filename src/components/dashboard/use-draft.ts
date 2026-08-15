@@ -5,7 +5,7 @@ import { toast } from "sonner";
 
 import { updateGuildSection } from "@/lib/ahoy.functions";
 
-type Section = "general" | "welcome" | "logging" | "automod" | "roles";
+type Section = "general" | "welcome" | "logging" | "automod" | "roles" | "starboard";
 
 export function useDraft<T extends Record<string, unknown>>(
   guildId: string,

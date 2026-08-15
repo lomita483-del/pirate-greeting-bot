@@ -615,6 +615,65 @@ export type Database = {
         }
         Relationships: []
       }
+      polls: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          created_by_name: string | null
+          ends_at: string | null
+          guild_id: string
+          id: string
+          message_id: string | null
+          multi_choice: boolean
+          options: string[]
+          question: string
+          status: string
+          updated_at: string
+          votes: Json
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          ends_at?: string | null
+          guild_id: string
+          id?: string
+          message_id?: string | null
+          multi_choice?: boolean
+          options?: string[]
+          question: string
+          status?: string
+          updated_at?: string
+          votes?: Json
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          created_by_name?: string | null
+          ends_at?: string | null
+          guild_id?: string
+          id?: string
+          message_id?: string | null
+          multi_choice?: boolean
+          options?: string[]
+          question?: string
+          status?: string
+          updated_at?: string
+          votes?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "polls_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       reaction_roles: {
         Row: {
           channel_id: string
@@ -725,6 +784,77 @@ export type Database = {
             foreignKeyName: "role_settings_guild_id_fkey"
             columns: ["guild_id"]
             isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      scheduled_announcements: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          embed_color: string
+          embed_title: string | null
+          enabled: boolean
+          guild_id: string
+          id: string
+          last_run_at: string | null
+          message: string
+          name: string
+          next_run_at: string
+          recurrence: string
+          time_of_day: string
+          timezone: string
+          updated_at: string
+          use_embed: boolean
+          weekday: number | null
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          embed_color?: string
+          embed_title?: string | null
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          last_run_at?: string | null
+          message: string
+          name?: string
+          next_run_at?: string
+          recurrence?: string
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+          use_embed?: boolean
+          weekday?: number | null
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          embed_color?: string
+          embed_title?: string | null
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          last_run_at?: string | null
+          message?: string
+          name?: string
+          next_run_at?: string
+          recurrence?: string
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+          use_embed?: boolean
+          weekday?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduled_announcements_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["guild_id"]
           },
@@ -851,6 +981,147 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      starboard_entries: {
+        Row: {
+          author_id: string | null
+          author_name: string | null
+          created_at: string
+          guild_id: string
+          id: string
+          source_channel_id: string
+          source_message_id: string
+          star_count: number
+          starboard_message_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name?: string | null
+          created_at?: string
+          guild_id: string
+          id?: string
+          source_channel_id: string
+          source_message_id: string
+          star_count?: number
+          starboard_message_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name?: string | null
+          created_at?: string
+          guild_id?: string
+          id?: string
+          source_channel_id?: string
+          source_message_id?: string
+          star_count?: number
+          starboard_message_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "starboard_entries_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      starboard_settings: {
+        Row: {
+          allow_self_star: boolean
+          channel_id: string | null
+          created_at: string
+          emoji: string
+          enabled: boolean
+          guild_id: string
+          ignored_channel_ids: string[]
+          threshold: number
+          updated_at: string
+        }
+        Insert: {
+          allow_self_star?: boolean
+          channel_id?: string | null
+          created_at?: string
+          emoji?: string
+          enabled?: boolean
+          guild_id: string
+          ignored_channel_ids?: string[]
+          threshold?: number
+          updated_at?: string
+        }
+        Update: {
+          allow_self_star?: boolean
+          channel_id?: string | null
+          created_at?: string
+          emoji?: string
+          enabled?: boolean
+          guild_id?: string
+          ignored_channel_ids?: string[]
+          threshold?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "starboard_settings_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      stat_channels: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          guild_id: string
+          id: string
+          kind: string
+          last_updated_at: string | null
+          last_value: number | null
+          name_template: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          kind?: string
+          last_updated_at?: string | null
+          last_value?: number | null
+          name_template?: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          kind?: string
+          last_updated_at?: string | null
+          last_value?: number | null
+          name_template?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stat_channels_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
       }
       ticket_messages: {
         Row: {

@@ -476,5 +476,117 @@ class Repository:
             .execute()
         )
 
+    # -- polls ----------------------------------------------------------
+    async def create_poll(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = await self.db.run(lambda c: c.table("polls").insert(payload).execute())
+        rows = getattr(result, "data", None) or [{}]
+        return rows[0]
+
+    async def get_poll_by_message(self, message_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("polls").select("*").eq("message_id", message_id).limit(1).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def latest_poll(self, guild_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("polls")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def due_polls(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("polls")
+            .select("*")
+            .eq("status", "open")
+            .not_.is_("ends_at", "null")
+            .lte("ends_at", _now())
+            .limit(25)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def update_poll(self, poll_id: str, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("polls").update(payload).eq("id", poll_id).execute()
+        )
+
+    # -- starboard ------------------------------------------------------
+    async def starboard_settings(self, guild_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("starboard_settings")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def starboard_entry(self, source_message_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("starboard_entries")
+            .select("*")
+            .eq("source_message_id", source_message_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def save_starboard_entry(self, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("starboard_entries")
+            .upsert(payload, on_conflict="source_message_id")
+            .execute()
+        )
+
+    # -- scheduled announcements ----------------------------------------
+    async def due_announcements(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("scheduled_announcements")
+            .select("*")
+            .eq("enabled", True)
+            .lte("next_run_at", _now())
+            .limit(25)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def update_announcement(self, announcement_id: str, payload: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("scheduled_announcements")
+            .update(payload)
+            .eq("id", announcement_id)
+            .execute()
+        )
+
+    # -- stat channels ----------------------------------------------------
+    async def stat_channels(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("stat_channels")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("enabled", True)
+            .limit(25)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def mark_stat_channel(self, row_id: str, value: int) -> None:
+        await self.db.try_run(
+            lambda c: c.table("stat_channels")
+            .update({"last_value": value, "last_updated_at": _now()})
+            .eq("id", row_id)
+            .execute()
+        )
+
 
 __all__ = ["Repository", "DatabaseError"]
