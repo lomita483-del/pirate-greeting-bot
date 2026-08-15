@@ -1039,6 +1039,35 @@ class Repository:
         )
         return getattr(rows, "data", None) or []
 
+# -- error log ----------------------------------------------------
+    async def log_error(
+        self,
+        *,
+        source: str,
+        error_type: str,
+        message: str,
+        guild_id: Optional[str] = None,
+        command: Optional[str] = None,
+        traceback_text: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel_id: Optional[str] = None,
+    ) -> None:
+        await self.db.try_run(
+            lambda c: c.table("bot_error_logs")
+            .insert(
+                {
+                    "guild_id": guild_id,
+                    "source": source,
+                    "command": command,
+                    "error_type": error_type,
+                    "message": message[:2000],
+                    "traceback": (traceback_text or "")[:8000] or None,
+                    "user_id": user_id,
+                    "channel_id": channel_id,
+                }
+            )
+            .execute()
+        )
 
 __all__ = ["Repository", "DatabaseError"]
 
