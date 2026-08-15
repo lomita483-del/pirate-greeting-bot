@@ -1,37 +1,25 @@
-# AHOY bot database setup (Option 1: the bot gets its own Supabase project)
+# AHOY bot database setup
 
-The website's managed database credentials are locked, so the Python bot uses its own
-Supabase project. Takes about 5 minutes.
+The website and the bot now share **your own Supabase project**. The schema is already
+created there (all 20 AHOY tables: servers, settings, members, warnings, moderation logs,
+tickets, XP, economy, reminders, custom commands, automod, logging, welcome, roles,
+platform admins/users/notifications). Nothing more to run in the SQL editor.
 
-## 1. Create the project
+If you ever need to recreate it in a fresh project, run
+[`bot/sql/schema.sql`](bot/sql/schema.sql) in **SQL Editor → New query**.
 
-1. Go to https://supabase.com → **New project**.
-2. Pick any name (e.g. `ahoy-bot`), set a database password, choose a region near your host.
-3. Wait for provisioning to finish.
+## Credentials for the bot
 
-## 2. Create the tables
-
-1. In your new project open **SQL Editor → New query**.
-2. Copy the entire contents of [`bot/sql/schema.sql`](bot/sql/schema.sql) and paste it in.
-3. Click **Run**. It creates all 20 AHOY tables (servers, settings, members, warnings,
-   moderation logs, tickets, XP, economy, reminders, custom commands, automod, logging,
-   welcome, roles, platform admins/users/notifications) with RLS enabled and
-   `service_role` access.
-
-Re-running the script is safe — every statement uses `if not exists` / `drop policy if exists`.
-
-## 3. Grab the credentials
-
-In the project: **Settings → API**
+In your Supabase project: **Settings → API**
 
 | Value | Env var |
 | --- | --- |
 | Project URL | `SUPABASE_URL` |
 | `service_role` secret key | `SUPABASE_SERVICE_ROLE_KEY` |
 
-Keep the service role key private — it bypasses RLS. Only the bot process ever sees it.
+Keep the service role key private — it bypasses RLS and only the bot process should see it.
 
-## 4. Run the bot
+## Run the bot
 
 ```bash
 export DISCORD_TOKEN=your-bot-token
@@ -50,13 +38,14 @@ Startup should log:
 AHOY is online as AHOY#1234 (guilds: N)
 ```
 
-## 5. Notes
+## Notes
 
-- **Two databases is normal.** The website dashboard reads the Lovable-managed database;
-  the bot reads its own. If you want the dashboard to control the *same* rows the bot uses,
-  tell me and I'll switch the website's server functions over to this Supabase project too
-  (its URL + service key get stored as website secrets).
-- The bot degrades gracefully: if `SUPABASE_URL` is missing it still connects to Discord and
-  answers `/ahoy`, but persistent features (XP, economy, tickets, warnings) are disabled.
+- Because both sides point at the same project, anything the bot writes (XP, tickets,
+  warnings, economy) shows up in the dashboard immediately, and dashboard settings changes
+  take effect in the bot within its cache window.
+- Every table has row-level security on with no public policies: nothing is readable from a
+  browser. Only the bot and the website's server code (service role) can touch the data.
+- The bot degrades gracefully: without `SUPABASE_URL` it still connects to Discord and
+  answers `/ahoy`, but persistent features are disabled.
 - Enable **Server Members** and **Message Content** privileged intents in the Discord
   Developer Portal, or message-based features stay silent.
