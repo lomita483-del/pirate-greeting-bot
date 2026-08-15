@@ -67,6 +67,62 @@ export type Database = {
           },
         ]
       }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          after_state: Json | null
+          before_state: Json | null
+          created_at: string
+          event_id: string | null
+          guild_id: string
+          id: string
+          metadata: Json
+          reason: string | null
+          resource_id: string | null
+          resource_type: string | null
+          target_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          event_id?: string | null
+          guild_id: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          target_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          after_state?: Json | null
+          before_state?: Json | null
+          created_at?: string
+          event_id?: string | null
+          guild_id?: string
+          id?: string
+          metadata?: Json
+          reason?: string | null
+          resource_id?: string | null
+          resource_type?: string | null
+          target_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "system_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automod_settings: {
         Row: {
           anti_spam_action: string
@@ -725,8 +781,10 @@ export type Database = {
       }
       guild_command_settings: {
         Row: {
+          allowed_category_ids: string[]
           allowed_channel_ids: string[]
           allowed_role_ids: string[]
+          blocked_channel_ids: string[]
           command: string
           cooldown_seconds: number
           created_at: string
@@ -734,17 +792,30 @@ export type Database = {
           denied_role_ids: string[]
           enabled: boolean
           ephemeral: boolean
+          error_response: string | null
           guild_id: string
           id: string
+          log_channel_id: string | null
+          log_event: boolean
           notes: string | null
+          notify_channel_id: string | null
+          notify_role_id: string | null
           options: Json
           output_channel_id: string | null
+          protected_role_ids: string[]
+          protected_user_ids: string[]
+          rate_limit_per_minute: number
+          require_confirmation: boolean
+          require_reason: boolean
           required_permission: string
+          response_visibility: string
           updated_at: string
         }
         Insert: {
+          allowed_category_ids?: string[]
           allowed_channel_ids?: string[]
           allowed_role_ids?: string[]
+          blocked_channel_ids?: string[]
           command: string
           cooldown_seconds?: number
           created_at?: string
@@ -752,17 +823,30 @@ export type Database = {
           denied_role_ids?: string[]
           enabled?: boolean
           ephemeral?: boolean
+          error_response?: string | null
           guild_id: string
           id?: string
+          log_channel_id?: string | null
+          log_event?: boolean
           notes?: string | null
+          notify_channel_id?: string | null
+          notify_role_id?: string | null
           options?: Json
           output_channel_id?: string | null
+          protected_role_ids?: string[]
+          protected_user_ids?: string[]
+          rate_limit_per_minute?: number
+          require_confirmation?: boolean
+          require_reason?: boolean
           required_permission?: string
+          response_visibility?: string
           updated_at?: string
         }
         Update: {
+          allowed_category_ids?: string[]
           allowed_channel_ids?: string[]
           allowed_role_ids?: string[]
+          blocked_channel_ids?: string[]
           command?: string
           cooldown_seconds?: number
           created_at?: string
@@ -770,12 +854,23 @@ export type Database = {
           denied_role_ids?: string[]
           enabled?: boolean
           ephemeral?: boolean
+          error_response?: string | null
           guild_id?: string
           id?: string
+          log_channel_id?: string | null
+          log_event?: boolean
           notes?: string | null
+          notify_channel_id?: string | null
+          notify_role_id?: string | null
           options?: Json
           output_channel_id?: string | null
+          protected_role_ids?: string[]
+          protected_user_ids?: string[]
+          rate_limit_per_minute?: number
+          require_confirmation?: boolean
+          require_reason?: boolean
           required_permission?: string
+          response_visibility?: string
           updated_at?: string
         }
         Relationships: []
@@ -1720,6 +1815,51 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      system_events: {
+        Row: {
+          actor_id: string | null
+          case_id: string | null
+          channel_id: string | null
+          created_at: string
+          event_type: string
+          guild_id: string
+          id: string
+          metadata: Json
+          resource_id: string | null
+          resource_type: string | null
+          source: string
+          target_id: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          case_id?: string | null
+          channel_id?: string | null
+          created_at?: string
+          event_type: string
+          guild_id: string
+          id?: string
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string | null
+          source?: string
+          target_id?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          case_id?: string | null
+          channel_id?: string | null
+          created_at?: string
+          event_type?: string
+          guild_id?: string
+          id?: string
+          metadata?: Json
+          resource_id?: string | null
+          resource_type?: string | null
+          source?: string
+          target_id?: string | null
+        }
+        Relationships: []
       }
       ticket_messages: {
         Row: {
