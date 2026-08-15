@@ -534,7 +534,7 @@ export const listEventAutomation = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => z.object({ guildId }).parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    const [templatesRes, notifiersRes, summaryRes, feedRes] = await Promise.all([
+    const [templatesRes, notifiersRes, summaryRes, feedRes, filtersRes, logsRes] = await Promise.all([
       supabaseAdmin
         .from("message_templates")
         .select("*")
@@ -551,6 +551,17 @@ export const listEventAutomation = createServerFn({ method: "GET" })
         .eq("guild_id", data.guildId)
         .maybeSingle(),
       supabaseAdmin.from("calendar_sources").select("*").eq("guild_id", data.guildId),
+      supabaseAdmin
+        .from("calendar_filters")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("priority", { ascending: false }),
+      supabaseAdmin
+        .from("calendar_job_log")
+        .select("*")
+        .eq("guild_id", data.guildId)
+        .order("created_at", { ascending: false })
+        .limit(40),
     ]);
 
     const templates = (templatesRes.data ?? []).map((row) => {
@@ -576,6 +587,25 @@ export const listEventAutomation = createServerFn({ method: "GET" })
         cleanupPrevious: Boolean(r["cleanup_previous"]),
         templateId: (r["template_id"] as string | null) ?? null,
         enabled: r["enabled"] !== false,
+        timezone: (r["timezone"] as string) ?? "UTC",
+        language: (r["language"] as string) ?? "en",
+        linkMode: (r["link_mode"] as string) ?? "google",
+        customLink: (r["custom_link"] as string | null) ?? null,
+        detectionDays: Number(r["detection_days"] ?? 30),
+        recurringMode: (r["recurring_mode"] as string) ?? "each_occurrence",
+        cleanupMode: (r["cleanup_mode"] as string) ?? "delete_previous",
+        mentionTarget: (r["mention_target"] as string) ?? "none",
+        reminderChannelId: (r["reminder_channel_id"] as string | null) ?? null,
+        summaryChannelId: (r["summary_channel_id"] as string | null) ?? null,
+        activityChannelId: (r["activity_channel_id"] as string | null) ?? null,
+        errorChannelId: (r["error_channel_id"] as string | null) ?? null,
+        announceCreated: Boolean(r["announce_created"]),
+        announceUpdated: Boolean(r["announce_updated"]),
+        announceCancelled: Boolean(r["announce_cancelled"]),
+        announceEnteringRange: Boolean(r["announce_entering_range"]),
+        recurringActivityMessages: r["recurring_activity_messages"] !== false,
+        healthStatus: (r["health_status"] as string) ?? "healthy",
+        healthError: (r["health_error"] as string | null) ?? null,
       };
     });
 
@@ -594,11 +624,41 @@ export const listEventAutomation = createServerFn({ method: "GET" })
       };
     });
 
+    const filters = (filtersRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r["id"] as string,
+        notifierId: (r["notifier_id"] as string | null) ?? null,
+        field: (r["field"] as string) ?? "title",
+        operator: (r["operator"] as string) ?? "contains",
+        value: (r["value"] as string) ?? "",
+        action: (r["action"] as string) ?? "include",
+        priority: Number(r["priority"] ?? 0),
+        enabled: r["enabled"] !== false,
+      };
+    });
+
+    const logs = (logsRes.data ?? []).map((row) => {
+      const r = row as Record<string, unknown>;
+      return {
+        id: r["id"] as string,
+        jobType: (r["job_type"] as string) ?? "reminder",
+        status: (r["status"] as string) ?? "sent",
+        error: (r["error"] as string | null) ?? null,
+        channelId: (r["channel_id"] as string | null) ?? null,
+        notifierId: (r["notifier_id"] as string | null) ?? null,
+        createdAt: r["created_at"] as string,
+        detail: JSON.stringify(r["metadata"] ?? {}).slice(0, 300),
+      };
+    });
+
     const s = (summaryRes.data ?? {}) as Record<string, unknown>;
     return {
       templates,
       notifiers,
       feeds,
+      filters,
+      logs,
       summary: {
         enabled: Boolean(s["enabled"]),
         channelId: (s["channel_id"] as string | null) ?? null,
@@ -721,6 +781,23 @@ export const saveNotifier = createServerFn({ method: "POST" })
         cleanupPrevious: z.boolean(),
         templateId: z.string().uuid().nullable(),
         enabled: z.boolean(),
+        timezone: z.string().max(64).optional(),
+        language: z.string().max(8).optional(),
+        linkMode: z.enum(["google", "discord", "custom", "none"]).optional(),
+        customLink: z.string().max(400).nullable().optional(),
+        detectionDays: z.number().int().min(1).max(365).optional(),
+        recurringMode: z.enum(["each_occurrence", "first_only", "skip"]).optional(),
+        cleanupMode: z.enum(["delete_previous", "edit_previous", "keep_all"]).optional(),
+        mentionTarget: z.string().max(30).optional(),
+        reminderChannelId: snowflake.nullable().optional(),
+        summaryChannelId: snowflake.nullable().optional(),
+        activityChannelId: snowflake.nullable().optional(),
+        errorChannelId: snowflake.nullable().optional(),
+        announceCreated: z.boolean().optional(),
+        announceUpdated: z.boolean().optional(),
+        announceCancelled: z.boolean().optional(),
+        announceEnteringRange: z.boolean().optional(),
+        recurringActivityMessages: z.boolean().optional(),
       })
       .parse(data),
   )
@@ -737,6 +814,23 @@ export const saveNotifier = createServerFn({ method: "POST" })
       cleanup_previous: data.cleanupPrevious,
       template_id: data.templateId,
       enabled: data.enabled,
+      timezone: data.timezone ?? "UTC",
+      language: data.language ?? "en",
+      link_mode: data.linkMode ?? "google",
+      custom_link: data.customLink ?? null,
+      detection_days: data.detectionDays ?? 30,
+      recurring_mode: data.recurringMode ?? "each_occurrence",
+      cleanup_mode: data.cleanupMode ?? "delete_previous",
+      mention_target: data.mentionTarget ?? "none",
+      reminder_channel_id: data.reminderChannelId ?? null,
+      summary_channel_id: data.summaryChannelId ?? null,
+      activity_channel_id: data.activityChannelId ?? null,
+      error_channel_id: data.errorChannelId ?? null,
+      announce_created: data.announceCreated ?? false,
+      announce_updated: data.announceUpdated ?? false,
+      announce_cancelled: data.announceCancelled ?? false,
+      announce_entering_range: data.announceEnteringRange ?? false,
+      recurring_activity_messages: data.recurringActivityMessages ?? true,
       created_by: session.userId,
       updated_at: new Date().toISOString(),
     };
@@ -877,4 +971,89 @@ export const getEventRsvps = createServerFn({ method: "GET" })
       declined: list.filter((r) => r.response === "declined").length,
       list,
     };
+  });
+
+
+/* ---------------------------------------------------------------- */
+/* Event filters                                                      */
+/* ---------------------------------------------------------------- */
+
+export const saveCalendarFilter = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId,
+        filterId: z.string().uuid().nullable(),
+        notifierId: z.string().uuid().nullable(),
+        field: z.enum(["title", "description", "location", "status", "calendar"]),
+        operator: z.enum(["contains", "not_contains", "equals", "starts_with", "ends_with", "regex"]),
+        value: z.string().min(1).max(200),
+        action: z.enum(["include", "exclude"]),
+        priority: z.number().int().min(0).max(100),
+        enabled: z.boolean(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const payload = {
+      guild_id: data.guildId,
+      notifier_id: data.notifierId,
+      field: data.field,
+      operator: data.operator,
+      value: data.value,
+      action: data.action,
+      priority: data.priority,
+      enabled: data.enabled,
+      created_by: session.userId,
+    };
+    const { error } = data.filterId
+      ? await supabaseAdmin
+          .from("calendar_filters")
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .update(payload as any)
+          .eq("id", data.filterId)
+          .eq("guild_id", data.guildId)
+      : // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await supabaseAdmin.from("calendar_filters").insert(payload as any);
+    if (error) {
+      console.error("Filter save failed", error);
+      throw new Error("Could not save that filter rule.");
+    }
+    const { rebuildRemindersForGuild, writeCalendarAudit } = await import("@/lib/calendar.server");
+    await rebuildRemindersForGuild(supabaseAdmin, data.guildId);
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: data.filterId ? "FILTER_UPDATED" : "FILTER_CREATED",
+      actorId: session.userId,
+      resourceType: "calendar_filter",
+      resourceId: data.filterId,
+      endpoint: "/api/v1/filters",
+      details: { field: data.field, operator: data.operator, action: data.action },
+    });
+    return { ok: true };
+  });
+
+export const deleteCalendarFilter = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z.object({ guildId, filterId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    await supabaseAdmin
+      .from("calendar_filters")
+      .delete()
+      .eq("id", data.filterId)
+      .eq("guild_id", data.guildId);
+    const { rebuildRemindersForGuild, writeCalendarAudit } = await import("@/lib/calendar.server");
+    await rebuildRemindersForGuild(supabaseAdmin, data.guildId);
+    await writeCalendarAudit(supabaseAdmin, {
+      guildId: data.guildId,
+      action: "FILTER_DELETED",
+      actorId: session.userId,
+      resourceType: "calendar_filter",
+      resourceId: data.filterId,
+      endpoint: "/api/v1/filters",
+    });
+    return { ok: true };
   });

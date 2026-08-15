@@ -188,6 +188,7 @@ export async function syncCalendarSource(
   }
 
   const seen = new Set<string>();
+  const activity: ActivityChange[] = [];
   for (const event of parsed) {
     const key = `${event.externalEventId}|${event.start.toISOString()}`;
     if (seen.has(key)) {
@@ -216,24 +217,37 @@ export async function syncCalendarSource(
     };
 
     const prior = existing.get(key);
-    const { error } = await supabaseAdmin
+    const { data: savedRows, error } = await supabaseAdmin
       .from("calendar_events")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(payload as any, { onConflict: "calendar_source_id,external_event_id,start_time" });
+      .upsert(payload as any, { onConflict: "calendar_source_id,external_event_id,start_time" })
+      .select("*");
     if (error) {
       console.error("Calendar upsert failed", error);
       continue;
     }
+    const saved = ((savedRows ?? [])[0] ?? null) as Record<string, unknown> | null;
+    const changed =
+      prior !== undefined &&
+      (prior["title"] !== payload.title ||
+        prior["status"] !== payload.status ||
+        prior["location"] !== payload.location ||
+        prior["description"] !== payload.description ||
+        new Date(String(prior["start_time"])).getTime() !== event.start.getTime());
+
     if (!prior) result.created += 1;
-    else if (
-      prior["title"] !== payload.title ||
-      prior["status"] !== payload.status ||
-      prior["location"] !== payload.location ||
-      prior["description"] !== payload.description
-    ) {
-      result.updated += 1;
-    }
+    else if (changed) result.updated += 1;
     if (event.status === "cancelled") result.cancelled += 1;
+
+    if (saved) {
+      if (!prior) {
+        activity.push({ kind: event.status === "cancelled" ? "cancelled" : "created", event: saved });
+      } else if (event.status === "cancelled" && prior["status"] !== "cancelled") {
+        activity.push({ kind: "cancelled", event: saved });
+      } else if (changed) {
+        activity.push({ kind: "updated", event: saved, previous: prior });
+      }
+    }
   }
 
   // Events that vanished from the feed are marked cancelled, never deleted.
@@ -243,12 +257,11 @@ export async function syncCalendarSource(
     return !seen.has(key) && new Date(String(r["start_time"])).getTime() > Date.now();
   });
   for (const row of missing) {
-    const id = (row as Record<string, unknown>)["id"] as string;
-    await supabaseAdmin
-      .from("calendar_events")
-      .update({ status: "cancelled" })
-      .eq("id", id);
+    const r = row as Record<string, unknown>;
+    const id = r["id"] as string;
+    await supabaseAdmin.from("calendar_events").update({ status: "cancelled" }).eq("id", id);
     result.cancelled += 1;
+    activity.push({ kind: "cancelled", event: { ...r, status: "cancelled" } });
   }
 
   await supabaseAdmin
@@ -261,7 +274,147 @@ export async function syncCalendarSource(
     .eq("id", source.id);
 
   await rebuildRemindersForGuild(supabaseAdmin, source.guild_id);
+  await announceActivity(supabaseAdmin, source.guild_id, source.id, source.name, activity);
   return result;
+}
+
+/* ------------------------------------------------------------------ */
+/* Activity messages (created / updated / cancelled / entering range)  */
+/* ------------------------------------------------------------------ */
+
+export type ActivityChange = {
+  kind: "created" | "updated" | "cancelled" | "entering_range";
+  event: Record<string, unknown>;
+  previous?: Record<string, unknown>;
+};
+
+const ACTIVITY_FLAG: Record<ActivityChange["kind"], keyof NotifierRow> = {
+  created: "announce_created",
+  updated: "announce_updated",
+  cancelled: "announce_cancelled",
+  entering_range: "announce_entering_range",
+};
+
+const ACTIVITY_LABEL: Record<ActivityChange["kind"], string> = {
+  created: "🆕 New event detected",
+  updated: "✏️ Event updated",
+  cancelled: "🚫 Event cancelled",
+  entering_range: "👀 Event entering range",
+};
+
+function changeSummary(change: ActivityChange): string[] {
+  const lines: string[] = [];
+  const prev = change.previous;
+  const next = change.event;
+  if (!prev) return lines;
+  if (prev["title"] !== next["title"]) lines.push(`**Title:** ${prev["title"]} → ${next["title"]}`);
+  const pStart = prev["start_time"] ? new Date(String(prev["start_time"])).getTime() : 0;
+  const nStart = next["start_time"] ? new Date(String(next["start_time"])).getTime() : 0;
+  if (pStart !== nStart) {
+    lines.push(`**Time:** <t:${Math.floor(pStart / 1000)}:f> → <t:${Math.floor(nStart / 1000)}:f>`);
+  }
+  if ((prev["location"] ?? "") !== (next["location"] ?? "")) {
+    lines.push(`**Location:** ${prev["location"] ?? "—"} → ${next["location"] ?? "—"}`);
+  }
+  return lines;
+}
+
+/** Post created/updated/cancelled announcements for every notifier that wants them. */
+export async function announceActivity(
+  supabaseAdmin: Admin,
+  guildId: string,
+  sourceId: string,
+  sourceName: string,
+  changes: ActivityChange[],
+) {
+  if (changes.length === 0) return { posted: 0 };
+  const [notifiers, filters] = await Promise.all([
+    loadNotifiers(supabaseAdmin, guildId),
+    loadFilters(supabaseAdmin, guildId),
+  ]);
+  let posted = 0;
+
+  for (const notifier of notifiers) {
+    if (notifier.calendar_source_id && notifier.calendar_source_id !== sourceId) continue;
+    const channelId = notifier.activity_channel_id ?? notifier.channel_id;
+    if (!channelId) continue;
+
+    for (const change of changes.slice(0, 20)) {
+      if (!notifier[ACTIVITY_FLAG[change.kind]]) continue;
+      if (!eventPassesFilters(change.event, filters, notifier.id)) continue;
+      if (
+        notifier.recurring_activity_messages === false &&
+        change.event["parent_external_event_id"]
+      ) {
+        continue;
+      }
+
+      const start = new Date(String(change.event["start_time"]));
+      const stamp = Math.floor(start.getTime() / 1000);
+      const details = changeSummary(change);
+      const embed: Record<string, unknown> = {
+        title: `${ACTIVITY_LABEL[change.kind]} — ${String(change.event["title"] ?? "Event").slice(0, 200)}`,
+        description: [
+          `📅 <t:${stamp}:F> (<t:${stamp}:R>)`,
+          change.event["location"] ? `📍 ${String(change.event["location"]).slice(0, 120)}` : "",
+          details.length ? `\n${details.join("\n")}` : "",
+        ]
+          .filter(Boolean)
+          .join("\n")
+          .slice(0, 3800),
+        color: change.kind === "cancelled" ? 0xc0392b : GOLD,
+        footer: { text: `${sourceName} · AHOY Event Automation` },
+        timestamp: new Date().toISOString(),
+      };
+
+      try {
+        const messageId = await postToDiscord(channelId, embed, notifier.mention_target ?? "none", {
+          roleMentions: notifier.role_mentions ?? [],
+        });
+        posted += 1;
+        await logJob(supabaseAdmin, {
+          guildId,
+          notifierId: notifier.id,
+          eventId: (change.event["id"] as string) ?? null,
+          jobType: `activity_${change.kind}`,
+          channelId,
+          messageId,
+          metadata: { title: change.event["title"] },
+        });
+        await writeCalendarAudit(supabaseAdmin, {
+          guildId,
+          action: `CALENDAR_EVENT_${change.kind.toUpperCase()}`,
+          resourceType: "calendar_event",
+          resourceId: (change.event["id"] as string) ?? null,
+          endpoint: "/api/public/hooks/calendar-sync",
+          details: { notifier: notifier.name, channel_id: channelId },
+        });
+      } catch (error) {
+        await logJob(supabaseAdmin, {
+          guildId,
+          notifierId: notifier.id,
+          eventId: (change.event["id"] as string) ?? null,
+          jobType: `activity_${change.kind}`,
+          status: "failed",
+          error: (error as Error).message,
+          channelId,
+        });
+        await setNotifierHealth(supabaseAdmin, notifier.id, "unhealthy", (error as Error).message);
+        if (notifier.error_channel_id) {
+          await postToDiscord(
+            notifier.error_channel_id,
+            {
+              title: "⚠️ Calendar automation error",
+              description: `Notifier **${notifier.name}** could not post to <#${channelId}>.\n\n${(error as Error).message.slice(0, 500)}`,
+              color: 0xc0392b,
+            },
+            null,
+          ).catch(() => undefined);
+        }
+      }
+    }
+  }
+  return { posted };
 }
 
 /* ------------------------------------------------------------------ */
@@ -309,7 +462,162 @@ export type NotifierRow = {
   cleanup_previous: boolean;
   template_id: string | null;
   enabled: boolean;
+  timezone?: string;
+  language?: string;
+  link_mode?: string;
+  custom_link?: string | null;
+  detection_days?: number;
+  use_calendar_reminders?: boolean;
+  recurring_mode?: string;
+  cleanup_mode?: string;
+  mention_target?: string;
+  reminder_channel_id?: string | null;
+  summary_channel_id?: string | null;
+  activity_channel_id?: string | null;
+  error_channel_id?: string | null;
+  announce_created?: boolean;
+  announce_updated?: boolean;
+  announce_cancelled?: boolean;
+  announce_entering_range?: boolean;
+  recurring_activity_messages?: boolean;
+  activity_template_id?: string | null;
+  health_status?: string;
+  health_error?: string | null;
 };
+
+/* ------------------------------------------------------------------ */
+/* Event filters                                                       */
+/* ------------------------------------------------------------------ */
+
+export type FilterRow = {
+  id: string;
+  notifier_id: string | null;
+  field: string;
+  operator: string;
+  value: string;
+  action: string;
+  priority: number;
+  enabled: boolean;
+};
+
+export async function loadFilters(supabaseAdmin: Admin, guildId: string): Promise<FilterRow[]> {
+  const { data } = await supabaseAdmin
+    .from("calendar_filters")
+    .select("*")
+    .eq("guild_id", guildId)
+    .eq("enabled", true)
+    .order("priority", { ascending: false });
+  return (data ?? []) as unknown as FilterRow[];
+}
+
+function fieldValue(event: Record<string, unknown>, field: string): string {
+  switch (field) {
+    case "description":
+      return String(event["description"] ?? "");
+    case "location":
+      return String(event["location"] ?? "");
+    case "status":
+      return String(event["status"] ?? "");
+    case "calendar":
+      return String(event["calendar_source_id"] ?? "");
+    default:
+      return String(event["title"] ?? "");
+  }
+}
+
+function matches(rule: FilterRow, event: Record<string, unknown>): boolean {
+  const haystack = fieldValue(event, rule.field).toLowerCase();
+  const needle = (rule.value ?? "").toLowerCase().trim();
+  switch (rule.operator) {
+    case "equals":
+      return haystack === needle;
+    case "starts_with":
+      return haystack.startsWith(needle);
+    case "ends_with":
+      return haystack.endsWith(needle);
+    case "not_contains":
+      return !haystack.includes(needle);
+    case "regex":
+      try {
+        return new RegExp(rule.value, "i").test(fieldValue(event, rule.field));
+      } catch {
+        return false;
+      }
+    default:
+      return haystack.includes(needle);
+  }
+}
+
+/**
+ * Filters run before any job is created. Exclude rules win; when at least one
+ * include rule exists for a notifier, the event must match one of them.
+ */
+export function eventPassesFilters(
+  event: Record<string, unknown>,
+  filters: FilterRow[],
+  notifierId: string | null,
+): boolean {
+  const scoped = filters.filter((f) => f.notifier_id === null || f.notifier_id === notifierId);
+  if (scoped.length === 0) return true;
+  for (const rule of scoped.filter((f) => f.action === "exclude")) {
+    if (matches(rule, event)) return false;
+  }
+  const includes = scoped.filter((f) => f.action === "include");
+  if (includes.length === 0) return true;
+  return includes.some((rule) => matches(rule, event));
+}
+
+/** Append one execution-log row. Never throws. */
+export async function logJob(
+  supabaseAdmin: Admin,
+  entry: {
+    guildId: string;
+    notifierId?: string | null;
+    eventId?: string | null;
+    jobType: string;
+    status?: string;
+    attempts?: number;
+    error?: string | null;
+    messageId?: string | null;
+    channelId?: string | null;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  try {
+    await supabaseAdmin
+      .from("calendar_job_log")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert({
+        guild_id: entry.guildId,
+        notifier_id: entry.notifierId ?? null,
+        event_id: entry.eventId ?? null,
+        job_type: entry.jobType,
+        status: entry.status ?? "sent",
+        attempts: entry.attempts ?? 1,
+        error: entry.error ?? null,
+        discord_message_id: entry.messageId ?? null,
+        channel_id: entry.channelId ?? null,
+        metadata: entry.metadata ?? {},
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any);
+  } catch (error) {
+    console.error("calendar_job_log insert failed", error);
+  }
+}
+
+/** Flag a notifier as healthy/unhealthy so the dashboard can surface it. */
+export async function setNotifierHealth(
+  supabaseAdmin: Admin,
+  notifierId: string,
+  status: "healthy" | "degraded" | "unhealthy",
+  error: string | null,
+) {
+  await supabaseAdmin
+    .from("event_notifiers")
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .update({ health_status: status, health_error: error?.slice(0, 500) ?? null } as any)
+    .eq("id", notifierId);
+}
 
 export async function loadNotifiers(supabaseAdmin: Admin, guildId: string): Promise<NotifierRow[]> {
   const { data } = await supabaseAdmin
@@ -395,9 +703,10 @@ export async function writeCalendarAudit(
  * Sent reminders are never touched; obsolete pending jobs are cancelled.
  */
 export async function rebuildRemindersForGuild(supabaseAdmin: Admin, guildId: string) {
-  const [defaults, notifiers] = await Promise.all([
+  const [defaults, notifiers, filters] = await Promise.all([
     loadDefaults(supabaseAdmin, guildId),
     loadNotifiers(supabaseAdmin, guildId),
+    loadFilters(supabaseAdmin, guildId),
   ]);
   const { data: events } = await supabaseAdmin
     .from("calendar_events")
@@ -412,6 +721,7 @@ export async function rebuildRemindersForGuild(supabaseAdmin: Admin, guildId: st
       event as Record<string, unknown>,
       defaults,
       notifiers,
+      filters,
     );
   }
 }
@@ -430,12 +740,14 @@ export async function rebuildRemindersForEvent(
   event: Record<string, unknown>,
   defaults: ReminderDefaults,
   notifiers?: NotifierRow[],
+  filters?: FilterRow[],
 ) {
   const eventId = event["id"] as string;
   const guildId = event["guild_id"] as string;
   const sourceId = event["calendar_source_id"] as string | null;
   const start = new Date(String(event["start_time"]));
   const list = notifiers ?? (await loadNotifiers(supabaseAdmin, guildId));
+  const rules = filters ?? (await loadFilters(supabaseAdmin, guildId));
 
   const eventActive =
     event["reminders_enabled"] !== false && event["status"] === "confirmed" && start.getTime() > 0;
@@ -445,7 +757,7 @@ export async function rebuildRemindersForEvent(
   // 1. Server default reminder stream (with per-event overrides).
   const defaultChannel =
     (event["discord_channel_id"] as string | null) ?? defaults.discord_channel_id;
-  if (defaults.enabled && defaultChannel) {
+  if (defaults.enabled && defaultChannel && eventPassesFilters(event, rules, null)) {
     targets.push({
       notifierId: null,
       channelId: defaultChannel,
@@ -459,10 +771,21 @@ export async function rebuildRemindersForEvent(
   // 2. Every notifier bound to this guild (optionally scoped to one feed).
   for (const notifier of list) {
     if (notifier.calendar_source_id && notifier.calendar_source_id !== sourceId) continue;
+    if (!eventPassesFilters(event, rules, notifier.id)) continue;
+
+    // Detection horizon — events beyond it are not scheduled yet.
+    const horizonDays = notifier.detection_days ?? 30;
+    if (start.getTime() > Date.now() + horizonDays * 86_400_000) continue;
+
+    // Recurring delivery mode.
+    const recurring = notifier.recurring_mode ?? "each_occurrence";
+    if (recurring === "skip" && event["is_recurring"] === true) continue;
+    if (recurring === "first_only" && event["parent_external_event_id"]) continue;
+
     targets.push({
       notifierId: notifier.id,
-      channelId: notifier.channel_id,
-      mention: "none",
+      channelId: notifier.reminder_channel_id ?? notifier.channel_id,
+      mention: notifier.mention_target ?? "none",
       roleMentions: notifier.role_mentions ?? [],
       offsets: notifier.reminder_offsets ?? [],
       templateId: notifier.template_id,
@@ -857,6 +1180,18 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
         .eq("id", id);
       sent += 1;
 
+      await logJob(supabaseAdmin, {
+        guildId: event["guild_id"] as string,
+        notifierId: notifierId,
+        eventId: event["id"] as string,
+        jobType: "reminder",
+        channelId: j["discord_channel_id"] as string,
+        messageId,
+        attempts: Number(j["attempts"] ?? 0) + 1,
+        metadata: { offset_minutes: Number(j["reminder_minutes"]) },
+      });
+      if (notifierId) await setNotifierHealth(supabaseAdmin, notifierId, "healthy", null);
+
       await writeCalendarAudit(supabaseAdmin, {
         guildId: event["guild_id"] as string,
         action: "REMINDER_SENT",
@@ -878,6 +1213,24 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
           error: (error as Error).message.slice(0, 500),
         })
         .eq("id", id);
+      await logJob(supabaseAdmin, {
+        guildId: event["guild_id"] as string,
+        notifierId: (j["notifier_id"] as string | null) ?? null,
+        eventId: event["id"] as string,
+        jobType: "reminder",
+        status: attempts >= 5 ? "failed" : "retrying",
+        attempts,
+        error: (error as Error).message,
+        channelId: j["discord_channel_id"] as string,
+      });
+      if (j["notifier_id"]) {
+        await setNotifierHealth(
+          supabaseAdmin,
+          j["notifier_id"] as string,
+          attempts >= 5 ? "unhealthy" : "degraded",
+          (error as Error).message,
+        );
+      }
       failed += 1;
     }
   }
@@ -958,6 +1311,14 @@ export async function generateSummary(
       { guild_id: guildId, last_run_at: new Date().toISOString() } as any,
       { onConflict: "guild_id" },
     );
+
+  await logJob(supabaseAdmin, {
+    guildId,
+    jobType: "summary",
+    channelId,
+    messageId,
+    metadata: { events: rows.length, cadence },
+  });
 
   await writeCalendarAudit(supabaseAdmin, {
     guildId,

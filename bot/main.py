@@ -50,6 +50,7 @@ EXTENSIONS = (
     "bot.commands.polls",
     "bot.commands.profile",
     "bot.commands.stats",
+    "bot.commands.calendar",
     "bot.commands.library",
     "bot.events.guild_events",
     "bot.events.member_events",
