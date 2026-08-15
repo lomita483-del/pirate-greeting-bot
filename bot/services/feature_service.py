@@ -390,7 +390,7 @@ class FeatureService:
                 )[:1000],
                 inline=False,
             )
-        elif not config:
+        elif not feature_config:
             embed.add_field(
                 name="No data yet",
                 value=(
