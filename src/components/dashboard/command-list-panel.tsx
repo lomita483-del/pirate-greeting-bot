@@ -280,8 +280,16 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                             key={key}
                             className="flex items-start justify-between gap-3 rounded-lg border border-border/40 bg-background/30 p-3"
                           >
-                            <div className="min-w-0">
+                            <input
+                              type="checkbox"
+                              className="mt-1 accent-primary"
+                              checked={selected.has(key)}
+                              onChange={() => toggleSelected(key)}
+                              aria-label={`Select ${key}`}
+                            />
+                            <div className="min-w-0 flex-1">
                               <code className="text-sm font-medium text-primary">
+
                                 {commandPath(category.slug, entry)}
                               </code>
                               <p className="mt-1 text-xs text-muted-foreground">{entry.desc}</p>
