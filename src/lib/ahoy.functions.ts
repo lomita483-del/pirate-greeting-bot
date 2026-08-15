@@ -344,6 +344,7 @@ const sectionSchemas = {
     ticket_support_role_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(10),
     ticket_welcome_message: z.string().max(1000),
     ticket_transcripts_enabled: z.boolean(),
+    manager_role_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(25),
   }).partial(),
   welcome: z.object({
     enabled: z.boolean(),
