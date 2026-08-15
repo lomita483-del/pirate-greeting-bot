@@ -9,6 +9,7 @@ import {
 } from "@/components/dashboard/automation-panels";
 import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
 import { CasesPanel } from "@/components/dashboard/cases-panel";
+import { CommandListPanel } from "@/components/dashboard/command-list-panel";
 import { CommandsPanel } from "@/components/dashboard/commands-panel";
 import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
