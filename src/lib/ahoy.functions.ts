@@ -52,6 +52,7 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
     .in("guild_id", guilds.length ? guilds.map((g) => g.id) : ["0"]);
 
   const known = new Map((data ?? []).map((row) => [row.guild_id, row]));
+  const live = await botMembership(guilds.map((g) => g.id));
   return {
     signedIn: true as const,
     user: publicUser(session),
@@ -61,11 +62,31 @@ export const getViewer = createServerFn({ method: "GET" }).handler(async () => {
     banReason: null,
     guilds: guilds.map((g) => ({
       ...g,
-      botPresent: Boolean(known.get(g.id)?.bot_present),
+      botPresent: live.get(g.id) ?? Boolean(known.get(g.id)?.bot_present),
       memberCount: known.get(g.id)?.member_count ?? null,
     })),
   };
 });
+
+/** Ask Discord which of these guilds the bot is actually a member of. */
+async function botMembership(guildIds: string[]): Promise<Map<string, boolean>> {
+  const result = new Map<string, boolean>();
+  const token = process.env["DISCORD_TOKEN"];
+  if (!token || guildIds.length === 0) return result;
+  try {
+    const res = await fetch("https://discord.com/api/v10/users/@me/guilds?limit=200", {
+      headers: { authorization: `Bot ${token}` },
+    });
+    if (!res.ok) return result;
+    const botGuilds = (await res.json()) as Array<{ id: string }>;
+    const ids = new Set(botGuilds.map((g) => g.id));
+    for (const id of guildIds) result.set(id, ids.has(id));
+  } catch (error) {
+    console.error("Failed to read bot guild list", error);
+  }
+  return result;
+}
+
 
 function publicUser(session: { userId: string; username: string; globalName: string | null; avatar: string | null }) {
   return {
