@@ -1,13 +1,13 @@
-import { Anchor } from "lucide-react";
-
 export function AhoyMark({ size = 40 }: { size?: number }) {
   return (
-    <span
-      className="relative inline-flex items-center justify-center rounded-2xl bg-gradient-to-br from-primary/25 to-gold/20 ring-1 ring-border"
+    <img
+      src="/favicon.png"
+      alt="AHOY logo"
+      width={size}
+      height={size}
+      className="rounded-2xl ring-1 ring-gold/30 shadow-[0_10px_30px_-12px_oklch(0_0_0/0.8)]"
       style={{ width: size, height: size }}
-    >
-      <Anchor className="text-primary" style={{ width: size * 0.5, height: size * 0.5 }} />
-    </span>
+    />
   );
 }
 
@@ -16,7 +16,7 @@ export function AhoyWordmark({ subtitle }: { subtitle?: string }) {
     <span className="flex items-center gap-3">
       <AhoyMark />
       <span className="flex flex-col leading-none">
-        <span className="font-display text-lg font-semibold tracking-[0.28em] text-foreground">
+        <span className="font-display text-lg font-semibold tracking-[0.28em] text-tide">
           AHOY
         </span>
         {subtitle ? (
