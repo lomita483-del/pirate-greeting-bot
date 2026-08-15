@@ -18,6 +18,7 @@ import { Route as DashboardGuildIdIndexRouteImport } from './routes/dashboard/$g
 import { Route as DashboardGuildIdActivityRouteImport } from './routes/dashboard/$guildId.activity'
 import { Route as DashboardGuildIdAutomationRouteImport } from './routes/dashboard/$guildId.automation'
 import { Route as DashboardGuildIdAutomodRouteImport } from './routes/dashboard/$guildId.automod'
+import { Route as DashboardGuildIdCalendarRouteImport } from './routes/dashboard/$guildId.calendar'
 import { Route as DashboardGuildIdCommandsRouteImport } from './routes/dashboard/$guildId.commands'
 import { Route as DashboardGuildIdCommunityRouteImport } from './routes/dashboard/$guildId.community'
 import { Route as DashboardGuildIdCustomCommandsRouteImport } from './routes/dashboard/$guildId.custom-commands'
@@ -80,6 +81,12 @@ const DashboardGuildIdAutomodRoute = DashboardGuildIdAutomodRouteImport.update({
   path: '/automod',
   getParentRoute: () => DashboardGuildIdRoute,
 } as any)
+const DashboardGuildIdCalendarRoute =
+  DashboardGuildIdCalendarRouteImport.update({
+    id: '/calendar',
+    path: '/calendar',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
 const DashboardGuildIdCommandsRoute =
   DashboardGuildIdCommandsRouteImport.update({
     id: '/commands',
@@ -169,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
   '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
   '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
   '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
@@ -193,6 +201,7 @@ export interface FileRoutesByTo {
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
   '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
   '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
   '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
@@ -219,6 +228,7 @@ export interface FileRoutesById {
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
   '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
   '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
   '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
@@ -246,6 +256,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
     | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/calendar'
     | '/dashboard/$guildId/commands'
     | '/dashboard/$guildId/community'
     | '/dashboard/$guildId/custom-commands'
@@ -270,6 +281,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
     | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/calendar'
     | '/dashboard/$guildId/commands'
     | '/dashboard/$guildId/community'
     | '/dashboard/$guildId/custom-commands'
@@ -295,6 +307,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
     | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/calendar'
     | '/dashboard/$guildId/commands'
     | '/dashboard/$guildId/community'
     | '/dashboard/$guildId/custom-commands'
@@ -387,6 +400,13 @@ declare module '@tanstack/react-router' {
       path: '/automod'
       fullPath: '/dashboard/$guildId/automod'
       preLoaderRoute: typeof DashboardGuildIdAutomodRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/calendar': {
+      id: '/dashboard/$guildId/calendar'
+      path: '/calendar'
+      fullPath: '/dashboard/$guildId/calendar'
+      preLoaderRoute: typeof DashboardGuildIdCalendarRouteImport
       parentRoute: typeof DashboardGuildIdRoute
     }
     '/dashboard/$guildId/commands': {
@@ -494,6 +514,7 @@ interface DashboardGuildIdRouteChildren {
   DashboardGuildIdActivityRoute: typeof DashboardGuildIdActivityRoute
   DashboardGuildIdAutomationRoute: typeof DashboardGuildIdAutomationRoute
   DashboardGuildIdAutomodRoute: typeof DashboardGuildIdAutomodRoute
+  DashboardGuildIdCalendarRoute: typeof DashboardGuildIdCalendarRoute
   DashboardGuildIdCommandsRoute: typeof DashboardGuildIdCommandsRoute
   DashboardGuildIdCommunityRoute: typeof DashboardGuildIdCommunityRoute
   DashboardGuildIdCustomCommandsRoute: typeof DashboardGuildIdCustomCommandsRoute
@@ -511,6 +532,7 @@ const DashboardGuildIdRouteChildren: DashboardGuildIdRouteChildren = {
   DashboardGuildIdActivityRoute: DashboardGuildIdActivityRoute,
   DashboardGuildIdAutomationRoute: DashboardGuildIdAutomationRoute,
   DashboardGuildIdAutomodRoute: DashboardGuildIdAutomodRoute,
+  DashboardGuildIdCalendarRoute: DashboardGuildIdCalendarRoute,
   DashboardGuildIdCommandsRoute: DashboardGuildIdCommandsRoute,
   DashboardGuildIdCommunityRoute: DashboardGuildIdCommunityRoute,
   DashboardGuildIdCustomCommandsRoute: DashboardGuildIdCustomCommandsRoute,
