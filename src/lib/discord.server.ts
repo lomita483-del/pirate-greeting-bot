@@ -124,6 +124,42 @@ export const SESSION_COOKIE_NAME = COOKIE_NAME;
 export const SESSION_MAX_AGE = SESSION_TTL_SECONDS;
 
 /* ------------------------------------------------------------------ */
+/* OAuth state — signed + self-verifying, no cookie round-trip needed  */
+/* ------------------------------------------------------------------ */
+
+const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function sealState(): Promise<string> {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await sessionKey();
+  const payload = JSON.stringify({
+    nonce: crypto.randomUUID(),
+    expiresAt: Date.now() + STATE_TTL_MS,
+  });
+  const cipher = new Uint8Array(
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(payload)),
+  );
+  return `${toBase64Url(iv)}.${toBase64Url(cipher)}`;
+}
+
+export async function openState(value: string): Promise<boolean> {
+  try {
+    const [ivPart, dataPart] = value.split(".");
+    if (!ivPart || !dataPart) return false;
+    const key = await sessionKey();
+    const plain = await crypto.subtle.decrypt(
+      { name: "AES-GCM", iv: fromBase64Url(ivPart) },
+      key,
+      fromBase64Url(dataPart),
+    );
+    const { expiresAt } = JSON.parse(new TextDecoder().decode(plain)) as { expiresAt: number };
+    return typeof expiresAt === "number" && expiresAt > Date.now();
+  } catch {
+    return false;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* OAuth2                                                              */
 /* ------------------------------------------------------------------ */
 
