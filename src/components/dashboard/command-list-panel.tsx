@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search } from "lucide-react";
+import { Search, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Accordion,
@@ -16,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { COMMAND_CATEGORIES, commandPath, type CommandEntry } from "@/lib/command-library";
 import { getCommandSettings, setCommandEnabled } from "@/lib/ahoy.functions";
 
+import { CommandConfigDialog, defaultCommandConfig } from "./command-config-dialog";
 import { SectionHeader } from "./fields";
 import type { PanelProps } from "./types";
 
@@ -26,6 +28,7 @@ function settingsKey(category: string, entry: CommandEntry): string {
 
 export function CommandListPanel({ guildId, config }: PanelProps) {
   const [query, setQuery] = useState("");
+  const [editing, setEditing] = useState<{ key: string; desc: string } | null>(null);
   const prefix = config.settings?.prefix ?? "!";
   const queryClient = useQueryClient();
 
@@ -39,16 +42,21 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
     [settingsQuery.data],
   );
   const usage = settingsQuery.data?.usage ?? {};
+  const configs = settingsQuery.data?.configs ?? {};
+
+  const refresh = () =>
+    queryClient.invalidateQueries({ queryKey: ["command-settings", guildId] });
 
   const toggle = useMutation({
     mutationFn: (vars: { command: string; enabled: boolean }) =>
       setCommandEnabled({ data: { guildId, ...vars } }),
     onSuccess: (_r, vars) => {
       toast.success(`${vars.command} ${vars.enabled ? "enabled" : "disabled"}`);
-      queryClient.invalidateQueries({ queryKey: ["command-settings", guildId] });
+      refresh();
     },
     onError: (error: Error) => toast.error(error.message),
   });
+
 
   const categories = useMemo(() => {
     const term = query.trim().toLowerCase();
