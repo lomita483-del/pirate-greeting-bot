@@ -10,11 +10,15 @@ import { sessionFromHeader, type AhoySession } from "@/lib/discord.server";
 
 export type AdminRole = "owner" | "admin";
 
+/** The site owner's Discord id is always an owner, even without env config. */
+const HARDCODED_OWNER_IDS = ["1204615554074152960"];
+
 export function bootstrapOwnerIds(): string[] {
-  return (process.env["OWNER_DISCORD_IDS"] ?? "")
+  const fromEnv = (process.env["OWNER_DISCORD_IDS"] ?? "")
     .split(/[,\s]+/)
     .map((v) => v.trim())
     .filter((v) => /^\d{5,25}$/.test(v));
+  return Array.from(new Set([...HARDCODED_OWNER_IDS, ...fromEnv]));
 }
 
 export async function adminRoleFor(userId: string): Promise<AdminRole | null> {
