@@ -340,13 +340,47 @@ class FeatureService:
         )
         embed.add_field(name="Times used", value=str(usage), inline=True)
 
-        config = state.get("config") or {}
-        if config:
+        feature_config = state.get("config") or {}
+        if feature_config:
             embed.add_field(
                 name="Configuration",
-                value="\n".join(f"• **{k}** — {v}" for k, v in list(config.items())[:8]),
+                value="\n".join(f"• **{k}** — {v}" for k, v in list(feature_config.items())[:8]),
                 inline=False,
             )
+
+        access: list[str] = []
+        if config.get("allowed_role_ids"):
+            access.append(
+                "Allowed roles: " + ", ".join(f"<@&{r}>" for r in config["allowed_role_ids"][:5])
+            )
+        if config.get("denied_role_ids"):
+            access.append(
+                "Blocked roles: " + ", ".join(f"<@&{r}>" for r in config["denied_role_ids"][:5])
+            )
+        if (config.get("required_permission") or "none") != "none":
+            access.append(
+                "Permission: "
+                + PERMISSION_LABELS.get(
+                    config["required_permission"], config["required_permission"]
+                )
+            )
+        if config.get("allowed_channel_ids"):
+            access.append(
+                "Channels: " + ", ".join(f"<#{c}>" for c in config["allowed_channel_ids"][:5])
+            )
+        if config.get("output_channel_id"):
+            access.append(f"Output channel: <#{config['output_channel_id']}>")
+        if int(config.get("cooldown_seconds") or 0) > 0:
+            access.append(f"Cooldown: {config['cooldown_seconds']}s")
+        if config.get("notes"):
+            access.append(f"Purpose: {config['notes']}")
+        if access:
+            embed.add_field(name="Access & routing", value="\n".join(access)[:1000], inline=False)
+
+        for opt_key, opt_value in list((config.get("options") or {}).items())[:8]:
+            embed.add_field(name=str(opt_key)[:64], value=str(opt_value)[:200], inline=True)
+
+
         if records:
             embed.add_field(
                 name=f"Entries ({len(records)})",
