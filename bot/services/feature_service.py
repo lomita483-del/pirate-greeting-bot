@@ -32,7 +32,7 @@ from ..utils.logger import get_logger
 log = get_logger("features")
 
 READ_KINDS = {"list", "view", "status", "stats", "logs", "history", "search", "export", "test"}
-WRITE_KINDS = {"create", "edit", "delete", "reset", "config", "enable", "disable"}
+WRITE_KINDS = {"create", "edit", "delete", "reset", "config", "enable", "disable", "action"}
 
 
 def _now() -> str:
@@ -325,6 +325,29 @@ class FeatureService:
             if not removed:
                 raise ActionRefused(f"Nothing to remove from **{key}**.")
             return embeds.success(f"/{command}", f"Removed **{removed}** entr(y/ies) from **{key}**.")
+
+        if kind == "action":
+            # One-off operations (bans, purges, toggles buried under a category, etc.)
+            # must still leave a real record behind — this was previously falling
+            # through to the read-only branch below and never persisting anything,
+            # which is why commands showed "No data yet" despite a usage count.
+            label = value or (member.display_name if member else description)
+            record = await self.repo.add_command_record(
+                {
+                    "guild_id": guild_id,
+                    "namespace": key,
+                    "command": command,
+                    "label": label[:200],
+                    "payload": payload,
+                    "created_by": actor,
+                }
+            )
+            return embeds.success(
+                f"/{command}",
+                f"**{description}**"
+                + (f"\n{value}" if value else "")
+                + (f"\nReference: `{record.get('id', '')[:8]}`" if record else ""),
+            )
 
         # ---- read-only kinds ----
         state = await self.repo.get_feature_state(guild_id, key)
