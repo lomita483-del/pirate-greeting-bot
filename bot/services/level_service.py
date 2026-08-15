@@ -6,8 +6,13 @@ import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import discord
+
 from ..database.repository import Repository
+from ..utils.logger import get_logger
 from .settings_service import SettingsService
+
+log = get_logger("levels")
 
 
 def level_for_xp(xp: int) -> int:
@@ -67,6 +72,40 @@ class LevelService:
             }
         )
         return new_level if new_level > previous_level else None
+
+    async def apply_rewards(self, member: Any, level: int) -> list[Any]:
+        """Grant every configured level-reward role the member has earned."""
+        guild = getattr(member, "guild", None)
+        if guild is None or not guild.me.guild_permissions.manage_roles:
+            return []
+
+        config = await self.settings.get(str(guild.id), "role_settings")
+        rules = (config or {}).get("level_roles") or []
+        granted: list[Any] = []
+
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            try:
+                threshold = int(rule.get("level", 0))
+                role_id = int(rule.get("role_id"))
+            except (TypeError, ValueError):
+                continue
+            if threshold <= 0 or level < threshold:
+                continue
+
+            role = guild.get_role(role_id)
+            if role is None or role.managed or role >= guild.me.top_role:
+                continue
+            if role in getattr(member, "roles", []):
+                continue
+            try:
+                await member.add_roles(role, reason=f"AHOY level reward (level {threshold})")
+                granted.append(role)
+            except discord.HTTPException as exc:
+                log.warning("Level reward failed in %s: %s", guild.id, exc)
+
+        return granted
 
     @staticmethod
     def progress(xp: int, level: int) -> tuple[int, int]:

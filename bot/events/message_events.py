@@ -33,7 +33,8 @@ class MessageEvents(commands.Cog):
         try:
             new_level = await self.bot.levels.award(guild_id, message.author)  # type: ignore[attr-defined]
             if new_level:
-                await self._announce_level(message, new_level)
+                rewards = await self.bot.levels.apply_rewards(message.author, new_level)  # type: ignore[attr-defined]
+                await self._announce_level(message, new_level, rewards)
         except Exception as exc:
             log.exception("XP award failed in %s: %s", guild_id, exc)
 
@@ -51,7 +52,12 @@ class MessageEvents(commands.Cog):
 
         await self._maybe_custom_command(message, guild_id)
 
-    async def _announce_level(self, message: discord.Message, level: int) -> None:
+    async def _announce_level(
+        self,
+        message: discord.Message,
+        level: int,
+        rewards: list | None = None,
+    ) -> None:
         settings = await self.bot.settings.get(str(message.guild.id))  # type: ignore[attr-defined]
         template = settings.get("level_up_message") or "Ahoy {user}, you reached level {level}! ⚓"
         text = render_template(
@@ -67,6 +73,8 @@ class MessageEvents(commands.Cog):
             maybe = message.guild.get_channel(int(target_id))  # type: ignore[union-attr]
             if isinstance(maybe, discord.TextChannel):
                 channel = maybe
+        if rewards:
+            text += "\nUnlocked: " + ", ".join(role.mention for role in rewards)
         try:
             await channel.send(text)
         except discord.HTTPException:
