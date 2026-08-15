@@ -7,7 +7,6 @@ import {
   FileText,
   Gauge,
   Hand,
-  MessageSquare,
   ScrollText,
   Settings,
   Shield,
@@ -45,7 +44,6 @@ export const MODULE_LINKS: ModuleLink[] = [
   { label: "Stats", to: "/dashboard/$guildId/stats", icon: BarChart3 },
   { label: "Logging", to: "/dashboard/$guildId/logging", icon: ScrollText },
   { label: "Activity", to: "/dashboard/$guildId/activity", icon: Activity },
-  { label: "Messages", to: "/dashboard/$guildId/messages", icon: MessageSquare },
 ];
 
 export function GuildNav({
