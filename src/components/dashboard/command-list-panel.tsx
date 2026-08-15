@@ -192,8 +192,74 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
                     </span>
                   </AccordionTrigger>
                   <AccordionContent>
+                    {(() => {
+                      const keys = category.commands.map((entry) =>
+                        settingsKey(category.slug, entry),
+                      );
+                      const chosen = keys.filter((key) => selected.has(key));
+                      return (
+                        <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-border/40 bg-secondary/30 px-3 py-2">
+                          <span className="text-xs text-muted-foreground">
+                            {chosen.length > 0
+                              ? `${chosen.length} selected`
+                              : "Quick actions for this category"}
+                          </span>
+                          <div className="ml-auto flex flex-wrap gap-1.5">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => selectMany(keys, chosen.length !== keys.length)}
+                            >
+                              {chosen.length === keys.length ? "Clear selection" : "Select all"}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={bulkToggle.isPending}
+                              onClick={() =>
+                                bulkToggle.mutate({
+                                  commands: chosen.length ? chosen : keys,
+                                  enabled: true,
+                                })
+                              }
+                            >
+                              Enable
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={bulkToggle.isPending}
+                              onClick={() =>
+                                bulkToggle.mutate({
+                                  commands: chosen.length ? chosen : keys,
+                                  enabled: false,
+                                })
+                              }
+                            >
+                              Disable
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                setBulk({
+                                  commands: chosen.length ? chosen : keys,
+                                  label:
+                                    chosen.length > 0
+                                      ? `${chosen.length} selected command(s)`
+                                      : category.title,
+                                })
+                              }
+                            >
+                              <Settings2 className="h-3.5 w-3.5" /> Mass edit
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })()}
                     <ul className="grid gap-2">
                       {category.commands.map((entry) => {
+
                         const key = settingsKey(category.slug, entry);
                         const cfg = configs[key];
                         const isOn = !disabled.has(key);
