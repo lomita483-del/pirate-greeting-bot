@@ -21,10 +21,12 @@ class Scheduler(commands.Cog):
         self.bot = bot
         self.run_announcements.start()
         self.refresh_stat_channels.start()
+        self.run_dashboard_actions.start()
 
     async def cog_unload(self) -> None:
         self.run_announcements.cancel()
         self.refresh_stat_channels.cancel()
+        self.run_dashboard_actions.cancel()
 
     def _ready(self) -> bool:
         repo = getattr(self.bot, "repo", None)
@@ -135,6 +137,63 @@ class Scheduler(commands.Cog):
         await self.bot.repo.mark_stat_channel(  # type: ignore[attr-defined]
             row["id"], value
         )
+
+
+    # -- dashboard action queue -------------------------------------------
+    @tasks.loop(seconds=20)
+    async def run_dashboard_actions(self) -> None:
+        """Perform moderation actions requested from the web dashboard."""
+        if not self._ready():
+            return
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        try:
+            for row in await repo.pending_bot_actions():
+                try:
+                    await self._perform(row)
+                    await repo.finish_bot_action(row["id"], "done")
+                except Exception as exc:
+                    log.warning("Dashboard action %s failed: %s", row.get("action"), exc)
+                    await repo.finish_bot_action(row["id"], "failed", str(exc)[:400])
+            for case in await repo.expired_cases():
+                await repo.update_case(case["id"], {"active": False})
+        except Exception as exc:  # pragma: no cover - keep the loop alive
+            log.exception("Dashboard action loop failed: %s", exc)
+
+    @run_dashboard_actions.before_loop
+    async def before_actions(self) -> None:
+        await self.bot.wait_until_ready()
+
+    async def _perform(self, row: dict) -> None:
+        guild = self.bot.get_guild(int(row["guild_id"]))
+        if guild is None:
+            raise RuntimeError("AHOY is not in that server.")
+        action = str(row.get("action"))
+        target_id = row.get("target_id")
+        reason = str((row.get("payload") or {}).get("reason") or "Requested from the AHOY dashboard")
+        moderator = (row.get("payload") or {}).get("moderator_name") or "AHOY dashboard"
+        mod = getattr(self.bot, "moderation", None)
+
+        if action == "unban":
+            user = discord.Object(id=int(target_id))
+            await guild.unban(user, reason=reason)
+        elif action == "untimeout":
+            member = guild.get_member(int(target_id)) or await guild.fetch_member(int(target_id))
+            await member.timeout(None, reason=reason)
+        elif action == "kick":
+            member = guild.get_member(int(target_id)) or await guild.fetch_member(int(target_id))
+            await member.kick(reason=reason)
+        else:
+            raise RuntimeError(f"Unsupported action: {action}")
+
+        if mod is not None:
+            target = self.bot.get_user(int(target_id)) if target_id else None
+            await mod.record(
+                guild,
+                action,
+                target=target,
+                moderator=None,
+                reason=f"{reason} (by {moderator})",
+            )
 
 
 async def setup(bot: commands.Bot) -> None:
