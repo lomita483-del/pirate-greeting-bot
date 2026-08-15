@@ -239,6 +239,7 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
       use_embed: w?.use_embed ?? true,
       embed_color: w?.embed_color ?? "#14b8a6",
       embed_title: w?.embed_title ?? "Welcome aboard!",
+      embed_image_url: w?.embed_image_url ?? null,
     },
     onSaved,
   );
@@ -250,7 +251,7 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Welcome"
-            description="Greet new crew members. Placeholders: user, server, member count."
+            description="Greet new crew members. Placeholders: {user}, {username}, {server}, {membercount}."
           />
           <ToggleRow
             label="Enable welcome messages"
@@ -303,6 +304,16 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
               />
             </Field>
           </div>
+          <Field
+            label="Banner image URL"
+            hint="Optional image shown at the bottom of the welcome embed."
+          >
+            <Input
+              placeholder="https://example.com/banner.png"
+              value={draft.embed_image_url ?? ""}
+              onChange={(e) => set("embed_image_url", e.target.value.trim() || null)}
+            />
+          </Field>
         </CardContent>
       </Card>
 
