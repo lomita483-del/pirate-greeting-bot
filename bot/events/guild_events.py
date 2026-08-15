@@ -25,6 +25,8 @@ class GuildEvents(commands.Cog):
             str(guild.owner_id) if guild.owner_id else None,
             guild.member_count or 0,
         )
+        self.bot.tree.copy_global_to(guild=guild)
+        await self.bot.tree.sync(guild=guild)
 
     @commands.Cog.listener()
     async def on_guild_remove(self, guild: discord.Guild) -> None:
