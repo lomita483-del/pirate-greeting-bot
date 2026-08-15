@@ -133,16 +133,28 @@ function ServerPicker() {
                       <span className="truncate font-medium">{guild.name}</span>
                       {guild.owner ? <Crown className="h-3.5 w-3.5 text-gold" /> : null}
                     </span>
-                    <Badge
-                      variant="outline"
-                      className={`mt-2 text-[11px] ${
-                        guild.botPresent
-                          ? "border-primary/50 text-primary"
-                          : "border-border text-muted-foreground"
-                      }`}
-                    >
-                      {guild.botPresent ? "AHOY on board" : "AHOY not invited"}
-                    </Badge>
+                    {guild.botPresent ? (
+                      <Badge
+                        variant="outline"
+                        className="mt-2 text-[11px] border-primary/50 text-primary"
+                      >
+                        AHOY on board
+                      </Badge>
+                    ) : (
+                      <span
+                        role="link"
+                        tabIndex={0}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.location.href = `/api/public/invite?guild=${guild.id}`;
+                        }}
+                        className="mt-2 inline-flex cursor-pointer rounded-full border border-gold/50 px-2.5 py-0.5 text-[11px] text-gold hover:bg-gold/10"
+                      >
+                        Invite AHOY
+                      </span>
+                    )}
+
                   </span>
                   <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-1" />
                 </Link>
