@@ -86,7 +86,7 @@ def build_groups(bot: commands.Bot) -> list[app_commands.Group]:
 
         for container, chunk in containers:
             for entry in chunk:
-                command_name = entry["name"]
+                command_name = f"{slug} {entry['sub']}"
                 container.add_command(
                     app_commands.Command(
                         name=entry["sub"],
