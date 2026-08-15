@@ -87,15 +87,21 @@ function LandingPage() {
     <div className="min-h-screen">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
         <AhoyWordmark subtitle="Control Center" />
-        {signedIn ? (
-          <Button asChild size="sm">
-            <Link to="/dashboard">Open dashboard</Link>
+        <div className="flex items-center gap-2">
+          <Button asChild size="sm" variant="outline">
+            <a href="/api/public/invite">Invite AHOY</a>
           </Button>
-        ) : (
-          <Button asChild size="sm" variant="secondary">
-            <a href="/api/public/auth/discord/start">Sign in with Discord</a>
-          </Button>
-        )}
+          {signedIn ? (
+            <Button asChild size="sm">
+              <Link to="/dashboard">Open dashboard</Link>
+            </Button>
+          ) : (
+            <Button asChild size="sm" variant="secondary">
+              <a href="/api/public/auth/discord/start">Sign in with Discord</a>
+            </Button>
+          )}
+        </div>
+
       </header>
 
       <main>
@@ -118,9 +124,13 @@ function LandingPage() {
                 {signedIn ? "Continue with Discord" : "Sign in with Discord"}
               </a>
             </Button>
+            <Button asChild size="lg" variant="secondary">
+              <a href="/api/public/invite">Add AHOY to your server</a>
+            </Button>
             <Button asChild size="lg" variant="outline">
               <a href="#features">Explore the systems</a>
             </Button>
+
           </div>
           <p className="mt-4 text-xs text-muted-foreground">
             We only request <code className="text-foreground">identify</code> and{" "}
