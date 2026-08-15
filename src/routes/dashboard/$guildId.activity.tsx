@@ -27,7 +27,10 @@ function ActivityPage() {
         title="Activity"
         description="Everything AHOY has recorded happening in this server."
       />
-      <ActivityLogPanel guildId={guildId} />
+      <div className="space-y-6">
+        <ActivityLogPanel guildId={guildId} />
+        <AuditTrailPanel guildId={guildId} />
+      </div>
     </div>
   );
 }
