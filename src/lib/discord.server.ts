@@ -240,32 +240,37 @@ export function canManage(guild: DiscordGuildSummary): boolean {
 
 /**
  * Server-side authorization gate. Throws unless the signed-in Discord user
- * really can manage the requested guild.
+ * really can manage the requested guild — either via Discord's own
+ * Manage Server / Administrator / owner permissions, or via a role listed
+ * in that guild's Role Manager (server_settings.manager_role_ids).
  */
 export async function assertGuildAccess(
   session: AhoySession,
   guildId: string,
 ): Promise<DiscordGuildSummary> {
   const guilds = await fetchUserGuilds(session);
-  /** Read one member's role IDs in a guild, using the bot's own token. */
-async function fetchMemberRoles(guildId: string, userId: string): Promise<string[]> {
-  const token = process.env["DISCORD_TOKEN"];
-  if (!token) return [];
-  try {
-    const res = await fetch(
-      `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
-      { headers: { authorization: `Bot ${token}` } },
-    );
-    if (!res.ok) return [];
-    const member = (await res.json()) as { roles?: string[] };
-    return member.roles ?? [];
-  } catch {
-    return [];
-  }
-}
   const guild = guilds.find((g) => g.id === guildId);
-  if (!guild || !canManage(guild)) {
-    throw new Error("You do not have permission to manage this server.");
+  if (!guild) throw new Error("You do not have permission to manage this server.");
+  if (canManage(guild)) return guild;
+
+  // Not an owner/admin/manage-guild holder — check the custom Role Manager list.
+  try {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin
+      .from("server_settings")
+      .select("manager_role_ids")
+      .eq("guild_id", guildId)
+      .maybeSingle();
+    const managerRoleIds: string[] = (data?.["manager_role_ids"] as string[] | null) ?? [];
+    if (managerRoleIds.length) {
+      const memberRoles = await fetchMemberRoles(guildId, session.userId);
+      if (memberRoles.some((r) => managerRoleIds.includes(r))) return guild;
+    }
+  } catch (error) {
+    console.error("Role Manager check failed", error);
   }
+
+  throw new Error("You do not have permission to manage this server.");
+}
   return guild;
 }
