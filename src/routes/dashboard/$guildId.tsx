@@ -142,6 +142,10 @@ function GuildDashboard() {
             ) : null}
 
 
+            <h1 className="mb-4 text-2xl font-semibold tracking-tight">
+              {config.data?.guild.name ? `${config.data.guild.name} Dashboard` : "Server Dashboard"}
+            </h1>
+
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {overview.isPending
                 ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
