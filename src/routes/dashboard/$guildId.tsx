@@ -1,38 +1,23 @@
+import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft } from "lucide-react";
+import { createFileRoute, Link, Outlet } from "@tanstack/react-router";
+import { AlertTriangle, ArrowLeft, Check, ChevronDown, Menu } from "lucide-react";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
-import {
-  AnnouncementsPanel,
-  StatChannelsPanel,
-} from "@/components/dashboard/automation-panels";
-import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
-import { CasesPanel } from "@/components/dashboard/cases-panel";
-import { CommandListPanel } from "@/components/dashboard/command-list-panel";
-import { CommandsPanel } from "@/components/dashboard/commands-panel";
-import { GiveawaysPanel, ReactionRolesPanel } from "@/components/dashboard/community-panels";
-import { LeaderboardPanel, RemindersPanel } from "@/components/dashboard/engagement-panels";
-import { PollsPanel } from "@/components/dashboard/polls-panel";
-import { RolesPanel } from "@/components/dashboard/roles-panel";
-import { StarboardPanel } from "@/components/dashboard/starboard-panel";
-import {
-  MemberProfilePanel,
-  RanksPanel,
-  ServerStatsPanel,
-} from "@/components/dashboard/stats-panels";
-import {
-  AutoModPanel,
-  GeneralPanel,
-  LoggingPanel,
-  WelcomePanel,
-} from "@/components/dashboard/settings-panels";
-import { Badge } from "@/components/ui/badge";
+import { GuildContext } from "@/components/dashboard/guild-context";
+import { GuildNav } from "@/components/dashboard/guild-sidebar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getGuildConfig, getGuildOverview } from "@/lib/ahoy.functions";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import { getGuildConfig, getGuildOverview, getViewer } from "@/lib/ahoy.functions";
 
 export const Route = createFileRoute("/dashboard/$guildId")({
   head: () => ({
@@ -50,7 +35,7 @@ export const Route = createFileRoute("/dashboard/$guildId")({
       },
     ],
   }),
-  component: GuildDashboard,
+  component: GuildDashboardLayout,
   errorComponent: ({ error }) => (
     <div className="mx-auto max-w-2xl px-6 py-24 text-center">
       <AlertTriangle className="mx-auto h-6 w-6 text-gold" />
@@ -59,20 +44,62 @@ export const Route = createFileRoute("/dashboard/$guildId")({
   ),
 });
 
-function Stat({ label, value }: { label: string; value: string | number }) {
+function guildIcon(id: string, icon: string | null) {
+  return icon ? `https://cdn.discordapp.com/icons/${id}/${icon}.png?size=64` : null;
+}
+
+function ServerSwitcher({ guildId, name }: { guildId: string; name: string }) {
+  const { data } = useQuery({ queryKey: ["viewer"], queryFn: () => getViewer() });
+  const guilds = data?.signedIn && !data.guildsError ? data.guilds : [];
+
   return (
-    <Card className="glass border-0">
-      <CardContent className="pt-6">
-        <p className="text-xs uppercase tracking-[0.16em] text-muted-foreground">{label}</p>
-        <p className="mt-2 text-2xl font-semibold">{value}</p>
-      </CardContent>
-    </Card>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="secondary" size="sm" className="max-w-[220px] gap-2">
+          <span className="truncate">{name}</span>
+          <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel>Your servers</DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        {guilds.length === 0 ? (
+          <DropdownMenuItem disabled>No servers available</DropdownMenuItem>
+        ) : (
+          guilds.map((guild) => {
+            const icon = guildIcon(guild.id, guild.icon);
+            return (
+              <DropdownMenuItem key={guild.id} asChild>
+                <Link to="/dashboard/$guildId" params={{ guildId: guild.id }} className="gap-2">
+                  {icon ? (
+                    <img src={icon} alt="" className="size-6 rounded-md" />
+                  ) : (
+                    <span className="flex size-6 items-center justify-center rounded-md bg-secondary text-[10px]">
+                      {guild.name.slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <span className="truncate">{guild.name}</span>
+                  {guild.id === guildId ? <Check className="ml-auto h-4 w-4 text-primary" /> : null}
+                </Link>
+              </DropdownMenuItem>
+            );
+          })
+        )}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild>
+          <Link to="/dashboard">
+            <ArrowLeft className="h-4 w-4" /> All servers
+          </Link>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
-function GuildDashboard() {
+function GuildDashboardLayout() {
   const { guildId } = Route.useParams();
   const queryClient = useQueryClient();
+  const [mobileNav, setMobileNav] = useState(false);
 
   const overview = useQuery({
     queryKey: ["overview", guildId],
@@ -89,199 +116,88 @@ function GuildDashboard() {
   };
 
   const error = overview.error ?? config.error;
+  const guildName = config.data?.guild.name ?? "Control Center";
 
   return (
-    <div className="min-h-screen pb-16">
-      <header className="hairline">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <Link to="/dashboard">
-            <AhoyWordmark subtitle={config.data?.guild.name ?? "Control Center"} />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Button asChild size="sm" variant="ghost">
-              <Link to="/dashboard">
-                <ArrowLeft className="h-4 w-4" />
-                All servers
+    <GuildContext.Provider
+      value={{
+        guildId,
+        config: config.data,
+        overview: overview.data,
+        isPending: config.isPending,
+        refresh,
+      }}
+    >
+      <div className="min-h-screen">
+        <header className="hairline sticky top-0 z-30 bg-background/80 backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+            <div className="flex items-center gap-3">
+              <Sheet open={mobileNav} onOpenChange={setMobileNav}>
+                <SheetTrigger asChild>
+                  <Button size="icon" variant="ghost" className="lg:hidden">
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent side="left" className="w-72 overflow-y-auto p-6">
+                  <GuildNav guildId={guildId} onNavigate={() => setMobileNav(false)} />
+                </SheetContent>
+              </Sheet>
+              <Link to="/dashboard" className="hidden sm:block">
+                <AhoyWordmark />
               </Link>
-            </Button>
-            <Button asChild size="sm" variant="outline">
-              <a href="/api/public/auth/discord/logout">Sign out</a>
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-6xl px-6 py-10">
-        {error ? (
-          <Card className="glass border-0">
-            <CardContent className="py-10 text-center">
-              <AlertTriangle className="mx-auto h-6 w-6 text-gold" />
-              <p className="mt-4 text-sm text-muted-foreground">{(error as Error).message}</p>
-              <Button asChild className="mt-6" variant="outline">
-                <a href="/api/public/auth/discord/start">Reconnect Discord</a>
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
-          <>
-            {overview.data && overview.data.botStatus !== "present" ? (
-              <Card className="glass mb-6 border-0">
-                <CardContent className="flex flex-wrap items-center gap-3 py-5">
-                  <AlertTriangle className="h-5 w-5 text-gold" />
-                  <p className="text-sm text-muted-foreground">
-                    {overview.data.botStatus === "absent"
-                      ? "AHOY is not in this server yet, so channels and roles can't be listed. Settings you save here will apply as soon as the bot joins."
-                      : "AHOY's bot token isn't configured or is invalid, so channels and roles can't be listed. Settings you save here still apply."}
-                  </p>
-                  {overview.data.botStatus === "absent" ? (
-                    <Button asChild size="sm" className="ml-auto">
-                      <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
-                    </Button>
-                  ) : null}
-                </CardContent>
-              </Card>
-            ) : null}
-
-
-            <h1 className="mb-4 text-2xl font-semibold tracking-tight">
-              {config.data?.guild.name ? `${config.data.guild.name} Dashboard` : "Server Dashboard"}
-            </h1>
-
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {overview.isPending
-                ? [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-2xl" />)
-                : overview.data
-                  ? [
-                      ["Members", overview.data.memberCount ?? "—"],
-                      ["Open tickets", overview.data.openTickets],
-                      ["Active warnings", overview.data.activeWarnings],
-                      ["Mod actions (7d)", overview.data.moderationLast7Days],
-                    ].map(([label, value]) => (
-                      <Stat key={String(label)} label={String(label)} value={value as number} />
-                    ))
-                  : null}
+              <ServerSwitcher guildId={guildId} name={guildName} />
             </div>
+            <div className="flex items-center gap-2">
+              <Button asChild size="sm" variant="outline">
+                <a href="/api/public/auth/discord/logout">Sign out</a>
+              </Button>
+            </div>
+          </div>
+        </header>
 
-            <Tabs defaultValue="general" className="mt-8">
-              <TabsList className="flex w-full flex-wrap justify-start gap-1 bg-secondary/40">
-                <TabsTrigger value="general">General</TabsTrigger>
-                <TabsTrigger value="welcome">Welcome</TabsTrigger>
-                <TabsTrigger value="automod">AutoMod</TabsTrigger>
-                <TabsTrigger value="logging">Logging</TabsTrigger>
-                <TabsTrigger value="roles">Roles</TabsTrigger>
-                <TabsTrigger value="community">Community</TabsTrigger>
-                <TabsTrigger value="automation">Automation</TabsTrigger>
-                <TabsTrigger value="leaderboards">Leaderboards</TabsTrigger>
-                <TabsTrigger value="reminders">Reminders</TabsTrigger>
-                <TabsTrigger value="cases">Cases</TabsTrigger>
-                <TabsTrigger value="stats">Stats</TabsTrigger>
-                <TabsTrigger value="commands">Commands</TabsTrigger>
-                <TabsTrigger value="command-list">Command list</TabsTrigger>
-                <TabsTrigger value="activity">Activity</TabsTrigger>
-              </TabsList>
+        <div className="flex">
+          <aside className="hairline sticky top-[65px] hidden h-[calc(100vh-65px)] w-64 shrink-0 overflow-y-auto border-r px-4 py-6 lg:block">
+            <GuildNav guildId={guildId} />
+          </aside>
 
-              {config.isPending || !config.data ? (
-                <div className="mt-6 space-y-4">
-                  <Skeleton className="h-40 rounded-2xl" />
-                  <Skeleton className="h-64 rounded-2xl" />
-                </div>
+          <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
+            <div className="mx-auto max-w-5xl">
+              {error ? (
+                <Card className="glass border-0">
+                  <CardContent className="py-10 text-center">
+                    <AlertTriangle className="mx-auto h-6 w-6 text-gold" />
+                    <p className="mt-4 text-sm text-muted-foreground">{(error as Error).message}</p>
+                    <Button asChild className="mt-6" variant="outline">
+                      <a href="/api/public/auth/discord/start">Reconnect Discord</a>
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : (
                 <>
-                  <TabsContent value="general" className="mt-6">
-                    <GeneralPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="welcome" className="mt-6">
-                    <WelcomePanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="automod" className="mt-6">
-                    <AutoModPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="logging" className="mt-6">
-                    <LoggingPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="roles" className="mt-6">
-                    <RolesPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="community" className="mt-6">
-                    <div className="space-y-6">
-                      <ReactionRolesPanel guildId={guildId} structure={config.data.structure} />
-                      <GiveawaysPanel guildId={guildId} structure={config.data.structure} />
-                      <PollsPanel guildId={guildId} structure={config.data.structure} />
-                      <StarboardPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="automation" className="mt-6">
-                    <div className="space-y-6">
-                      <AnnouncementsPanel guildId={guildId} structure={config.data.structure} />
-                      <StatChannelsPanel guildId={guildId} structure={config.data.structure} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="leaderboards" className="mt-6">
-                    <LeaderboardPanel
-                      guildId={guildId}
-                      currency={config.data.settings?.currency_name ?? "coins"}
-                    />
-                  </TabsContent>
-                  <TabsContent value="reminders" className="mt-6">
-                    <RemindersPanel guildId={guildId} />
-                  </TabsContent>
-                  <TabsContent value="cases" className="mt-6">
-                    <CasesPanel guildId={guildId} />
-                  </TabsContent>
-                  <TabsContent value="stats" className="mt-6">
-                    <div className="space-y-6">
-                      <ServerStatsPanel guildId={guildId} />
-                      <RanksPanel guildId={guildId} />
-                      <MemberProfilePanel guildId={guildId} />
-                    </div>
-                  </TabsContent>
-                  <TabsContent value="commands" className="mt-6">
-                    <CommandsPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="command-list" className="mt-6">
-                    <CommandListPanel guildId={guildId} config={config.data} onSaved={refresh} />
-                  </TabsContent>
-                  <TabsContent value="activity" className="mt-6">
-                    <div className="space-y-6">
-                    <ActivityLogPanel guildId={guildId} />
-                    <Card className="glass border-0">
-                      <CardContent className="space-y-3 pt-6">
-                        <h2 className="text-lg font-semibold">Recent moderation</h2>
-                        {overview.data && overview.data.recent.length > 0 ? (
-                          <ul className="space-y-2">
-                            {overview.data.recent.map((entry, index) => (
-                              <li
-                                key={`${entry.created_at}-${index}`}
-                                className="flex flex-wrap items-center gap-3 rounded-xl border border-border/70 bg-secondary/30 px-4 py-3 text-sm"
-                              >
-                                <Badge variant="outline" className="border-primary/40 text-primary">
-                                  {entry.action}
-                                </Badge>
-                                <span className="font-medium">{entry.target_name ?? "Unknown"}</span>
-                                <span className="text-muted-foreground">
-                                  by {entry.moderator_name ?? "AHOY"}
-                                </span>
-                                <span className="ml-auto text-xs text-muted-foreground">
-                                  {new Date(entry.created_at).toLocaleString()}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <p className="text-sm text-muted-foreground">
-                            No moderation actions recorded yet.
-                          </p>
-                        )}
+                  {overview.data && overview.data.botStatus !== "present" ? (
+                    <Card className="glass mb-6 border-0">
+                      <CardContent className="flex flex-wrap items-center gap-3 py-5">
+                        <AlertTriangle className="h-5 w-5 text-gold" />
+                        <p className="text-sm text-muted-foreground">
+                          {overview.data.botStatus === "absent"
+                            ? "AHOY is not in this server yet, so channels and roles can't be listed. Settings you save here will apply as soon as the bot joins."
+                            : "AHOY's bot token isn't configured or is invalid, so channels and roles can't be listed. Settings you save here still apply."}
+                        </p>
+                        {overview.data.botStatus === "absent" ? (
+                          <Button asChild size="sm" className="ml-auto">
+                            <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
+                          </Button>
+                        ) : null}
                       </CardContent>
                     </Card>
-                    </div>
-                  </TabsContent>
+                  ) : null}
+                  <Outlet />
                 </>
               )}
-            </Tabs>
-          </>
-        )}
-      </main>
-    </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    </GuildContext.Provider>
   );
 }
