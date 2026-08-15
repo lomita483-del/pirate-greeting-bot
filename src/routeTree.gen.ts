@@ -14,6 +14,20 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
 import { Route as ApiPublicInviteRouteImport } from './routes/api/public/invite'
+import { Route as DashboardGuildIdIndexRouteImport } from './routes/dashboard/$guildId.index'
+import { Route as DashboardGuildIdActivityRouteImport } from './routes/dashboard/$guildId.activity'
+import { Route as DashboardGuildIdAutomationRouteImport } from './routes/dashboard/$guildId.automation'
+import { Route as DashboardGuildIdAutomodRouteImport } from './routes/dashboard/$guildId.automod'
+import { Route as DashboardGuildIdCommandsRouteImport } from './routes/dashboard/$guildId.commands'
+import { Route as DashboardGuildIdCommunityRouteImport } from './routes/dashboard/$guildId.community'
+import { Route as DashboardGuildIdCustomCommandsRouteImport } from './routes/dashboard/$guildId.custom-commands'
+import { Route as DashboardGuildIdEngagementRouteImport } from './routes/dashboard/$guildId.engagement'
+import { Route as DashboardGuildIdGeneralRouteImport } from './routes/dashboard/$guildId.general'
+import { Route as DashboardGuildIdLoggingRouteImport } from './routes/dashboard/$guildId.logging'
+import { Route as DashboardGuildIdModerationRouteImport } from './routes/dashboard/$guildId.moderation'
+import { Route as DashboardGuildIdRolesRouteImport } from './routes/dashboard/$guildId.roles'
+import { Route as DashboardGuildIdStatsRouteImport } from './routes/dashboard/$guildId.stats'
+import { Route as DashboardGuildIdWelcomeRouteImport } from './routes/dashboard/$guildId.welcome'
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
 import { Route as ApiPublicAuthDiscordStartRouteImport } from './routes/api/public/auth/discord/start'
@@ -43,6 +57,83 @@ const ApiPublicInviteRoute = ApiPublicInviteRouteImport.update({
   path: '/api/public/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardGuildIdIndexRoute = DashboardGuildIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdActivityRoute =
+  DashboardGuildIdActivityRouteImport.update({
+    id: '/activity',
+    path: '/activity',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdAutomationRoute =
+  DashboardGuildIdAutomationRouteImport.update({
+    id: '/automation',
+    path: '/automation',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdAutomodRoute = DashboardGuildIdAutomodRouteImport.update({
+  id: '/automod',
+  path: '/automod',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdCommandsRoute =
+  DashboardGuildIdCommandsRouteImport.update({
+    id: '/commands',
+    path: '/commands',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdCommunityRoute =
+  DashboardGuildIdCommunityRouteImport.update({
+    id: '/community',
+    path: '/community',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdCustomCommandsRoute =
+  DashboardGuildIdCustomCommandsRouteImport.update({
+    id: '/custom-commands',
+    path: '/custom-commands',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdEngagementRoute =
+  DashboardGuildIdEngagementRouteImport.update({
+    id: '/engagement',
+    path: '/engagement',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdGeneralRoute = DashboardGuildIdGeneralRouteImport.update({
+  id: '/general',
+  path: '/general',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdLoggingRoute = DashboardGuildIdLoggingRouteImport.update({
+  id: '/logging',
+  path: '/logging',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdModerationRoute =
+  DashboardGuildIdModerationRouteImport.update({
+    id: '/moderation',
+    path: '/moderation',
+    getParentRoute: () => DashboardGuildIdRoute,
+  } as any)
+const DashboardGuildIdRolesRoute = DashboardGuildIdRolesRouteImport.update({
+  id: '/roles',
+  path: '/roles',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdStatsRoute = DashboardGuildIdStatsRouteImport.update({
+  id: '/stats',
+  path: '/stats',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
+const DashboardGuildIdWelcomeRoute = DashboardGuildIdWelcomeRouteImport.update({
+  id: '/welcome',
+  path: '/welcome',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
 const ApiPublicAuthDiscordCallbackRoute =
   ApiPublicAuthDiscordCallbackRouteImport.update({
     id: '/api/public/auth/discord/callback',
@@ -65,9 +156,23 @@ const ApiPublicAuthDiscordStartRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/dashboard/$guildId': typeof DashboardGuildIdRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
+  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
+  '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
+  '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
+  '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
+  '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
+  '/dashboard/$guildId/engagement': typeof DashboardGuildIdEngagementRoute
+  '/dashboard/$guildId/general': typeof DashboardGuildIdGeneralRoute
+  '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
+  '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
+  '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
+  '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
+  '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -75,9 +180,22 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/dashboard/$guildId': typeof DashboardGuildIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
+  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
+  '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
+  '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
+  '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
+  '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
+  '/dashboard/$guildId/engagement': typeof DashboardGuildIdEngagementRoute
+  '/dashboard/$guildId/general': typeof DashboardGuildIdGeneralRoute
+  '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
+  '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
+  '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
+  '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -86,9 +204,23 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
-  '/dashboard/$guildId': typeof DashboardGuildIdRoute
+  '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
+  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
+  '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
+  '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
+  '/dashboard/$guildId/commands': typeof DashboardGuildIdCommandsRoute
+  '/dashboard/$guildId/community': typeof DashboardGuildIdCommunityRoute
+  '/dashboard/$guildId/custom-commands': typeof DashboardGuildIdCustomCommandsRoute
+  '/dashboard/$guildId/engagement': typeof DashboardGuildIdEngagementRoute
+  '/dashboard/$guildId/general': typeof DashboardGuildIdGeneralRoute
+  '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
+  '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
+  '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
+  '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
+  '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
@@ -101,6 +233,20 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/invite'
+    | '/dashboard/$guildId/activity'
+    | '/dashboard/$guildId/automation'
+    | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/commands'
+    | '/dashboard/$guildId/community'
+    | '/dashboard/$guildId/custom-commands'
+    | '/dashboard/$guildId/engagement'
+    | '/dashboard/$guildId/general'
+    | '/dashboard/$guildId/logging'
+    | '/dashboard/$guildId/moderation'
+    | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/stats'
+    | '/dashboard/$guildId/welcome'
+    | '/dashboard/$guildId/'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -108,9 +254,22 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
-    | '/dashboard/$guildId'
     | '/dashboard'
     | '/api/public/invite'
+    | '/dashboard/$guildId/activity'
+    | '/dashboard/$guildId/automation'
+    | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/commands'
+    | '/dashboard/$guildId/community'
+    | '/dashboard/$guildId/custom-commands'
+    | '/dashboard/$guildId/engagement'
+    | '/dashboard/$guildId/general'
+    | '/dashboard/$guildId/logging'
+    | '/dashboard/$guildId/moderation'
+    | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/stats'
+    | '/dashboard/$guildId/welcome'
+    | '/dashboard/$guildId'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -121,6 +280,20 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/invite'
+    | '/dashboard/$guildId/activity'
+    | '/dashboard/$guildId/automation'
+    | '/dashboard/$guildId/automod'
+    | '/dashboard/$guildId/commands'
+    | '/dashboard/$guildId/community'
+    | '/dashboard/$guildId/custom-commands'
+    | '/dashboard/$guildId/engagement'
+    | '/dashboard/$guildId/general'
+    | '/dashboard/$guildId/logging'
+    | '/dashboard/$guildId/moderation'
+    | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/stats'
+    | '/dashboard/$guildId/welcome'
+    | '/dashboard/$guildId/'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
@@ -129,7 +302,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
-  DashboardGuildIdRoute: typeof DashboardGuildIdRoute
+  DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
@@ -174,6 +347,104 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicInviteRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/$guildId/': {
+      id: '/dashboard/$guildId/'
+      path: '/'
+      fullPath: '/dashboard/$guildId/'
+      preLoaderRoute: typeof DashboardGuildIdIndexRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/activity': {
+      id: '/dashboard/$guildId/activity'
+      path: '/activity'
+      fullPath: '/dashboard/$guildId/activity'
+      preLoaderRoute: typeof DashboardGuildIdActivityRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/automation': {
+      id: '/dashboard/$guildId/automation'
+      path: '/automation'
+      fullPath: '/dashboard/$guildId/automation'
+      preLoaderRoute: typeof DashboardGuildIdAutomationRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/automod': {
+      id: '/dashboard/$guildId/automod'
+      path: '/automod'
+      fullPath: '/dashboard/$guildId/automod'
+      preLoaderRoute: typeof DashboardGuildIdAutomodRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/commands': {
+      id: '/dashboard/$guildId/commands'
+      path: '/commands'
+      fullPath: '/dashboard/$guildId/commands'
+      preLoaderRoute: typeof DashboardGuildIdCommandsRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/community': {
+      id: '/dashboard/$guildId/community'
+      path: '/community'
+      fullPath: '/dashboard/$guildId/community'
+      preLoaderRoute: typeof DashboardGuildIdCommunityRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/custom-commands': {
+      id: '/dashboard/$guildId/custom-commands'
+      path: '/custom-commands'
+      fullPath: '/dashboard/$guildId/custom-commands'
+      preLoaderRoute: typeof DashboardGuildIdCustomCommandsRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/engagement': {
+      id: '/dashboard/$guildId/engagement'
+      path: '/engagement'
+      fullPath: '/dashboard/$guildId/engagement'
+      preLoaderRoute: typeof DashboardGuildIdEngagementRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/general': {
+      id: '/dashboard/$guildId/general'
+      path: '/general'
+      fullPath: '/dashboard/$guildId/general'
+      preLoaderRoute: typeof DashboardGuildIdGeneralRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/logging': {
+      id: '/dashboard/$guildId/logging'
+      path: '/logging'
+      fullPath: '/dashboard/$guildId/logging'
+      preLoaderRoute: typeof DashboardGuildIdLoggingRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/moderation': {
+      id: '/dashboard/$guildId/moderation'
+      path: '/moderation'
+      fullPath: '/dashboard/$guildId/moderation'
+      preLoaderRoute: typeof DashboardGuildIdModerationRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/roles': {
+      id: '/dashboard/$guildId/roles'
+      path: '/roles'
+      fullPath: '/dashboard/$guildId/roles'
+      preLoaderRoute: typeof DashboardGuildIdRolesRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/stats': {
+      id: '/dashboard/$guildId/stats'
+      path: '/stats'
+      fullPath: '/dashboard/$guildId/stats'
+      preLoaderRoute: typeof DashboardGuildIdStatsRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
+    '/dashboard/$guildId/welcome': {
+      id: '/dashboard/$guildId/welcome'
+      path: '/welcome'
+      fullPath: '/dashboard/$guildId/welcome'
+      preLoaderRoute: typeof DashboardGuildIdWelcomeRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
     '/api/public/auth/discord/callback': {
       id: '/api/public/auth/discord/callback'
       path: '/api/public/auth/discord/callback'
@@ -198,10 +469,47 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface DashboardGuildIdRouteChildren {
+  DashboardGuildIdActivityRoute: typeof DashboardGuildIdActivityRoute
+  DashboardGuildIdAutomationRoute: typeof DashboardGuildIdAutomationRoute
+  DashboardGuildIdAutomodRoute: typeof DashboardGuildIdAutomodRoute
+  DashboardGuildIdCommandsRoute: typeof DashboardGuildIdCommandsRoute
+  DashboardGuildIdCommunityRoute: typeof DashboardGuildIdCommunityRoute
+  DashboardGuildIdCustomCommandsRoute: typeof DashboardGuildIdCustomCommandsRoute
+  DashboardGuildIdEngagementRoute: typeof DashboardGuildIdEngagementRoute
+  DashboardGuildIdGeneralRoute: typeof DashboardGuildIdGeneralRoute
+  DashboardGuildIdLoggingRoute: typeof DashboardGuildIdLoggingRoute
+  DashboardGuildIdModerationRoute: typeof DashboardGuildIdModerationRoute
+  DashboardGuildIdRolesRoute: typeof DashboardGuildIdRolesRoute
+  DashboardGuildIdStatsRoute: typeof DashboardGuildIdStatsRoute
+  DashboardGuildIdWelcomeRoute: typeof DashboardGuildIdWelcomeRoute
+  DashboardGuildIdIndexRoute: typeof DashboardGuildIdIndexRoute
+}
+
+const DashboardGuildIdRouteChildren: DashboardGuildIdRouteChildren = {
+  DashboardGuildIdActivityRoute: DashboardGuildIdActivityRoute,
+  DashboardGuildIdAutomationRoute: DashboardGuildIdAutomationRoute,
+  DashboardGuildIdAutomodRoute: DashboardGuildIdAutomodRoute,
+  DashboardGuildIdCommandsRoute: DashboardGuildIdCommandsRoute,
+  DashboardGuildIdCommunityRoute: DashboardGuildIdCommunityRoute,
+  DashboardGuildIdCustomCommandsRoute: DashboardGuildIdCustomCommandsRoute,
+  DashboardGuildIdEngagementRoute: DashboardGuildIdEngagementRoute,
+  DashboardGuildIdGeneralRoute: DashboardGuildIdGeneralRoute,
+  DashboardGuildIdLoggingRoute: DashboardGuildIdLoggingRoute,
+  DashboardGuildIdModerationRoute: DashboardGuildIdModerationRoute,
+  DashboardGuildIdRolesRoute: DashboardGuildIdRolesRoute,
+  DashboardGuildIdStatsRoute: DashboardGuildIdStatsRoute,
+  DashboardGuildIdWelcomeRoute: DashboardGuildIdWelcomeRoute,
+  DashboardGuildIdIndexRoute: DashboardGuildIdIndexRoute,
+}
+
+const DashboardGuildIdRouteWithChildren =
+  DashboardGuildIdRoute._addFileChildren(DashboardGuildIdRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
-  DashboardGuildIdRoute: DashboardGuildIdRoute,
+  DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
