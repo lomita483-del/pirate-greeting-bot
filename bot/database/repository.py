@@ -863,5 +863,44 @@ class Repository:
         )
         return len(getattr(rows, "data", None) or [])
 
+    async def command_uses_since(
+        self, guild_id: str, command: str, user_id: str, since_iso: str
+    ) -> int:
+        """How many times this member ran this command in the given window."""
+        rows = await self.db.try_run(
+            lambda c: c.table("command_usage")
+            .select("id")
+            .eq("guild_id", guild_id)
+            .eq("command", command)
+            .eq("user_id", user_id)
+            .gte("created_at", since_iso)
+            .limit(1000)
+            .execute()
+        )
+        return len(getattr(rows, "data", None) or [])
+
+    # -- events + audit trail (always scoped to one guild) ------------------
+    async def emit_event(self, payload: dict[str, Any]) -> Optional[str]:
+        rows = await self.db.try_run(
+            lambda c: c.table("system_events").insert(payload).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0].get("id") if data else None
+
+    async def write_audit_log(self, payload: dict[str, Any]) -> None:
+        await self.db.try_run(lambda c: c.table("audit_logs").insert(payload).execute())
+
+    async def recent_audit_logs(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("audit_logs")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
 
 __all__ = ["Repository", "DatabaseError"]
+

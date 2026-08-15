@@ -1273,18 +1273,35 @@ export const COMMAND_PERMISSION_LEVELS = [
   "administrator",
 ] as const;
 
+export const RESPONSE_VISIBILITY = ["inherit", "private", "public"] as const;
+
+const snowflakes = (max: number) => z.array(z.string().regex(/^\d{5,25}$/)).max(max);
+
 const commandConfigInput = z.object({
   guildId: z.string().regex(/^\d{5,25}$/),
   command: z.string().min(1).max(120),
   enabled: z.boolean().optional(),
-  allowedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
-  deniedRoleIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
-  allowedChannelIds: z.array(z.string().regex(/^\d{5,25}$/)).max(25).optional(),
+  allowedRoleIds: snowflakes(25).optional(),
+  deniedRoleIds: snowflakes(25).optional(),
+  allowedChannelIds: snowflakes(25).optional(),
+  blockedChannelIds: snowflakes(25).optional(),
+  allowedCategoryIds: snowflakes(25).optional(),
+  protectedRoleIds: snowflakes(25).optional(),
+  protectedUserIds: snowflakes(25).optional(),
   outputChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
   requiredPermission: z.enum(COMMAND_PERMISSION_LEVELS).optional(),
   cooldownSeconds: z.number().int().min(0).max(86400).optional(),
+  rateLimitPerMinute: z.number().int().min(0).max(600).optional(),
+  requireReason: z.boolean().optional(),
+  requireConfirmation: z.boolean().optional(),
+  responseVisibility: z.enum(RESPONSE_VISIBILITY).optional(),
   ephemeral: z.boolean().optional(),
   customResponse: z.string().max(1500).nullable().optional(),
+  errorResponse: z.string().max(1500).nullable().optional(),
+  logEvent: z.boolean().optional(),
+  logChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  notifyRoleId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
+  notifyChannelId: z.string().regex(/^\d{5,25}$/).nullable().optional(),
   notes: z.string().max(500).nullable().optional(),
   options: z.record(z.string(), z.string().max(500)).optional(),
 });
@@ -1295,14 +1312,73 @@ export type CommandConfig = {
   allowedRoleIds: string[];
   deniedRoleIds: string[];
   allowedChannelIds: string[];
+  blockedChannelIds: string[];
+  allowedCategoryIds: string[];
+  protectedRoleIds: string[];
+  protectedUserIds: string[];
   outputChannelId: string | null;
   requiredPermission: (typeof COMMAND_PERMISSION_LEVELS)[number];
   cooldownSeconds: number;
+  rateLimitPerMinute: number;
+  requireReason: boolean;
+  requireConfirmation: boolean;
+  responseVisibility: (typeof RESPONSE_VISIBILITY)[number];
   ephemeral: boolean;
   customResponse: string | null;
+  errorResponse: string | null;
+  logEvent: boolean;
+  logChannelId: string | null;
+  notifyRoleId: string | null;
+  notifyChannelId: string | null;
   notes: string | null;
   options: Record<string, string>;
 };
+
+/** Column mapping shared by the single-command and bulk writers. */
+const COMMAND_COLUMNS: Array<[keyof CommandConfig, string]> = [
+  ["enabled", "enabled"],
+  ["allowedRoleIds", "allowed_role_ids"],
+  ["deniedRoleIds", "denied_role_ids"],
+  ["allowedChannelIds", "allowed_channel_ids"],
+  ["blockedChannelIds", "blocked_channel_ids"],
+  ["allowedCategoryIds", "allowed_category_ids"],
+  ["protectedRoleIds", "protected_role_ids"],
+  ["protectedUserIds", "protected_user_ids"],
+  ["outputChannelId", "output_channel_id"],
+  ["requiredPermission", "required_permission"],
+  ["cooldownSeconds", "cooldown_seconds"],
+  ["rateLimitPerMinute", "rate_limit_per_minute"],
+  ["requireReason", "require_reason"],
+  ["requireConfirmation", "require_confirmation"],
+  ["responseVisibility", "response_visibility"],
+  ["ephemeral", "ephemeral"],
+  ["customResponse", "custom_response"],
+  ["errorResponse", "error_response"],
+  ["logEvent", "log_event"],
+  ["logChannelId", "log_channel_id"],
+  ["notifyRoleId", "notify_role_id"],
+  ["notifyChannelId", "notify_channel_id"],
+  ["notes", "notes"],
+  ["options", "options"],
+];
+
+function commandRow(
+  guildId: string,
+  command: string,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {
+    guild_id: guildId,
+    command,
+    updated_at: new Date().toISOString(),
+  };
+  for (const [key, column] of COMMAND_COLUMNS) {
+    const value = patch[key as string];
+    if (value !== undefined) row[column] = value;
+  }
+  return row;
+}
+
 
 export const getCommandSettings = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
@@ -1324,12 +1400,26 @@ export const getCommandSettings = createServerFn({ method: "GET" })
         allowedRoleIds: (r["allowed_role_ids"] as string[] | null) ?? [],
         deniedRoleIds: (r["denied_role_ids"] as string[] | null) ?? [],
         allowedChannelIds: (r["allowed_channel_ids"] as string[] | null) ?? [],
+        blockedChannelIds: (r["blocked_channel_ids"] as string[] | null) ?? [],
+        allowedCategoryIds: (r["allowed_category_ids"] as string[] | null) ?? [],
+        protectedRoleIds: (r["protected_role_ids"] as string[] | null) ?? [],
+        protectedUserIds: (r["protected_user_ids"] as string[] | null) ?? [],
         outputChannelId: (r["output_channel_id"] as string | null) ?? null,
         requiredPermission:
           ((r["required_permission"] as CommandConfig["requiredPermission"]) ?? "none"),
         cooldownSeconds: Number(r["cooldown_seconds"] ?? 0),
+        rateLimitPerMinute: Number(r["rate_limit_per_minute"] ?? 0),
+        requireReason: Boolean(r["require_reason"]),
+        requireConfirmation: Boolean(r["require_confirmation"]),
+        responseVisibility:
+          ((r["response_visibility"] as CommandConfig["responseVisibility"]) ?? "inherit"),
         ephemeral: r["ephemeral"] === undefined ? true : Boolean(r["ephemeral"]),
         customResponse: (r["custom_response"] as string | null) ?? null,
+        errorResponse: (r["error_response"] as string | null) ?? null,
+        logEvent: r["log_event"] === undefined ? true : Boolean(r["log_event"]),
+        logChannelId: (r["log_channel_id"] as string | null) ?? null,
+        notifyRoleId: (r["notify_role_id"] as string | null) ?? null,
+        notifyChannelId: (r["notify_channel_id"] as string | null) ?? null,
         notes: (r["notes"] as string | null) ?? null,
         options: ((r["options"] as Record<string, string> | null) ?? {}) as Record<string, string>,
       };
@@ -1379,23 +1469,7 @@ export const saveCommandConfig = createServerFn({ method: "POST" })
     const { guild, supabaseAdmin } = await authorize(data.guildId);
     await ensureServerRow(supabaseAdmin, guild);
 
-    const row: Record<string, unknown> = {
-      guild_id: data.guildId,
-      command: data.command,
-      updated_at: new Date().toISOString(),
-    };
-    if (data.enabled !== undefined) row["enabled"] = data.enabled;
-    if (data.allowedRoleIds) row["allowed_role_ids"] = data.allowedRoleIds;
-    if (data.deniedRoleIds) row["denied_role_ids"] = data.deniedRoleIds;
-    if (data.allowedChannelIds) row["allowed_channel_ids"] = data.allowedChannelIds;
-    if (data.outputChannelId !== undefined) row["output_channel_id"] = data.outputChannelId;
-    if (data.requiredPermission) row["required_permission"] = data.requiredPermission;
-    if (data.cooldownSeconds !== undefined) row["cooldown_seconds"] = data.cooldownSeconds;
-    if (data.ephemeral !== undefined) row["ephemeral"] = data.ephemeral;
-    if (data.customResponse !== undefined) row["custom_response"] = data.customResponse;
-    if (data.notes !== undefined) row["notes"] = data.notes;
-    if (data.options) row["options"] = data.options;
-
+    const row = commandRow(data.guildId, data.command, data as Record<string, unknown>);
     const { error } = await supabaseAdmin
       .from("guild_command_settings")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1421,28 +1495,8 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { guild, supabaseAdmin } = await authorize(data.guildId);
     await ensureServerRow(supabaseAdmin, guild);
-    const now = new Date().toISOString();
-    const p = data.patch;
-
-    const rows = data.commands.map((command) => {
-      const row: Record<string, unknown> = {
-        guild_id: data.guildId,
-        command,
-        updated_at: now,
-      };
-      if (p.enabled !== undefined) row["enabled"] = p.enabled;
-      if (p.allowedRoleIds) row["allowed_role_ids"] = p.allowedRoleIds;
-      if (p.deniedRoleIds) row["denied_role_ids"] = p.deniedRoleIds;
-      if (p.allowedChannelIds) row["allowed_channel_ids"] = p.allowedChannelIds;
-      if (p.outputChannelId !== undefined) row["output_channel_id"] = p.outputChannelId;
-      if (p.requiredPermission) row["required_permission"] = p.requiredPermission;
-      if (p.cooldownSeconds !== undefined) row["cooldown_seconds"] = p.cooldownSeconds;
-      if (p.ephemeral !== undefined) row["ephemeral"] = p.ephemeral;
-      if (p.customResponse !== undefined) row["custom_response"] = p.customResponse;
-      if (p.notes !== undefined) row["notes"] = p.notes;
-      if (p.options) row["options"] = p.options;
-      return row;
-    });
+    const patch = data.patch as Record<string, unknown>;
+    const rows = data.commands.map((command) => commandRow(data.guildId, command, patch));
 
     for (let i = 0; i < rows.length; i += 100) {
       const { error } = await supabaseAdmin
@@ -1456,5 +1510,41 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
     }
     return { ok: true, updated: rows.length };
   });
+
+/** Audit trail for this server only — never mixed with other servers. */
+export const getAuditLog = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        limit: z.number().int().min(1).max(200).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const { data: rows, error } = await supabaseAdmin
+      .from("audit_logs")
+      .select("*")
+      .eq("guild_id", data.guildId)
+      .order("created_at", { ascending: false })
+      .limit(data.limit ?? 50);
+    if (error) {
+      console.error("Audit log read failed", error);
+      return { entries: [] };
+    }
+    return {
+      entries: (rows ?? []).map((r) => ({
+        id: r.id as string,
+        action: r.action as string,
+        actorId: (r.actor_id as string | null) ?? null,
+        targetId: (r.target_id as string | null) ?? null,
+        resourceType: (r.resource_type as string | null) ?? null,
+        reason: (r.reason as string | null) ?? null,
+        createdAt: r.created_at as string,
+      })),
+    };
+  });
+
 
 

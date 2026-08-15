@@ -19,7 +19,7 @@ on real usage.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import discord
@@ -50,6 +50,43 @@ PERMISSION_LABELS = {
 }
 
 
+class _ConfirmView(discord.ui.View):
+    """Two-button confirmation, usable only by the member who ran the command."""
+
+    def __init__(self, owner_id: str, timeout: float = 30.0) -> None:
+        super().__init__(timeout=timeout)
+        self.owner_id = owner_id
+        self.confirmed = False
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if str(interaction.user.id) != self.owner_id:
+            await interaction.response.send_message(
+                "This confirmation isn't yours.", ephemeral=True
+            )
+            return False
+        return True
+
+    @discord.ui.button(label="Confirm", style=discord.ButtonStyle.danger)
+    async def confirm(
+        self, interaction: discord.Interaction, _button: discord.ui.Button
+    ) -> None:
+        self.confirmed = True
+        await interaction.response.edit_message(
+            embed=embeds.success("Confirmed", "Carrying out the action…"), view=None
+        )
+        self.stop()
+
+    @discord.ui.button(label="Cancel", style=discord.ButtonStyle.secondary)
+    async def cancel(
+        self, interaction: discord.Interaction, _button: discord.ui.Button
+    ) -> None:
+        self.confirmed = False
+        await interaction.response.edit_message(
+            embed=embeds.warning("Cancelled", "Nothing was changed."), view=None
+        )
+        self.stop()
+
+
 class FeatureService:
     def __init__(self, repo: Repository) -> None:
         self.repo = repo
@@ -76,6 +113,9 @@ class FeatureService:
         interaction: discord.Interaction,
         command: str,
         config: dict[str, Any],
+        *,
+        member: Optional[discord.Member] = None,
+        value: Optional[str] = None,
     ) -> None:
         """Apply the dashboard's per-command rules before running anything."""
         if not config:
@@ -87,8 +127,8 @@ class FeatureService:
             )
 
         user = interaction.user
-        member = user if isinstance(user, discord.Member) else None
-        role_ids = {str(r.id) for r in getattr(member, "roles", [])}
+        actor = user if isinstance(user, discord.Member) else None
+        role_ids = {str(r.id) for r in getattr(actor, "roles", [])}
 
         denied = set(config.get("denied_role_ids") or [])
         if denied & role_ids:
@@ -101,15 +141,43 @@ class FeatureService:
             )
 
         permission = config.get("required_permission") or "none"
-        if permission != "none" and member is not None:
-            if not getattr(member.guild_permissions, permission, False):
+        if permission != "none" and actor is not None:
+            if not getattr(actor.guild_permissions, permission, False):
                 label = PERMISSION_LABELS.get(permission, permission)
                 raise ActionRefused(f"You need the **{label}** permission to use this command.")
 
+        channel = interaction.channel
+        channel_id = str(getattr(channel, "id", ""))
+        parent_id = str(getattr(getattr(channel, "category", None), "id", "") or "")
+
+        blocked = set(config.get("blocked_channel_ids") or [])
+        if channel_id in blocked:
+            raise ActionRefused("This command is switched off in this channel.")
+
         channels = set(config.get("allowed_channel_ids") or [])
-        if channels and str(getattr(interaction.channel, "id", "")) not in channels:
-            mentions = ", ".join(f"<#{cid}>" for cid in list(channels)[:5])
-            raise ActionRefused(f"This command can only be used in {mentions}.")
+        categories = set(config.get("allowed_category_ids") or [])
+        if channels or categories:
+            if channel_id not in channels and parent_id not in categories:
+                places = [f"<#{cid}>" for cid in list(channels)[:5]]
+                if categories and not places:
+                    places = ["the allowed channel categories"]
+                raise ActionRefused(
+                    "This command can only be used in " + (", ".join(places) or "other channels")
+                    + "."
+                )
+
+        # Protected targets: some members may never be acted upon.
+        if member is not None:
+            protected_users = set(config.get("protected_user_ids") or [])
+            protected_roles = set(config.get("protected_role_ids") or [])
+            target_roles = {str(r.id) for r in getattr(member, "roles", [])}
+            if str(member.id) in protected_users or (protected_roles & target_roles):
+                raise ActionRefused(f"{member.mention} is protected from this command.")
+
+        if config.get("require_reason") and not (value or "").strip():
+            raise ActionRefused(
+                "This command needs a reason — re-run it and fill in the `value` field."
+            )
 
         cooldown = int(config.get("cooldown_seconds") or 0)
         if cooldown > 0 and interaction.guild:
@@ -128,6 +196,18 @@ class FeatureService:
                             f"That command is on cooldown — try again in "
                             f"{int(cooldown - elapsed)}s."
                         )
+
+        rate_limit = int(config.get("rate_limit_per_minute") or 0)
+        if rate_limit > 0 and interaction.guild:
+            since = (datetime.now(timezone.utc) - timedelta(minutes=1)).isoformat()
+            used = await self.repo.command_uses_since(
+                str(interaction.guild.id), command, str(user.id), since
+            )
+            if used >= rate_limit:
+                raise ActionRefused(
+                    f"You've hit the limit of {rate_limit} use(s) per minute for this command."
+                )
+
 
     @staticmethod
     def apply_custom_response(
@@ -150,6 +230,113 @@ class FeatureService:
             .replace("{value}", value or "")
         )[:4000]
         return embed
+
+    @staticmethod
+    def _fill(template: str, interaction: discord.Interaction, command: str, value: Optional[str]) -> str:
+        guild_name = interaction.guild.name if interaction.guild else "this server"
+        return (
+            str(template)
+            .replace("{user}", interaction.user.mention)
+            .replace("{server}", guild_name)
+            .replace("{command}", f"/{command}")
+            .replace("{value}", value or "")
+        )[:4000]
+
+    async def _confirm(
+        self, interaction: discord.Interaction, command: str, target: str
+    ) -> bool:
+        """Ask the runner to confirm before a state-changing command proceeds."""
+        view = _ConfirmView(str(interaction.user.id))
+        await interaction.followup.send(
+            embed=embeds.info(
+                f"/{command}",
+                f"Confirm this action{target}. This prompt expires in 30 seconds.",
+            ),
+            view=view,
+            ephemeral=True,
+        )
+        await view.wait()
+        return view.confirmed
+
+    async def _record(
+        self,
+        interaction: discord.Interaction,
+        guild: discord.Guild,
+        *,
+        command: str,
+        category: str,
+        kind: str,
+        member: Optional[discord.Member],
+        value: Optional[str],
+        config: dict[str, Any],
+        outcome: str,
+        detail: str,
+    ) -> None:
+        """Emit the machine event + human audit entry, then optional notification."""
+        if not config.get("log_event", True):
+            return
+        guild_id = str(guild.id)
+        channel_id = str(getattr(interaction.channel, "id", "") or "") or None
+        metadata = {
+            "command": command,
+            "category": category,
+            "kind": kind,
+            "outcome": outcome,
+            "actor_name": str(interaction.user),
+            "target_name": str(member) if member else None,
+            "value": value,
+            "summary": detail,
+        }
+        try:
+            event_id = await self.repo.emit_event(
+                {
+                    "guild_id": guild_id,
+                    "event_type": f"command.{kind}.{outcome}",
+                    "actor_id": str(interaction.user.id),
+                    "target_id": str(member.id) if member else None,
+                    "resource_type": "command",
+                    "resource_id": command,
+                    "channel_id": channel_id,
+                    "source": "discord",
+                    "metadata": metadata,
+                }
+            )
+            await self.repo.write_audit_log(
+                {
+                    "guild_id": guild_id,
+                    "event_id": event_id,
+                    "action": f"{command} ({outcome})",
+                    "actor_id": str(interaction.user.id),
+                    "target_id": str(member.id) if member else None,
+                    "resource_type": "command",
+                    "resource_id": command,
+                    "reason": value or None,
+                    "metadata": metadata,
+                }
+            )
+        except Exception:  # storage must never break a command
+            log.warning("Could not write audit trail for /%s", command)
+
+
+        log_id = config.get("log_channel_id")
+        notify_id = config.get("notify_channel_id")
+        role_id = config.get("notify_role_id")
+        entry = embeds.info(
+            f"/{command}",
+            f"{interaction.user.mention} — {detail}",
+        )
+        for target_id, mention in ((log_id, None), (notify_id, role_id)):
+            if not target_id:
+                continue
+            channel = guild.get_channel(int(target_id))
+            if channel is None or not hasattr(channel, "send"):
+                continue
+            try:
+                await channel.send(
+                    content=f"<@&{mention}>" if mention else None, embed=entry
+                )
+            except discord.HTTPException:
+                log.warning("Could not post /%s log to %s", command, target_id)
 
     # -- full run: rules, execution, delivery -------------------------
     async def run(
@@ -174,11 +361,35 @@ class FeatureService:
 
         guild_id = str(guild.id)
         config = await self.config(guild_id, command)
-        ephemeral = bool(config.get("ephemeral", True)) if config else True
+        visibility = (config.get("response_visibility") or "inherit") if config else "inherit"
+        if visibility == "private":
+            ephemeral = True
+        elif visibility == "public":
+            ephemeral = False
+        else:
+            ephemeral = bool(config.get("ephemeral", True)) if config else True
         await interaction.response.defer(ephemeral=ephemeral)
 
         try:
-            await self.enforce(interaction, command, config)
+            await self.enforce(interaction, command, config, member=member, value=value)
+
+            if config.get("require_confirmation") and kind in WRITE_KINDS:
+                target = f" on {member.mention}" if member else ""
+                if not await self._confirm(interaction, command, target):
+                    await self._record(
+                        interaction,
+                        guild,
+                        command=command,
+                        category=category,
+                        kind=kind,
+                        member=member,
+                        value=value,
+                        config=config,
+                        outcome="cancelled",
+                        detail="Cancelled at the confirmation prompt.",
+                    )
+                    return
+
             embed = await self.execute(
                 interaction,
                 command=command,
@@ -192,8 +403,24 @@ class FeatureService:
                 config=config,
             )
         except ActionRefused as exc:
+            template = (config or {}).get("error_response")
+            message = (
+                self._fill(template, interaction, command, value) if template else str(exc)
+            )
             await interaction.followup.send(
-                embed=embeds.error(f"/{command}", str(exc)), ephemeral=True
+                embed=embeds.error(f"/{command}", message), ephemeral=True
+            )
+            await self._record(
+                interaction,
+                guild,
+                command=command,
+                category=category,
+                kind=kind,
+                member=member,
+                value=value,
+                config=config,
+                outcome="refused",
+                detail=str(exc),
             )
             return
 
@@ -203,6 +430,19 @@ class FeatureService:
 
         if int(config.get("cooldown_seconds") or 0) > 0:
             await self.repo.touch_command_cooldown(guild_id, command, str(interaction.user.id))
+
+        await self._record(
+            interaction,
+            guild,
+            command=command,
+            category=category,
+            kind=kind,
+            member=member,
+            value=value,
+            config=config,
+            outcome="success",
+            detail=f"Ran `/{command}`" + (f" with `{value}`" if value else "") + ".",
+        )
 
         output_id = config.get("output_channel_id")
         if output_id:
@@ -219,6 +459,8 @@ class FeatureService:
                     return
                 except discord.HTTPException:
                     log.warning("Could not deliver /%s output to %s", command, output_id)
+
+
 
         await interaction.followup.send(embed=embed, ephemeral=ephemeral)
 

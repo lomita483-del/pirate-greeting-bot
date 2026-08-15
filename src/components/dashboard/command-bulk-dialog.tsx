@@ -29,16 +29,34 @@ const PERMISSIONS: Option[] = [
   { id: "administrator", name: "Administrator" },
 ];
 
+const VISIBILITY: Option[] = [
+  { id: "inherit", name: "Use the private-reply switch" },
+  { id: "private", name: "Always private" },
+  { id: "public", name: "Always public" },
+];
+
 type Fields = {
   enabled: boolean;
   allowedRoleIds: string[];
   deniedRoleIds: string[];
   requiredPermission: CommandConfig["requiredPermission"];
   allowedChannelIds: string[];
+  blockedChannelIds: string[];
+  allowedCategoryIds: string[];
+  protectedRoleIds: string[];
   outputChannelId: string | null;
   cooldownSeconds: number;
+  rateLimitPerMinute: number;
+  requireReason: boolean;
+  requireConfirmation: boolean;
+  responseVisibility: CommandConfig["responseVisibility"];
   ephemeral: boolean;
+  logEvent: boolean;
+  logChannelId: string | null;
+  notifyChannelId: string | null;
+  notifyRoleId: string | null;
   customResponse: string;
+  errorResponse: string;
   notes: string;
 };
 
@@ -48,12 +66,25 @@ const EMPTY: Fields = {
   deniedRoleIds: [],
   requiredPermission: "none",
   allowedChannelIds: [],
+  blockedChannelIds: [],
+  allowedCategoryIds: [],
+  protectedRoleIds: [],
   outputChannelId: null,
   cooldownSeconds: 0,
+  rateLimitPerMinute: 0,
+  requireReason: false,
+  requireConfirmation: false,
+  responseVisibility: "inherit",
   ephemeral: true,
+  logEvent: true,
+  logChannelId: null,
+  notifyChannelId: null,
+  notifyRoleId: null,
   customResponse: "",
+  errorResponse: "",
   notes: "",
 };
+
 
 type ApplyKey = keyof Fields;
 
@@ -102,21 +133,21 @@ export function CommandBulkDialog({
   const textChannels: Option[] = structure.channels
     .filter((c) => c.kind !== "category")
     .map((c) => ({ id: c.id, name: `#${c.name}` }));
+  const categories: Option[] = structure.channels
+    .filter((c) => c.kind === "category")
+    .map((c) => ({ id: c.id, name: c.name }));
 
   const save = useMutation({
     mutationFn: () => {
       const patch: Record<string, unknown> = {};
-      if (apply.has("enabled")) patch["enabled"] = fields.enabled;
-      if (apply.has("allowedRoleIds")) patch["allowedRoleIds"] = fields.allowedRoleIds;
-      if (apply.has("deniedRoleIds")) patch["deniedRoleIds"] = fields.deniedRoleIds;
-      if (apply.has("requiredPermission")) patch["requiredPermission"] = fields.requiredPermission;
-      if (apply.has("allowedChannelIds")) patch["allowedChannelIds"] = fields.allowedChannelIds;
-      if (apply.has("outputChannelId")) patch["outputChannelId"] = fields.outputChannelId;
-      if (apply.has("cooldownSeconds")) patch["cooldownSeconds"] = fields.cooldownSeconds;
-      if (apply.has("ephemeral")) patch["ephemeral"] = fields.ephemeral;
-      if (apply.has("customResponse"))
-        patch["customResponse"] = fields.customResponse.trim() || null;
-      if (apply.has("notes")) patch["notes"] = fields.notes.trim() || null;
+      for (const key of apply) {
+        const value = fields[key];
+        if (key === "customResponse" || key === "errorResponse" || key === "notes") {
+          patch[key] = String(value).trim() || null;
+        } else {
+          patch[key] = value;
+        }
+      }
       return saveCommandConfigBulk({ data: { guildId, commands, patch } });
     },
     onSuccess: (res) => {
@@ -216,6 +247,41 @@ export function CommandBulkDialog({
             />
           </Section>
 
+          <Section field="blockedChannelIds" label="Blocked channels">
+            <MultiPicker
+              values={fields.blockedChannelIds}
+              options={textChannels}
+              onChange={(v) => set("blockedChannelIds", v)}
+              emptyLabel="No channels found."
+            />
+          </Section>
+
+          <Section
+            field="allowedCategoryIds"
+            label="Allowed categories"
+            hint="Applies to every channel inside the selected categories."
+          >
+            <MultiPicker
+              values={fields.allowedCategoryIds}
+              options={categories}
+              onChange={(v) => set("allowedCategoryIds", v)}
+              emptyLabel="No categories found."
+            />
+          </Section>
+
+          <Section
+            field="protectedRoleIds"
+            label="Protected roles"
+            hint="Members with these roles can never be targeted."
+          >
+            <MultiPicker
+              values={fields.protectedRoleIds}
+              options={roles}
+              onChange={(v) => set("protectedRoleIds", v)}
+              emptyLabel="No roles found."
+            />
+          </Section>
+
           <Section field="outputChannelId" label="Output channel">
             <PickerSelect
               value={fields.outputChannelId}
@@ -238,11 +304,92 @@ export function CommandBulkDialog({
                 }
               />
             </Section>
+            <Section field="rateLimitPerMinute" label="Rate limit (uses / minute)">
+              <Input
+                type="number"
+                min={0}
+                max={600}
+                value={fields.rateLimitPerMinute}
+                onChange={(e) =>
+                  set("rateLimitPerMinute", Math.max(0, Number(e.target.value) || 0))
+                }
+              />
+            </Section>
+          </div>
+
+          <Section field="responseVisibility" label="Response visibility">
+            <PickerSelect
+              value={fields.responseVisibility}
+              options={VISIBILITY}
+              onChange={(v) =>
+                set("responseVisibility", (v ?? "inherit") as CommandConfig["responseVisibility"])
+              }
+              placeholder="Use the private-reply switch"
+              emptyLabel="Use the private-reply switch"
+            />
+          </Section>
+
+          <div className="grid gap-3 sm:grid-cols-2">
             <Section field="ephemeral" label="Private reply">
               <ToggleRow
                 label="Ephemeral"
                 checked={fields.ephemeral}
                 onChange={(v) => set("ephemeral", v)}
+              />
+            </Section>
+            <Section field="logEvent" label="Audit logging">
+              <ToggleRow
+                label="Write to audit log"
+                checked={fields.logEvent}
+                onChange={(v) => set("logEvent", v)}
+              />
+            </Section>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Section field="requireReason" label="Require a reason">
+              <ToggleRow
+                label="Reason required"
+                checked={fields.requireReason}
+                onChange={(v) => set("requireReason", v)}
+              />
+            </Section>
+            <Section field="requireConfirmation" label="Require confirmation">
+              <ToggleRow
+                label="Confirm before running"
+                checked={fields.requireConfirmation}
+                onChange={(v) => set("requireConfirmation", v)}
+              />
+            </Section>
+          </div>
+
+          <Section field="logChannelId" label="Log channel">
+            <PickerSelect
+              value={fields.logChannelId}
+              options={textChannels}
+              onChange={(v) => set("logChannelId", v)}
+              placeholder="Use the server's mod-log channel"
+              emptyLabel="Use the server's mod-log channel"
+            />
+          </Section>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Section field="notifyChannelId" label="Notify channel">
+              <PickerSelect
+                value={fields.notifyChannelId}
+                options={textChannels}
+                onChange={(v) => set("notifyChannelId", v)}
+                placeholder="No notification"
+                emptyLabel="No notification"
+              />
+            </Section>
+            <Section field="notifyRoleId" label="Notify role">
+              <PickerSelect
+                value={fields.notifyRoleId}
+                options={roles}
+                onChange={(v) => set("notifyRoleId", v)}
+                placeholder="No role ping"
+                emptyLabel="No role ping"
               />
             </Section>
           </div>
@@ -259,9 +406,18 @@ export function CommandBulkDialog({
             />
           </Section>
 
+          <Section field="errorResponse" label="Refusal message">
+            <Textarea
+              rows={2}
+              value={fields.errorResponse}
+              onChange={(e) => set("errorResponse", e.target.value)}
+            />
+          </Section>
+
           <Section field="notes" label="Purpose / staff notes">
             <Textarea rows={2} value={fields.notes} onChange={(e) => set("notes", e.target.value)} />
           </Section>
+
         </div>
 
         <DialogFooter>

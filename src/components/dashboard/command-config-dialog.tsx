@@ -29,20 +29,40 @@ const PERMISSIONS: Option[] = [
   { id: "administrator", name: "Administrator" },
 ];
 
+const VISIBILITY: Option[] = [
+  { id: "inherit", name: "Use the private-reply switch below" },
+  { id: "private", name: "Always private (only the runner sees it)" },
+  { id: "public", name: "Always public (everyone in the channel)" },
+];
+
 export const defaultCommandConfig = (command: string): CommandConfig => ({
   command,
   enabled: true,
   allowedRoleIds: [],
   deniedRoleIds: [],
   allowedChannelIds: [],
+  blockedChannelIds: [],
+  allowedCategoryIds: [],
+  protectedRoleIds: [],
+  protectedUserIds: [],
   outputChannelId: null,
   requiredPermission: "none",
   cooldownSeconds: 0,
+  rateLimitPerMinute: 0,
+  requireReason: false,
+  requireConfirmation: false,
+  responseVisibility: "inherit",
   ephemeral: true,
   customResponse: null,
+  errorResponse: null,
+  logEvent: true,
+  logChannelId: null,
+  notifyRoleId: null,
+  notifyChannelId: null,
   notes: null,
   options: {},
 });
+
 
 export function CommandConfigDialog({
   open,
@@ -75,24 +95,19 @@ export function CommandConfigDialog({
     setDraft((current) => ({ ...current, [key]: value }));
 
   const save = useMutation({
-    mutationFn: () =>
-      saveCommandConfig({
+    mutationFn: () => {
+      const { command: _ignored, ...rest } = draft;
+      return saveCommandConfig({
         data: {
+          ...rest,
           guildId,
           command,
-          enabled: draft.enabled,
-          allowedRoleIds: draft.allowedRoleIds,
-          deniedRoleIds: draft.deniedRoleIds,
-          allowedChannelIds: draft.allowedChannelIds,
-          outputChannelId: draft.outputChannelId,
-          requiredPermission: draft.requiredPermission,
-          cooldownSeconds: draft.cooldownSeconds,
-          ephemeral: draft.ephemeral,
           customResponse: draft.customResponse?.trim() ? draft.customResponse : null,
+          errorResponse: draft.errorResponse?.trim() ? draft.errorResponse : null,
           notes: draft.notes?.trim() ? draft.notes : null,
-          options: draft.options,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success(`Saved settings for ${command}`);
       onSaved();
@@ -101,10 +116,12 @@ export function CommandConfigDialog({
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const textChannels: Option[] = structure.channels.map((c) => ({
-    id: c.id,
-    name: `#${c.name}`,
-  }));
+  const textChannels: Option[] = structure.channels
+    .filter((c) => c.kind !== "category")
+    .map((c) => ({ id: c.id, name: `#${c.name}` }));
+  const categories: Option[] = structure.channels
+    .filter((c) => c.kind === "category")
+    .map((c) => ({ id: c.id, name: c.name }));
   const roles: Option[] = structure.roles.map((r) => ({ id: r.id, name: r.name }));
 
   return (
@@ -172,6 +189,42 @@ export function CommandConfigDialog({
           </Field>
 
           <Field
+            label="Blocked channels"
+            hint="The command never runs in these channels, even if they are allowed above."
+          >
+            <MultiPicker
+              values={draft.blockedChannelIds}
+              options={textChannels}
+              onChange={(v) => set("blockedChannelIds", v)}
+              emptyLabel="No channels found."
+            />
+          </Field>
+
+          <Field
+            label="Allowed categories"
+            hint="Allows every channel inside these categories. Channel rules above win over this."
+          >
+            <MultiPicker
+              values={draft.allowedCategoryIds}
+              options={categories}
+              onChange={(v) => set("allowedCategoryIds", v)}
+              emptyLabel="No categories found."
+            />
+          </Field>
+
+          <Field
+            label="Protected roles"
+            hint="Members holding these roles can never be targeted by this command."
+          >
+            <MultiPicker
+              values={draft.protectedRoleIds}
+              options={roles}
+              onChange={(v) => set("protectedRoleIds", v)}
+              emptyLabel="No roles found."
+            />
+          </Field>
+
+          <Field
             label="Where the result is posted"
             hint="Send the command's output to a specific channel instead of replying in place."
           >
@@ -194,11 +247,86 @@ export function CommandConfigDialog({
                 onChange={(e) => set("cooldownSeconds", Math.max(0, Number(e.target.value) || 0))}
               />
             </Field>
-            <Field label="Private reply" hint="Only the person who ran it sees the response.">
-              <ToggleRow
-                label="Ephemeral"
-                checked={draft.ephemeral}
-                onChange={(v) => set("ephemeral", v)}
+            <Field label="Rate limit (uses / minute)" hint="0 means no rate limit.">
+              <Input
+                type="number"
+                min={0}
+                max={600}
+                value={draft.rateLimitPerMinute}
+                onChange={(e) =>
+                  set("rateLimitPerMinute", Math.max(0, Number(e.target.value) || 0))
+                }
+              />
+            </Field>
+          </div>
+
+          <Field label="Response visibility" hint="Overrides the private-reply switch below.">
+            <PickerSelect
+              value={draft.responseVisibility}
+              options={VISIBILITY}
+              onChange={(v) =>
+                set("responseVisibility", (v ?? "inherit") as CommandConfig["responseVisibility"])
+              }
+              placeholder="Use the private-reply switch"
+              emptyLabel="Use the private-reply switch"
+            />
+          </Field>
+
+          <ToggleRow
+            label="Private reply"
+            description="Only the person who ran the command sees the response."
+            checked={draft.ephemeral}
+            onChange={(v) => set("ephemeral", v)}
+          />
+
+          <ToggleRow
+            label="Require a reason"
+            description="The command refuses to run unless a reason is supplied."
+            checked={draft.requireReason}
+            onChange={(v) => set("requireReason", v)}
+          />
+
+          <ToggleRow
+            label="Require confirmation"
+            description="Ask the staff member to confirm before the action is carried out."
+            checked={draft.requireConfirmation}
+            onChange={(v) => set("requireConfirmation", v)}
+          />
+
+          <ToggleRow
+            label="Write to the audit log"
+            description="Record every use of this command in this server's audit history."
+            checked={draft.logEvent}
+            onChange={(v) => set("logEvent", v)}
+          />
+
+          <Field label="Log channel" hint="Where AHOY posts the log embed for this command.">
+            <PickerSelect
+              value={draft.logChannelId}
+              options={textChannels}
+              onChange={(v) => set("logChannelId", v)}
+              placeholder="Use the server's mod-log channel"
+              emptyLabel="Use the server's mod-log channel"
+            />
+          </Field>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Notify channel" hint="Optional heads-up when this command runs.">
+              <PickerSelect
+                value={draft.notifyChannelId}
+                options={textChannels}
+                onChange={(v) => set("notifyChannelId", v)}
+                placeholder="No notification"
+                emptyLabel="No notification"
+              />
+            </Field>
+            <Field label="Notify role" hint="Role pinged in the notification.">
+              <PickerSelect
+                value={draft.notifyRoleId}
+                options={roles}
+                onChange={(v) => set("notifyRoleId", v)}
+                placeholder="No role ping"
+                emptyLabel="No role ping"
               />
             </Field>
           </div>
@@ -215,6 +343,18 @@ export function CommandConfigDialog({
             />
           </Field>
 
+          <Field
+            label="Refusal message"
+            hint="Shown when someone is blocked from running the command."
+          >
+            <Textarea
+              rows={2}
+              value={draft.errorResponse ?? ""}
+              placeholder="You can't use that here — ask a moderator."
+              onChange={(e) => set("errorResponse", e.target.value)}
+            />
+          </Field>
+
           <Field label="Purpose / staff notes" hint="Shown in the dashboard to your team.">
             <Textarea
               rows={2}
@@ -223,6 +363,7 @@ export function CommandConfigDialog({
               onChange={(e) => set("notes", e.target.value)}
             />
           </Field>
+
 
           <Field
             label="Extra settings"

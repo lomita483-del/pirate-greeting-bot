@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Activity } from "lucide-react";
 
 import { ActivityLogPanel } from "@/components/dashboard/activity-panel";
+import { AuditTrailPanel } from "@/components/dashboard/audit-trail-panel";
 import { useGuild } from "@/components/dashboard/guild-context";
 import { ModuleHeader } from "@/components/dashboard/module-page";
 
@@ -26,7 +27,10 @@ function ActivityPage() {
         title="Activity"
         description="Everything AHOY has recorded happening in this server."
       />
-      <ActivityLogPanel guildId={guildId} />
+      <div className="space-y-6">
+        <ActivityLogPanel guildId={guildId} />
+        <AuditTrailPanel guildId={guildId} />
+      </div>
     </div>
   );
 }
