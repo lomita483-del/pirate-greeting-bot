@@ -140,7 +140,7 @@ function EventDetail({ guildId, config }: { guildId: string; config: GuildConfig
       <div className="space-y-6">
         <Card className="glass border-0">
           <CardContent className="space-y-3 pt-6">
-            <SectionHeader title="Event information" />
+            <SectionHeader title="Event information" description="Imported from your connected calendar." />
             <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <Info label="Date" value={start.toLocaleDateString(undefined, { dateStyle: "full" })} />
               <Info label="Start time" value={start.toLocaleTimeString(undefined, { timeStyle: "short" })} />
@@ -298,7 +298,11 @@ function EventDetail({ guildId, config }: { guildId: string; config: GuildConfig
 
         <Card className="glass border-0">
           <CardContent className="space-y-3 pt-6">
-            <SectionHeader title="Scheduled reminders" badge={`${reminders.length}`} />
+            <SectionHeader
+              title="Scheduled reminders"
+              description="Reminder jobs AHOY will deliver to Discord."
+              badge={`${reminders.length}`}
+            />
             {reminders.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No reminder jobs yet — pick a channel and save.
