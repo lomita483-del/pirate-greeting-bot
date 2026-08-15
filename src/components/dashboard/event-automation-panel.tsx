@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, FileText, Loader2, Plus, Rss, ScrollText, Trash2 } from "lucide-react";
+import { Activity, Bell, Filter, FileText, Loader2, Plus, Rss, ScrollText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,10 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  deleteCalendarFilter,
   deleteNotifier,
   deleteTemplate,
   generateSummaryNow,
   listEventAutomation,
+  saveCalendarFilter,
   saveFeedSettings,
   saveNotifier,
   saveSummarySchedule,
@@ -41,6 +43,42 @@ type NotifierDraft = {
   cleanupPrevious: boolean;
   templateId: string | null;
   enabled: boolean;
+  timezone: string;
+  linkMode: "google" | "discord" | "custom" | "none";
+  detectionDays: number;
+  recurringMode: "each_occurrence" | "first_only" | "skip";
+  cleanupMode: "delete_previous" | "edit_previous" | "keep_all";
+  mentionTarget: string;
+  reminderChannelId: string | null;
+  activityChannelId: string | null;
+  errorChannelId: string | null;
+  announceCreated: boolean;
+  announceUpdated: boolean;
+  announceCancelled: boolean;
+  announceEnteringRange: boolean;
+  recurringActivityMessages: boolean;
+};
+
+type FilterDraft = {
+  id: string | null;
+  notifierId: string | null;
+  field: "title" | "description" | "location" | "status" | "calendar";
+  operator: "contains" | "not_contains" | "equals" | "starts_with" | "ends_with" | "regex";
+  value: string;
+  action: "include" | "exclude";
+  priority: number;
+  enabled: boolean;
+};
+
+const EMPTY_FILTER: FilterDraft = {
+  id: null,
+  notifierId: null,
+  field: "title",
+  operator: "contains",
+  value: "",
+  action: "include",
+  priority: 0,
+  enabled: true,
 };
 
 const EMPTY_NOTIFIER: NotifierDraft = {
@@ -54,6 +92,20 @@ const EMPTY_NOTIFIER: NotifierDraft = {
   cleanupPrevious: false,
   templateId: null,
   enabled: true,
+  timezone: "UTC",
+  linkMode: "google",
+  detectionDays: 30,
+  recurringMode: "each_occurrence",
+  cleanupMode: "delete_previous",
+  mentionTarget: "none",
+  reminderChannelId: null,
+  activityChannelId: null,
+  errorChannelId: null,
+  announceCreated: false,
+  announceUpdated: false,
+  announceCancelled: false,
+  announceEnteringRange: false,
+  recurringActivityMessages: true,
 };
 
 type TemplateDraft = {
@@ -104,6 +156,41 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
     templateId: string | null;
   } | null>(null);
   const [feedDrafts, setFeedDrafts] = useState<Record<string, Record<string, unknown>>>({});
+  const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null);
+
+  const filterSave = useMutation({
+    mutationFn: (draft: FilterDraft) => {
+      if (!draft.value.trim()) throw new Error("Enter a value to match against.");
+      return saveCalendarFilter({
+        data: {
+          guildId,
+          filterId: draft.id,
+          notifierId: draft.notifierId,
+          field: draft.field,
+          operator: draft.operator,
+          value: draft.value.trim(),
+          action: draft.action,
+          priority: draft.priority,
+          enabled: draft.enabled,
+        },
+      });
+    },
+    onSuccess: () => {
+      toast.success("Filter saved — schedule rebuilt.");
+      setFilterDraft(null);
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const filterRemove = useMutation({
+    mutationFn: (id: string) => deleteCalendarFilter({ data: { guildId, filterId: id } }),
+    onSuccess: () => {
+      toast.success("Filter removed.");
+      refresh();
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const notifierSave = useMutation({
     mutationFn: (draft: NotifierDraft) => {
@@ -121,6 +208,20 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
           cleanupPrevious: draft.cleanupPrevious,
           templateId: draft.templateId,
           enabled: draft.enabled,
+          timezone: draft.timezone,
+          linkMode: draft.linkMode,
+          detectionDays: draft.detectionDays,
+          recurringMode: draft.recurringMode,
+          cleanupMode: draft.cleanupMode,
+          mentionTarget: draft.mentionTarget,
+          reminderChannelId: draft.reminderChannelId,
+          activityChannelId: draft.activityChannelId,
+          errorChannelId: draft.errorChannelId,
+          announceCreated: draft.announceCreated,
+          announceUpdated: draft.announceUpdated,
+          announceCancelled: draft.announceCancelled,
+          announceEnteringRange: draft.announceEnteringRange,
+          recurringActivityMessages: draft.recurringActivityMessages,
         },
       });
     },
@@ -376,6 +477,11 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                       <span>🔔 {n.offsets.map(offsetLabel).join(", ") || "no offsets"}</span>
                       {n.roleMentions.length ? <span>📣 {n.roleMentions.length} mention(s)</span> : null}
                       {n.cleanupPrevious ? <span>🧹 cleans up previous</span> : null}
+                      <span>🕒 {n.timezone}</span>
+                      <span>🔭 {n.detectionDays}d horizon</span>
+                      {n.healthStatus !== "healthy" ? (
+                        <span className="text-destructive">⚠️ {n.healthStatus}</span>
+                      ) : null}
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -394,6 +500,20 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                           cleanupPrevious: n.cleanupPrevious,
                           templateId: n.templateId,
                           enabled: n.enabled,
+                          timezone: n.timezone,
+                          linkMode: n.linkMode as NotifierDraft["linkMode"],
+                          detectionDays: n.detectionDays,
+                          recurringMode: n.recurringMode as NotifierDraft["recurringMode"],
+                          cleanupMode: n.cleanupMode as NotifierDraft["cleanupMode"],
+                          mentionTarget: n.mentionTarget,
+                          reminderChannelId: n.reminderChannelId,
+                          activityChannelId: n.activityChannelId,
+                          errorChannelId: n.errorChannelId,
+                          announceCreated: n.announceCreated,
+                          announceUpdated: n.announceUpdated,
+                          announceCancelled: n.announceCancelled,
+                          announceEnteringRange: n.announceEnteringRange,
+                          recurringActivityMessages: n.recurringActivityMessages,
                         })
                       }
                     >
@@ -492,6 +612,146 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                   emptyLabel="No roles available."
                 />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Timezone" hint="IANA name used when rendering event times.">
+                  <Input
+                    value={notifier.timezone}
+                    onChange={(e) => setNotifier({ ...notifier, timezone: e.target.value })}
+                    placeholder="UTC"
+                  />
+                </Field>
+                <Field label="Detection window (days)" hint="Only events inside this window are scheduled.">
+                  <Input
+                    type="number"
+                    min={1}
+                    max={365}
+                    value={notifier.detectionDays}
+                    onChange={(e) =>
+                      setNotifier({ ...notifier, detectionDays: Number(e.target.value) || 30 })
+                    }
+                  />
+                </Field>
+                <Field label="Recurring events">
+                  <PickerSelect
+                    value={notifier.recurringMode}
+                    options={[
+                      { id: "each_occurrence", name: "Announce every occurrence" },
+                      { id: "first_only", name: "Only the first occurrence" },
+                      { id: "skip", name: "Skip recurring events" },
+                    ]}
+                    onChange={(v) =>
+                      setNotifier({
+                        ...notifier,
+                        recurringMode: (v ?? "each_occurrence") as NotifierDraft["recurringMode"],
+                      })
+                    }
+                    placeholder="Announce every occurrence"
+                    emptyLabel="Announce every occurrence"
+                  />
+                </Field>
+                <Field label="Cleanup mode">
+                  <PickerSelect
+                    value={notifier.cleanupMode}
+                    options={[
+                      { id: "delete_previous", name: "Delete previous message" },
+                      { id: "edit_previous", name: "Edit previous message" },
+                      { id: "keep_all", name: "Keep every message" },
+                    ]}
+                    onChange={(v) =>
+                      setNotifier({
+                        ...notifier,
+                        cleanupMode: (v ?? "delete_previous") as NotifierDraft["cleanupMode"],
+                      })
+                    }
+                    placeholder="Delete previous message"
+                    emptyLabel="Delete previous message"
+                  />
+                </Field>
+                <Field label="Event link style">
+                  <PickerSelect
+                    value={notifier.linkMode}
+                    options={[
+                      { id: "google", name: "Google Calendar link" },
+                      { id: "discord", name: "Discord event link" },
+                      { id: "custom", name: "Custom link" },
+                      { id: "none", name: "No link" },
+                    ]}
+                    onChange={(v) =>
+                      setNotifier({ ...notifier, linkMode: (v ?? "google") as NotifierDraft["linkMode"] })
+                    }
+                    placeholder="Google Calendar link"
+                    emptyLabel="Google Calendar link"
+                  />
+                </Field>
+                <Field label="Default mention">
+                  <PickerSelect
+                    value={notifier.mentionTarget === "none" ? null : notifier.mentionTarget}
+                    options={mentionOptions}
+                    onChange={(v) => setNotifier({ ...notifier, mentionTarget: v ?? "none" })}
+                    placeholder="No mention"
+                    emptyLabel="No mention"
+                  />
+                </Field>
+                <Field label="Reminder channel override">
+                  <PickerSelect
+                    value={notifier.reminderChannelId}
+                    options={channels}
+                    onChange={(v) => setNotifier({ ...notifier, reminderChannelId: v })}
+                    placeholder="Use main channel"
+                    emptyLabel="Use main channel"
+                  />
+                </Field>
+                <Field label="Activity channel">
+                  <PickerSelect
+                    value={notifier.activityChannelId}
+                    options={channels}
+                    onChange={(v) => setNotifier({ ...notifier, activityChannelId: v })}
+                    placeholder="Use main channel"
+                    emptyLabel="Use main channel"
+                  />
+                </Field>
+                <Field label="Error channel" hint="Delivery failures are reported here.">
+                  <PickerSelect
+                    value={notifier.errorChannelId}
+                    options={channels}
+                    onChange={(v) => setNotifier({ ...notifier, errorChannelId: v })}
+                    placeholder="No error reports"
+                    emptyLabel="No error reports"
+                  />
+                </Field>
+              </div>
+
+              <div className="space-y-2 rounded-xl border border-border/40 bg-background/30 p-3">
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                  Activity messages
+                </p>
+                <ToggleRow
+                  label="New event detected"
+                  checked={notifier.announceCreated}
+                  onChange={(v) => setNotifier({ ...notifier, announceCreated: v })}
+                />
+                <ToggleRow
+                  label="Event updated"
+                  checked={notifier.announceUpdated}
+                  onChange={(v) => setNotifier({ ...notifier, announceUpdated: v })}
+                />
+                <ToggleRow
+                  label="Event cancelled"
+                  checked={notifier.announceCancelled}
+                  onChange={(v) => setNotifier({ ...notifier, announceCancelled: v })}
+                />
+                <ToggleRow
+                  label="Event entering detection range"
+                  checked={notifier.announceEnteringRange}
+                  onChange={(v) => setNotifier({ ...notifier, announceEnteringRange: v })}
+                />
+                <ToggleRow
+                  label="Include recurring occurrences in activity messages"
+                  checked={notifier.recurringActivityMessages}
+                  onChange={(v) => setNotifier({ ...notifier, recurringActivityMessages: v })}
+                />
+              </div>
+
               <ToggleRow
                 label="Clean up previous reminders"
                 description="Delete this notifier's earlier reminder messages for the same event."
@@ -521,6 +781,217 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
               <Plus className="h-4 w-4" /> Add notifier
             </Button>
           )}
+        </CardContent>
+      </Card>
+
+      {/* Filters ----------------------------------------------------------- */}
+      <Card className="glass border-0">
+        <CardContent className="space-y-5 pt-6">
+          <SectionHeader
+            title="Event filters"
+            description="Include or exclude events before any reminder or announcement is scheduled. Exclude rules always win."
+            badge={`${data.filters.length} rule(s)`}
+          />
+          <div className="grid gap-2">
+            {data.filters.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No filters — every synced event is eligible.
+              </p>
+            ) : (
+              data.filters.map((f) => (
+                <div
+                  key={f.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/30 p-3 text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Filter className="h-3.5 w-3.5 text-primary" />
+                    <Badge variant={f.action === "exclude" ? "destructive" : "secondary"}>
+                      {f.action}
+                    </Badge>
+                    <span className="font-mono text-xs">
+                      {f.field} {f.operator} “{f.value}”
+                    </span>
+                    <span className="text-xs text-muted-foreground">
+                      {f.notifierId
+                        ? data.notifiers.find((n) => n.id === f.notifierId)?.name ?? "notifier"
+                        : "all notifiers"}
+                    </span>
+                  </span>
+                  <span className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() =>
+                        setFilterDraft({
+                          id: f.id,
+                          notifierId: f.notifierId,
+                          field: f.field as FilterDraft["field"],
+                          operator: f.operator as FilterDraft["operator"],
+                          value: f.value,
+                          action: f.action as FilterDraft["action"],
+                          priority: f.priority,
+                          enabled: f.enabled,
+                        })
+                      }
+                    >
+                      Edit
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => filterRemove.mutate(f.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+
+          {filterDraft ? (
+            <div className="space-y-4 rounded-2xl border border-primary/30 bg-background/40 p-4">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Field">
+                  <PickerSelect
+                    value={filterDraft.field}
+                    options={[
+                      { id: "title", name: "Title" },
+                      { id: "description", name: "Description" },
+                      { id: "location", name: "Location" },
+                      { id: "status", name: "Status" },
+                      { id: "calendar", name: "Calendar" },
+                    ]}
+                    onChange={(v) =>
+                      setFilterDraft({ ...filterDraft, field: (v ?? "title") as FilterDraft["field"] })
+                    }
+                    placeholder="Title"
+                    emptyLabel="Title"
+                  />
+                </Field>
+                <Field label="Operator">
+                  <PickerSelect
+                    value={filterDraft.operator}
+                    options={[
+                      { id: "contains", name: "contains" },
+                      { id: "not_contains", name: "does not contain" },
+                      { id: "equals", name: "equals" },
+                      { id: "starts_with", name: "starts with" },
+                      { id: "ends_with", name: "ends with" },
+                      { id: "regex", name: "matches regex" },
+                    ]}
+                    onChange={(v) =>
+                      setFilterDraft({
+                        ...filterDraft,
+                        operator: (v ?? "contains") as FilterDraft["operator"],
+                      })
+                    }
+                    placeholder="contains"
+                    emptyLabel="contains"
+                  />
+                </Field>
+                <Field label="Value">
+                  <Input
+                    value={filterDraft.value}
+                    onChange={(e) => setFilterDraft({ ...filterDraft, value: e.target.value })}
+                    placeholder="Raid night"
+                  />
+                </Field>
+                <Field label="Action">
+                  <PickerSelect
+                    value={filterDraft.action}
+                    options={[
+                      { id: "include", name: "Include matching events" },
+                      { id: "exclude", name: "Exclude matching events" },
+                    ]}
+                    onChange={(v) =>
+                      setFilterDraft({
+                        ...filterDraft,
+                        action: (v ?? "include") as FilterDraft["action"],
+                      })
+                    }
+                    placeholder="Include matching events"
+                    emptyLabel="Include matching events"
+                  />
+                </Field>
+                <Field label="Applies to" hint="Leave empty to apply to every notifier.">
+                  <PickerSelect
+                    value={filterDraft.notifierId}
+                    options={data.notifiers.map((n) => ({ id: n.id, name: n.name }))}
+                    onChange={(v) => setFilterDraft({ ...filterDraft, notifierId: v })}
+                    placeholder="All notifiers"
+                    emptyLabel="All notifiers"
+                  />
+                </Field>
+                <Field label="Priority" hint="Higher priority rules are evaluated first.">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={filterDraft.priority}
+                    onChange={(e) =>
+                      setFilterDraft({ ...filterDraft, priority: Number(e.target.value) || 0 })
+                    }
+                  />
+                </Field>
+              </div>
+              <ToggleRow
+                label="Rule enabled"
+                checked={filterDraft.enabled}
+                onChange={(v) => setFilterDraft({ ...filterDraft, enabled: v })}
+              />
+              <div className="flex gap-2">
+                <Button disabled={filterSave.isPending} onClick={() => filterSave.mutate(filterDraft)}>
+                  {filterSave.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                  Save filter
+                </Button>
+                <Button variant="ghost" onClick={() => setFilterDraft(null)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button variant="secondary" onClick={() => setFilterDraft({ ...EMPTY_FILTER })}>
+              <Plus className="h-4 w-4" /> Add filter rule
+            </Button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Execution log ----------------------------------------------------- */}
+      <Card className="glass border-0">
+        <CardContent className="space-y-4 pt-6">
+          <SectionHeader
+            title="Execution log"
+            description="Every reminder, summary and activity message AHOY delivered — with failures and retries."
+            badge={`${data.logs.length} entr(ies)`}
+          />
+          <div className="grid gap-2">
+            {data.logs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nothing delivered yet.</p>
+            ) : (
+              data.logs.map((log) => (
+                <div
+                  key={log.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/40 bg-background/30 px-3 py-2 text-xs"
+                >
+                  <span className="flex items-center gap-2">
+                    <Activity className="h-3.5 w-3.5 text-primary" />
+                    <Badge variant={log.status === "sent" ? "secondary" : "destructive"}>
+                      {log.status}
+                    </Badge>
+                    <span className="font-mono">{log.jobType}</span>
+                    {log.channelId ? <span className="text-muted-foreground">#{log.channelId}</span> : null}
+                  </span>
+                  <span className="text-muted-foreground">
+                    {new Date(log.createdAt).toLocaleString()}
+                    {log.error ? ` · ${log.error.slice(0, 80)}` : ""}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </CardContent>
       </Card>
 
