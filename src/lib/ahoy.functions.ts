@@ -371,6 +371,7 @@ const sectionSchemas = {
     channel_changes: z.boolean(),
     server_changes: z.boolean(),
     voice_activity: z.boolean(),
+    channel_overrides: z.record(z.string(), z.string().regex(/^\d{5,25}$/)),
   }).partial(),
   automod: z.object({
     enabled: z.boolean(),
