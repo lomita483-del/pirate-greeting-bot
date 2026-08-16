@@ -117,32 +117,40 @@ class MessageEvents(commands.Cog):
     async def on_message_delete(self, message: discord.Message) -> None:
         if message.guild is None or message.author.bot:
             return
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            message.guild,
-            "message_delete",
-            embeds.info(
-                "Message deleted",
-                f"**Author:** {message.author.mention}\n"
-                f"**Channel:** {message.channel.mention}\n"
-                f"**Content:** {clean_text(message.content or '—', 800)}",
-            ),
+        embed = embeds.info(
+            "Message deleted",
+            f"**Author:** {message.author.mention}\n"
+            f"**Channel:** {message.channel.mention}\n"
+            f"**Content:** {clean_text(message.content or '—', 800)}",
         )
+        await self.bot.logs.send(message.guild, "message_delete", embed)  # type: ignore[attr-defined]
+        await self.bot.logs.log(message.guild, "message_delete", embed)  # type: ignore[attr-defined]
+
+    @commands.Cog.listener()
+    async def on_bulk_message_delete(self, messages: list[discord.Message]) -> None:
+        if not messages or messages[0].guild is None:
+            return
+        guild = messages[0].guild
+        channel = messages[0].channel
+        embed = embeds.info(
+            "Bulk message delete",
+            f"**Channel:** {channel.mention}\n**Count:** {len(messages)}",
+        )
+        await self.bot.logs.log(guild, "message_bulk_delete", embed)  # type: ignore[attr-defined]
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
         if before.guild is None or before.author.bot or before.content == after.content:
             return
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            before.guild,
-            "message_edit",
-            embeds.info(
-                "Message edited",
-                f"**Author:** {before.author.mention}\n"
-                f"**Channel:** {before.channel.mention}\n"
-                f"**Before:** {clean_text(before.content, 400)}\n"
-                f"**After:** {clean_text(after.content, 400)}",
-            ),
+        embed = embeds.info(
+            "Message edited",
+            f"**Author:** {before.author.mention}\n"
+            f"**Channel:** {before.channel.mention}\n"
+            f"**Before:** {clean_text(before.content, 400)}\n"
+            f"**After:** {clean_text(after.content, 400)}",
         )
+        await self.bot.logs.send(before.guild, "message_edit", embed)  # type: ignore[attr-defined]
+        await self.bot.logs.log(before.guild, "message_edit", embed)  # type: ignore[attr-defined]
 
 
 async def setup(bot: commands.Bot) -> None:
