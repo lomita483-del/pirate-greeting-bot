@@ -96,7 +96,7 @@ function SendPage({
 
   function setField(index: number, patch: Partial<{ name: string; value: string; inline: boolean }>) {
     const fields = [...(embed.fields ?? [])];
-    fields[index] = { ...fields[index], ...patch };
+    fields[index] = { name: "", value: "", ...fields[index], ...patch };
     setEmbed({ ...embed, fields });
   }
 

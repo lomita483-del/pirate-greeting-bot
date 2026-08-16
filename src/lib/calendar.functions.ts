@@ -250,31 +250,36 @@ export const addCalendarSource = createServerFn({ method: "POST" })
     const { fetchIcs, syncCalendarSource } = await import("@/lib/calendar.server");
     await fetchIcs(url); // validates before we store anything
 
-    const { data: inserted, error } = await supabaseAdmin
+    // The uniqueness index on (guild_id, ical_url) is partial, so it cannot be
+    // used as an ON CONFLICT target — look the row up and update it instead.
+    const { data: existing } = await supabaseAdmin
       .from("calendar_sources")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(
-        {
-          guild_id: data.guildId,
-          source_type: data.sourceType,
-          name: data.name,
-          ical_url: url,
-          connected_by: session.userId,
-          sync_enabled: true,
-          sync_status: "pending",
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
-        { onConflict: "guild_id,ical_url" },
-      )
       .select("*")
+      .eq("guild_id", data.guildId)
+      .eq("ical_url", url)
       .maybeSingle();
+
+    const values = {
+      guild_id: data.guildId,
+      source_type: data.sourceType,
+      name: data.name,
+      ical_url: url,
+      connected_by: session.userId,
+      sync_enabled: true,
+      sync_status: "pending",
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const query = existing
+      ? supabaseAdmin.from("calendar_sources").update(values).eq("id", existing.id)
+      : supabaseAdmin.from("calendar_sources").insert(values);
+
+    const { data: inserted, error } = await query.select("*").maybeSingle();
     if (error || !inserted) {
       console.error("Calendar source insert failed", error);
-      // TEMPORARY: surface the real database error for debugging. Revert
-      // this to `throw new Error("Could not add that calendar.");` once
-      // the root cause is fixed.
       throw new Error(`Could not add that calendar: ${error?.message ?? "no row returned"}`);
     }
+
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result = await syncCalendarSource(supabaseAdmin, inserted as any);

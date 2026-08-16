@@ -28,6 +28,7 @@ import { Route as DashboardGuildIdGeneralRouteImport } from './routes/dashboard/
 import { Route as DashboardGuildIdLoggingRouteImport } from './routes/dashboard/$guildId.logging'
 import { Route as DashboardGuildIdModerationRouteImport } from './routes/dashboard/$guildId.moderation'
 import { Route as DashboardGuildIdRolesRouteImport } from './routes/dashboard/$guildId.roles'
+import { Route as DashboardGuildIdSendRouteImport } from './routes/dashboard/$guildId.send'
 import { Route as DashboardGuildIdStatsRouteImport } from './routes/dashboard/$guildId.stats'
 import { Route as DashboardGuildIdWelcomeRouteImport } from './routes/dashboard/$guildId.welcome'
 import { Route as ApiPublicHooksCalendarSyncRouteImport } from './routes/api/public/hooks/calendar-sync'
@@ -141,6 +142,11 @@ const DashboardGuildIdRolesRoute = DashboardGuildIdRolesRouteImport.update({
   path: '/roles',
   getParentRoute: () => DashboardGuildIdRoute,
 } as any)
+const DashboardGuildIdSendRoute = DashboardGuildIdSendRouteImport.update({
+  id: '/send',
+  path: '/send',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
 const DashboardGuildIdStatsRoute = DashboardGuildIdStatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -213,6 +219,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId': typeof DashboardGuildIdIndexRoute
@@ -273,6 +281,7 @@ export interface FileRoutesById {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
@@ -305,6 +314,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId/'
@@ -334,6 +344,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId'
@@ -364,6 +375,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
     | '/dashboard/$guildId/'
@@ -525,6 +537,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardGuildIdRolesRouteImport
       parentRoute: typeof DashboardGuildIdRoute
     }
+    '/dashboard/$guildId/send': {
+      id: '/dashboard/$guildId/send'
+      path: '/send'
+      fullPath: '/dashboard/$guildId/send'
+      preLoaderRoute: typeof DashboardGuildIdSendRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
     '/dashboard/$guildId/stats': {
       id: '/dashboard/$guildId/stats'
       path: '/stats'
@@ -605,6 +624,7 @@ interface DashboardGuildIdRouteChildren {
   DashboardGuildIdLoggingRoute: typeof DashboardGuildIdLoggingRoute
   DashboardGuildIdModerationRoute: typeof DashboardGuildIdModerationRoute
   DashboardGuildIdRolesRoute: typeof DashboardGuildIdRolesRoute
+  DashboardGuildIdSendRoute: typeof DashboardGuildIdSendRoute
   DashboardGuildIdStatsRoute: typeof DashboardGuildIdStatsRoute
   DashboardGuildIdWelcomeRoute: typeof DashboardGuildIdWelcomeRoute
   DashboardGuildIdIndexRoute: typeof DashboardGuildIdIndexRoute
@@ -625,6 +645,7 @@ const DashboardGuildIdRouteChildren: DashboardGuildIdRouteChildren = {
   DashboardGuildIdLoggingRoute: DashboardGuildIdLoggingRoute,
   DashboardGuildIdModerationRoute: DashboardGuildIdModerationRoute,
   DashboardGuildIdRolesRoute: DashboardGuildIdRolesRoute,
+  DashboardGuildIdSendRoute: DashboardGuildIdSendRoute,
   DashboardGuildIdStatsRoute: DashboardGuildIdStatsRoute,
   DashboardGuildIdWelcomeRoute: DashboardGuildIdWelcomeRoute,
   DashboardGuildIdIndexRoute: DashboardGuildIdIndexRoute,
