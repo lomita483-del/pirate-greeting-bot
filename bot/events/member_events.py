@@ -5,11 +5,27 @@ from __future__ import annotations
 import discord
 from discord.ext import commands
 
+from ..services.card_service import render_welcome_card
 from ..utils import embeds
 from ..utils.logger import get_logger
 from ..utils.parsing import render_template
 
 log = get_logger("members")
+
+
+async def _fetch_bytes(url: str | None) -> bytes | None:
+    if not url:
+        return None
+    import aiohttp
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as resp:
+                if resp.status == 200:
+                    return await resp.read()
+    except Exception:  # noqa: BLE001 - never let a bad URL break welcome
+        return None
+    return None
 
 
 class MemberEvents(commands.Cog):
@@ -59,6 +75,43 @@ class MemberEvents(commands.Cog):
             member_count=str(guild.member_count or 0),
             membercount=str(guild.member_count or 0),
         )
+
+        dynamic_image_file: discord.File | None = None
+        if config.get("dynamic_image_enabled"):
+            try:
+                import asyncio
+
+                avatar_bytes = await member.display_avatar.replace(size=256, format="png").read()
+                bg_bytes = await _fetch_bytes(config.get("dynamic_image_background_url"))
+                title = render_template(
+                    config.get("dynamic_image_title") or "Welcome {username}!",
+                    user=member.mention,
+                    username=member.display_name,
+                    server=guild.name,
+                    member_count=str(guild.member_count or 0),
+                    membercount=str(guild.member_count or 0),
+                )
+                subtitle = render_template(
+                    config.get("dynamic_image_subtitle") or "to {server} · member #{membercount}",
+                    user=member.mention,
+                    username=member.display_name,
+                    server=guild.name,
+                    member_count=str(guild.member_count or 0),
+                    membercount=str(guild.member_count or 0),
+                )
+                buffer = await asyncio.to_thread(
+                    render_welcome_card,
+                    username=member.display_name,
+                    avatar_bytes=avatar_bytes,
+                    title=title,
+                    subtitle=subtitle,
+                    background_bytes=bg_bytes,
+                )
+                dynamic_image_file = discord.File(buffer, filename="welcome-card.png")
+            except Exception as exc:  # pragma: no cover - Pillow/runtime issues
+                log.warning("Welcome dynamic image render failed in %s: %s", guild_id, exc)
+                dynamic_image_file = None
+
         try:
             if config.get("use_embed", True):
                 color = config.get("embed_color") or "#1FB6A6"
@@ -68,10 +121,17 @@ class MemberEvents(commands.Cog):
                     color=discord.Color.from_str(color),
                 )
                 embed.set_thumbnail(url=member.display_avatar.url)
-                if config.get("embed_image_url"):
+                if dynamic_image_file:
+                    embed.set_image(url="attachment://welcome-card.png")
+                elif config.get("embed_image_url"):
                     embed.set_image(url=config["embed_image_url"])
                 embed.set_footer(text="AHOY ⚓")
-                await channel.send(embed=embed)
+                if dynamic_image_file:
+                    await channel.send(embed=embed, file=dynamic_image_file)
+                else:
+                    await channel.send(embed=embed)
+            elif dynamic_image_file:
+                await channel.send(content=text, file=dynamic_image_file)
             else:
                 await channel.send(text)
         except (discord.HTTPException, ValueError) as exc:
