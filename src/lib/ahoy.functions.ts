@@ -357,7 +357,11 @@ const sectionSchemas = {
     use_embed: z.boolean(),
     embed_color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     embed_title: z.string().max(200),
-    embed_image_url: z.string().url().max(500).nullable().optional(),
+    embed_image_url: z.string().url().nullable(),
+    dynamic_image_enabled: z.boolean(),
+    dynamic_image_title: z.string().max(120),
+    dynamic_image_subtitle: z.string().max(160),
+    dynamic_image_background_url: z.string().url().nullable(),
   }).partial(),
   logging: z.object({
     enabled: z.boolean(),
