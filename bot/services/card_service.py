@@ -1,7 +1,7 @@
-"""Pillow renderer for the glassmorphism /profile card.
+"""Pillow renderers for AHOY's card images (/profile and welcome cards).
 
 Fonts are resolved from a small list of common system paths; if none exist
-Pillow's bundled bitmap font is used so the command still works everywhere.
+Pillow's bundled bitmap font is used so commands still work everywhere.
 Drop your own TTFs in ``bot/assets/fonts`` to override.
 """
 
@@ -50,8 +50,22 @@ def _rounded(size: tuple[int, int], radius: int) -> Image.Image:
     return mask
 
 
-def _backdrop() -> Image.Image:
-    """Deep-harbour gradient with soft teal/gold light blooms."""
+def _backdrop(bg_bytes: Optional[bytes] = None) -> Image.Image:
+    """Deep-harbour gradient with soft teal/gold light blooms, or a custom
+    banner image cropped/blurred to fit if one was provided."""
+    if bg_bytes:
+        try:
+            custom = Image.open(io.BytesIO(bg_bytes)).convert("RGB")
+            ratio = max(WIDTH / custom.width, HEIGHT / custom.height)
+            custom = custom.resize((int(custom.width * ratio) + 1, int(custom.height * ratio) + 1))
+            x = (custom.width - WIDTH) // 2
+            y = (custom.height - HEIGHT) // 2
+            custom = custom.crop((x, y, x + WIDTH, y + HEIGHT))
+            darken = Image.new("RGB", (WIDTH, HEIGHT), (0, 0, 0))
+            return Image.blend(custom, darken, 0.35)
+        except Exception as exc:  # pragma: no cover - broken URL
+            log.warning("Custom background render failed, using default: %s", exc)
+
     base = Image.new("RGB", (WIDTH, HEIGHT), (10, 18, 26))
     draw = ImageDraw.Draw(base)
     for y in range(HEIGHT):
@@ -141,6 +155,48 @@ def render_profile_card(
         draw.text((x, 296), label, font=_font(18), fill=MUTED)
         draw.text((x, 320), value, font=_font(26), fill=INK)
         x += 228
+
+    buffer = io.BytesIO()
+    card.save(buffer, format="PNG", optimize=True)
+    buffer.seek(0)
+    return buffer
+
+
+def render_welcome_card(
+    *,
+    username: str,
+    avatar_bytes: Optional[bytes],
+    title: str,
+    subtitle: str,
+    background_bytes: Optional[bytes] = None,
+) -> io.BytesIO:
+    """Render a welcome/goodbye banner card. `title`/`subtitle` are already
+    template-rendered plain text (placeholders resolved by the caller)."""
+    card = _backdrop(background_bytes)
+    _glass(card, (32, 32, WIDTH - 32, HEIGHT - 32), 34)
+    draw = ImageDraw.Draw(card)
+
+    # Centered avatar
+    size = 176
+    ax = (WIDTH - size) // 2
+    ay = 56
+    if avatar_bytes:
+        try:
+            avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGB").resize((size, size))
+            card.paste(avatar, (ax, ay), _rounded((size, size), size // 2))
+        except Exception as exc:  # pragma: no cover - broken CDN image
+            log.warning("Avatar render failed: %s", exc)
+    draw.ellipse((ax, ay, ax + size, ay + size), outline=TEAL, width=5)
+
+    # Title / subtitle, centered
+    def _centered(text: str, y: int, size_: int, fill) -> None:
+        font = _font(size_)
+        bbox = draw.textbbox((0, 0), text, font=font)
+        w = bbox[2] - bbox[0]
+        draw.text(((WIDTH - w) / 2, y), text, font=font, fill=fill)
+
+    _centered(title[:40], 250, 40, INK)
+    _centered(subtitle[:60], 300, 22, MUTED)
 
     buffer = io.BytesIO()
     card.save(buffer, format="PNG", optimize=True)
