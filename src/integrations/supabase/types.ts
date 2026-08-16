@@ -831,6 +831,72 @@ export type Database = {
           },
         ]
       }
+      embed_templates: {
+        Row: {
+          author_icon_url: string | null
+          author_name: string | null
+          author_url: string | null
+          color: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          fields: Json
+          footer_icon_url: string | null
+          footer_text: string | null
+          guild_id: string
+          id: string
+          image_url: string | null
+          name: string
+          thumbnail_url: string | null
+          timestamp: boolean
+          title: string | null
+          updated_at: string
+          url: string | null
+        }
+        Insert: {
+          author_icon_url?: string | null
+          author_name?: string | null
+          author_url?: string | null
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fields?: Json
+          footer_icon_url?: string | null
+          footer_text?: string | null
+          guild_id: string
+          id?: string
+          image_url?: string | null
+          name: string
+          thumbnail_url?: string | null
+          timestamp?: boolean
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+        }
+        Update: {
+          author_icon_url?: string | null
+          author_name?: string | null
+          author_url?: string | null
+          color?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          fields?: Json
+          footer_icon_url?: string | null
+          footer_text?: string | null
+          guild_id?: string
+          id?: string
+          image_url?: string | null
+          name?: string
+          thumbnail_url?: string | null
+          timestamp?: boolean
+          title?: string | null
+          updated_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       event_notifiers: {
         Row: {
           activity_channel_id: string | null
