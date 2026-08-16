@@ -35,6 +35,8 @@ import { Route as DashboardGuildIdEventEventIdRouteImport } from './routes/dashb
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
 import { Route as ApiPublicAuthDiscordStartRouteImport } from './routes/api/public/auth/discord/start'
+import { Route as ApiPublicAuthGoogleCallbackRouteImport } from './routes/api/public/auth/google/callback'
+import { Route as ApiPublicAuthGoogleStartRouteImport } from './routes/api/public/auth/google/start'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -179,6 +181,18 @@ const ApiPublicAuthDiscordStartRoute =
     path: '/api/public/auth/discord/start',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicAuthGoogleCallbackRoute =
+  ApiPublicAuthGoogleCallbackRouteImport.update({
+    id: '/api/public/auth/google/callback',
+    path: '/api/public/auth/google/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicAuthGoogleStartRoute =
+  ApiPublicAuthGoogleStartRouteImport.update({
+    id: '/api/public/auth/google/start',
+    path: '/api/public/auth/google/start',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -207,6 +221,8 @@ export interface FileRoutesByFullPath {
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
+  '/api/public/auth/google/callback': typeof ApiPublicAuthGoogleCallbackRoute
+  '/api/public/auth/google/start': typeof ApiPublicAuthGoogleStartRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -234,6 +250,8 @@ export interface FileRoutesByTo {
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
+  '/api/public/auth/google/callback': typeof ApiPublicAuthGoogleCallbackRoute
+  '/api/public/auth/google/start': typeof ApiPublicAuthGoogleStartRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -263,6 +281,8 @@ export interface FileRoutesById {
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
   '/api/public/auth/discord/start': typeof ApiPublicAuthDiscordStartRoute
+  '/api/public/auth/google/callback': typeof ApiPublicAuthGoogleCallbackRoute
+  '/api/public/auth/google/start': typeof ApiPublicAuthGoogleStartRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -293,6 +313,8 @@ export interface FileRouteTypes {
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
+    | '/api/public/auth/google/callback'
+    | '/api/public/auth/google/start'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -320,6 +342,8 @@ export interface FileRouteTypes {
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
+    | '/api/public/auth/google/callback'
+    | '/api/public/auth/google/start'
   id:
     | '__root__'
     | '/'
@@ -348,6 +372,8 @@ export interface FileRouteTypes {
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
     | '/api/public/auth/discord/start'
+    | '/api/public/auth/google/callback'
+    | '/api/public/auth/google/start'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -360,6 +386,8 @@ export interface RootRouteChildren {
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
   ApiPublicAuthDiscordLogoutRoute: typeof ApiPublicAuthDiscordLogoutRoute
   ApiPublicAuthDiscordStartRoute: typeof ApiPublicAuthDiscordStartRoute
+  ApiPublicAuthGoogleCallbackRoute: typeof ApiPublicAuthGoogleCallbackRoute
+  ApiPublicAuthGoogleStartRoute: typeof ApiPublicAuthGoogleStartRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -546,6 +574,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicAuthDiscordStartRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/auth/google/callback': {
+      id: '/api/public/auth/google/callback'
+      path: '/api/public/auth/google/callback'
+      fullPath: '/api/public/auth/google/callback'
+      preLoaderRoute: typeof ApiPublicAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/auth/google/start': {
+      id: '/api/public/auth/google/start'
+      path: '/api/public/auth/google/start'
+      fullPath: '/api/public/auth/google/start'
+      preLoaderRoute: typeof ApiPublicAuthGoogleStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -602,6 +644,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
   ApiPublicAuthDiscordLogoutRoute: ApiPublicAuthDiscordLogoutRoute,
   ApiPublicAuthDiscordStartRoute: ApiPublicAuthDiscordStartRoute,
+  ApiPublicAuthGoogleCallbackRoute: ApiPublicAuthGoogleCallbackRoute,
+  ApiPublicAuthGoogleStartRoute: ApiPublicAuthGoogleStartRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

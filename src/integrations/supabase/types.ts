@@ -253,6 +253,45 @@ export type Database = {
           },
         ]
       }
+      bot_error_logs: {
+        Row: {
+          channel_id: string | null
+          command: string | null
+          created_at: string
+          error_type: string
+          guild_id: string | null
+          id: string
+          message: string
+          source: string
+          traceback: string | null
+          user_id: string | null
+        }
+        Insert: {
+          channel_id?: string | null
+          command?: string | null
+          created_at?: string
+          error_type: string
+          guild_id?: string | null
+          id?: string
+          message: string
+          source: string
+          traceback?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          channel_id?: string | null
+          command?: string | null
+          created_at?: string
+          error_type?: string
+          guild_id?: string | null
+          id?: string
+          message?: string
+          source?: string
+          traceback?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           calendar_source_id: string
@@ -492,6 +531,7 @@ export type Database = {
           create_discord_events: boolean
           created_at: string
           external_calendar_id: string | null
+          google_account_id: string | null
           guild_id: string
           ical_url: string | null
           id: string
@@ -519,6 +559,7 @@ export type Database = {
           create_discord_events?: boolean
           created_at?: string
           external_calendar_id?: string | null
+          google_account_id?: string | null
           guild_id: string
           ical_url?: string | null
           id?: string
@@ -546,6 +587,7 @@ export type Database = {
           create_discord_events?: boolean
           created_at?: string
           external_calendar_id?: string | null
+          google_account_id?: string | null
           guild_id?: string
           ical_url?: string | null
           id?: string
@@ -565,6 +607,13 @@ export type Database = {
           voice_channel_duration_default?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "calendar_sources_google_account_id_fkey"
+            columns: ["google_account_id"]
+            isOneToOne: false
+            referencedRelation: "google_accounts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "calendar_sources_guild_id_fkey"
             columns: ["guild_id"]
@@ -1212,6 +1261,42 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      google_accounts: {
+        Row: {
+          access_token: string | null
+          access_token_expires_at: string | null
+          connected_by: string
+          created_at: string
+          encrypted_refresh_token: string
+          google_email: string
+          guild_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          connected_by: string
+          created_at?: string
+          encrypted_refresh_token: string
+          google_email: string
+          guild_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          access_token_expires_at?: string | null
+          connected_by?: string
+          created_at?: string
+          encrypted_refresh_token?: string
+          google_email?: string
+          guild_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       guild_command_settings: {
         Row: {
@@ -2031,6 +2116,7 @@ export type Database = {
           level_up_channel_id: string | null
           level_up_message: string
           locale: string
+          manager_role_ids: string[]
           mod_log_channel_id: string | null
           prefix: string
           starting_balance: number
@@ -2056,6 +2142,7 @@ export type Database = {
           level_up_channel_id?: string | null
           level_up_message?: string
           locale?: string
+          manager_role_ids?: string[]
           mod_log_channel_id?: string | null
           prefix?: string
           starting_balance?: number
@@ -2081,6 +2168,7 @@ export type Database = {
           level_up_channel_id?: string | null
           level_up_message?: string
           locale?: string
+          manager_role_ids?: string[]
           mod_log_channel_id?: string | null
           prefix?: string
           starting_balance?: number
