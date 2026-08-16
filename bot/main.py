@@ -51,6 +51,7 @@ EXTENSIONS = (
     "bot.commands.profile",
     "bot.commands.stats",
     "bot.commands.calendar",
+    "bot.commands.send",
     "bot.commands.library",
     "bot.events.guild_events",
     "bot.events.error_events",
