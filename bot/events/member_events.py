@@ -24,14 +24,12 @@ class MemberEvents(commands.Cog):
         settings_service = self.bot.settings  # type: ignore[attr-defined]
 
         await repo.upsert_member(guild_id, member)
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            guild,
-            "member_join",
-            embeds.info(
-                "Member joined",
-                f"{member.mention} · `{member.id}`\nMembers: {guild.member_count}",
-            ),
+        join_embed = embeds.info(
+            "Member joined",
+            f"{member.mention} · `{member.id}`\nMembers: {guild.member_count}",
         )
+        await self.bot.logs.send(guild, "member_join", join_embed)  # type: ignore[attr-defined]
+        await self.bot.logs.log(guild, "user_join", join_embed)  # type: ignore[attr-defined]
 
         config = await settings_service.get(guild_id, "welcome_settings")
         if not config or not config.get("enabled"):
@@ -84,11 +82,9 @@ class MemberEvents(commands.Cog):
         guild = member.guild
         guild_id = str(guild.id)
         await self.bot.repo.mark_member_left(guild_id, str(member.id))  # type: ignore[attr-defined]
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            guild,
-            "member_leave",
-            embeds.info("Member left", f"{member} · `{member.id}`"),
-        )
+        leave_embed = embeds.info("Member left", f"{member} · `{member.id}`")
+        await self.bot.logs.send(guild, "member_leave", leave_embed)  # type: ignore[attr-defined]
+        await self.bot.logs.log(guild, "user_leave", leave_embed)  # type: ignore[attr-defined]
 
         config = await self.bot.settings.get(guild_id, "welcome_settings")  # type: ignore[attr-defined]
         if not config or not config.get("goodbye_enabled"):
@@ -104,7 +100,7 @@ class MemberEvents(commands.Cog):
                 username=member.name,
                 server=guild.name,
                 member_count=str(guild.member_count or 0),
-            membercount=str(guild.member_count or 0),
+                membercount=str(guild.member_count or 0),
             )
             try:
                 await channel.send(text)
@@ -113,18 +109,59 @@ class MemberEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
-        if before.roles == after.roles:
-            return
-        added = [r.name for r in after.roles if r not in before.roles]
-        removed = [r.name for r in before.roles if r not in after.roles]
-        detail = ""
-        if added:
-            detail += f"**Added:** {', '.join(added)}\n"
-        if removed:
-            detail += f"**Removed:** {', '.join(removed)}"
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            after.guild, "role_changes", embeds.info(f"Roles updated · {after}", detail)
-        )
+        # Roles changed
+        if before.roles != after.roles:
+            added = [r for r in after.roles if r not in before.roles]
+            removed = [r for r in before.roles if r not in after.roles]
+            detail = ""
+            if added:
+                detail += f"**Added:** {', '.join(r.name for r in added)}\n"
+            if removed:
+                detail += f"**Removed:** {', '.join(r.name for r in removed)}"
+            await self.bot.logs.send(  # type: ignore[attr-defined]
+                after.guild, "role_changes", embeds.info(f"Roles updated · {after}", detail)
+            )
+            if added:
+                await self.bot.logs.log(  # type: ignore[attr-defined]
+                    after.guild,
+                    "user_roles_add",
+                    embeds.info(f"Roles added · {after}", ", ".join(r.name for r in added)),
+                )
+            if removed:
+                await self.bot.logs.log(  # type: ignore[attr-defined]
+                    after.guild,
+                    "user_roles_remove",
+                    embeds.info(f"Roles removed · {after}", ", ".join(r.name for r in removed)),
+                )
+
+        # Nickname changed
+        if before.nick != after.nick:
+            await self.bot.logs.log(  # type: ignore[attr-defined]
+                after.guild,
+                "user_name_update",
+                embeds.info(f"Nickname changed · {after}", f"**{before.nick or before.name}** → **{after.nick or after.name}**"),
+            )
+
+        # Server-specific avatar changed
+        if before.guild_avatar != after.guild_avatar:
+            await self.bot.logs.log(  # type: ignore[attr-defined]
+                after.guild, "user_avatar_update", embeds.info(f"Avatar changed · {after}", "")
+            )
+
+        # Timeout applied / removed
+        before_until = before.timed_out_until
+        after_until = after.timed_out_until
+        if before_until != after_until:
+            if after_until:
+                await self.bot.logs.log(  # type: ignore[attr-defined]
+                    after.guild,
+                    "user_timed_out",
+                    embeds.info(f"Timed out · {after}", f"Until <t:{int(after_until.timestamp())}:R>"),
+                )
+            elif before_until:
+                await self.bot.logs.log(  # type: ignore[attr-defined]
+                    after.guild, "user_timeout_removed", embeds.info(f"Timeout removed · {after}", "")
+                )
 
     @commands.Cog.listener()
     async def on_voice_state_update(
@@ -137,13 +174,16 @@ class MemberEvents(commands.Cog):
             return
         if after.channel is not None and before.channel is None:
             text = f"{member.mention} joined **{after.channel.name}**"
+            event_type = "voice_user_join"
         elif after.channel is None:
             text = f"{member.mention} left **{before.channel.name}**"  # type: ignore[union-attr]
+            event_type = "voice_user_leave"
         else:
             text = f"{member.mention} moved to **{after.channel.name}**"
-        await self.bot.logs.send(  # type: ignore[attr-defined]
-            member.guild, "voice_activity", embeds.info("Voice activity", text)
-        )
+            event_type = "voice_user_switch"
+        embed = embeds.info("Voice activity", text)
+        await self.bot.logs.send(member.guild, "voice_activity", embed)  # type: ignore[attr-defined]
+        await self.bot.logs.log(member.guild, event_type, embed)  # type: ignore[attr-defined]
 
 
 async def setup(bot: commands.Bot) -> None:
