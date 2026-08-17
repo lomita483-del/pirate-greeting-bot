@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/select";
 
 import { Field, MultiPicker, PickerSelect, SectionHeader, ToggleRow } from "./fields";
+import { TicketPanelPublisher } from "./ticket-panel-publisher";
+
 import { SaveBar } from "./save-bar";
 import type { PanelProps } from "./types";
 import { useDraft } from "./use-draft";
