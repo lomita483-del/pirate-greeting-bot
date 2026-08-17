@@ -337,5 +337,194 @@ class Moderation(commands.Cog):
         )
 
 
+    # -- channel locking ----------------------------------------------
+    @app_commands.command(name="lock", description="Lock a channel so members cannot send messages.")
+    @app_commands.describe(
+        channel="Channel to lock (defaults to this one)",
+        reason="Why the channel is being locked",
+        duration="Optional temporary duration, e.g. 30m, 2h",
+    )
+    @app_commands.guild_only()
+    async def lock(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel | None = None,
+        reason: str = "No reason provided",
+        duration: str | None = None,
+    ) -> None:
+        guild = ensure_guild(interaction)
+        ensure_permission(interaction, "manage_channels")
+        ensure_bot_permission(guild, "manage_channels")
+        target = channel or interaction.channel
+        if not isinstance(target, discord.TextChannel):
+            raise ActionRefused("Pick a text channel to lock.")
+
+        seconds = None
+        if duration:
+            try:
+                seconds = int(parse_duration(duration).total_seconds())
+            except DurationError as exc:
+                raise ActionRefused(str(exc)) from exc
+
+        reason = clean_text(reason, 400)
+        await interaction.response.defer(ephemeral=True)
+        overwrite = target.overwrites_for(guild.default_role)
+        if overwrite.send_messages is False:
+            raise ActionRefused(f"{target.mention} is already locked.")
+        overwrite.send_messages = False
+        await target.set_permissions(
+            guild.default_role, overwrite=overwrite, reason=f"{interaction.user}: {reason}"
+        )
+
+        await self.mod.record(
+            guild,
+            "lock",
+            moderator=interaction.user,
+            reason=reason,
+            duration_seconds=seconds,
+            metadata={"channel_id": str(target.id)},
+        )
+        window = f" for **{humanize(seconds)}**" if seconds else ""
+        await target.send(
+            embed=embeds.warning("Channel locked", f"{reason}{window and ' · ' + window.strip('* ')}")
+        )
+        await interaction.followup.send(
+            embed=embeds.success("Channel locked", f"{target.mention} is locked{window}."),
+            ephemeral=True,
+        )
+
+    @app_commands.command(name="unlock", description="Unlock a previously locked channel.")
+    @app_commands.describe(channel="Channel to unlock (defaults to this one)", reason="Reason")
+    @app_commands.guild_only()
+    async def unlock(
+        self,
+        interaction: discord.Interaction,
+        channel: discord.TextChannel | None = None,
+        reason: str = "No reason provided",
+    ) -> None:
+        guild = ensure_guild(interaction)
+        ensure_permission(interaction, "manage_channels")
+        ensure_bot_permission(guild, "manage_channels")
+        target = channel or interaction.channel
+        if not isinstance(target, discord.TextChannel):
+            raise ActionRefused("Pick a text channel to unlock.")
+
+        reason = clean_text(reason, 400)
+        await interaction.response.defer(ephemeral=True)
+        overwrite = target.overwrites_for(guild.default_role)
+        overwrite.send_messages = None
+        await target.set_permissions(
+            guild.default_role, overwrite=overwrite, reason=f"{interaction.user}: {reason}"
+        )
+        await self.mod.record(
+            guild,
+            "unlock",
+            moderator=interaction.user,
+            reason=reason,
+            metadata={"channel_id": str(target.id)},
+        )
+        await interaction.followup.send(
+            embed=embeds.success("Channel unlocked", f"{target.mention} is open again."),
+            ephemeral=True,
+        )
+
+    # -- cases ---------------------------------------------------------
+    @app_commands.command(name="case", description="Look up a moderation case, or list recent ones.")
+    @app_commands.describe(number="Case number to display (leave empty for the latest cases)")
+    @app_commands.guild_only()
+    async def case(self, interaction: discord.Interaction, number: int | None = None) -> None:
+        guild = ensure_guild(interaction)
+        ensure_permission(interaction, "moderate_members")
+        await interaction.response.defer(ephemeral=True)
+
+        if number is None:
+            rows = await self.repo.recent_cases(str(guild.id), 10)
+            if not rows:
+                await interaction.followup.send(
+                    embed=embeds.info("No cases", "This server has no moderation cases yet."),
+                    ephemeral=True,
+                )
+                return
+            embed = embeds.brand("Recent cases", f"Latest {len(rows)} moderation cases.")
+            for row in rows:
+                embed.add_field(
+                    name=f"#{row.get('case_number')} · {str(row.get('action', '')).title()}",
+                    value=(
+                        f"**Member:** {row.get('target_name') or '—'}\n"
+                        f"**Moderator:** {row.get('moderator_name') or '—'}\n"
+                        f"**Reason:** {clean_text(row.get('reason') or 'No reason provided', 120)}"
+                    ),
+                    inline=False,
+                )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        row = await self.repo.get_case(str(guild.id), number)
+        if not row:
+            raise ActionRefused(f"Case #{number} does not exist in this server.")
+        await interaction.followup.send(embed=self._case_embed(row), ephemeral=True)
+
+    @app_commands.command(
+        name="users_case", description="Show every moderation case for a member."
+    )
+    @app_commands.describe(member="Member to inspect")
+    @app_commands.guild_only()
+    async def users_case(self, interaction: discord.Interaction, member: discord.User) -> None:
+        guild = ensure_guild(interaction)
+        ensure_permission(interaction, "moderate_members")
+        await interaction.response.defer(ephemeral=True)
+        rows = await self.repo.user_cases(str(guild.id), str(member.id))
+        if not rows:
+            await interaction.followup.send(
+                embed=embeds.info("Clean record", f"{member.mention} has no cases here."),
+                ephemeral=True,
+            )
+            return
+
+        counts: dict[str, int] = {}
+        for row in rows:
+            key = str(row.get("action", "other"))
+            counts[key] = counts.get(key, 0) + 1
+        summary = " · ".join(f"{value} {key}" for key, value in sorted(counts.items()))
+        active = sum(1 for row in rows if row.get("active"))
+
+        embed = embeds.brand(
+            f"Cases for {member}",
+            f"**{len(rows)}** case(s) · **{active}** active\n{summary}",
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        for row in rows[:10]:
+            embed.add_field(
+                name=(
+                    f"#{row.get('case_number')} · {str(row.get('action', '')).title()}"
+                    + (" · active" if row.get("active") else "")
+                ),
+                value=(
+                    f"**Moderator:** {row.get('moderator_name') or '—'}\n"
+                    f"**When:** {str(row.get('created_at', ''))[:19]}\n"
+                    f"**Reason:** {clean_text(row.get('reason') or 'No reason provided', 150)}"
+                ),
+                inline=False,
+            )
+        if len(rows) > 10:
+            embed.set_footer(text=f"Showing 10 of {len(rows)} cases")
+        await interaction.followup.send(embed=embed, ephemeral=True)
+
+    def _case_embed(self, row: dict) -> discord.Embed:
+        embed = embeds.brand(
+            f"Case #{row.get('case_number')} · {str(row.get('action', '')).title()}",
+            clean_text(row.get("reason") or "No reason provided", 500),
+        )
+        embed.add_field(name="Member", value=row.get("target_name") or "—")
+        embed.add_field(name="Moderator", value=row.get("moderator_name") or "—")
+        embed.add_field(name="Status", value="Active" if row.get("active") else "Resolved")
+        if row.get("duration_seconds"):
+            embed.add_field(name="Duration", value=humanize(int(row["duration_seconds"])))
+        if row.get("expires_at"):
+            embed.add_field(name="Expires", value=str(row["expires_at"])[:19])
+        embed.add_field(name="Opened", value=str(row.get("created_at", ""))[:19])
+        return embed
+
+
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(Moderation(bot))
