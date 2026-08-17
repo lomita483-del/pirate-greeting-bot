@@ -98,6 +98,58 @@ class TicketControls(discord.ui.View):
                 log.warning("Failed to delete ticket channel: %s", exc)
 
 
+class TicketPanel(discord.ui.View):
+    """Persistent panel posted in a public channel from the dashboard."""
+
+    def __init__(self, cog: "Tickets | None" = None) -> None:
+        super().__init__(timeout=None)
+        self.cog = cog
+
+    @discord.ui.button(
+        label="Create a ticket",
+        style=discord.ButtonStyle.primary,
+        emoji="🎫",
+        custom_id="ahoy:ticket:panel:open",
+    )
+    async def open(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        cog = self.cog or interaction.client.get_cog("Tickets")
+        if cog is None:
+            raise ActionRefused("The ticket system is unavailable right now.")
+        guild = ensure_guild(interaction)
+        settings = await interaction.client.repo.get_settings(str(guild.id))  # type: ignore[attr-defined]
+        if not settings.get("tickets_enabled"):
+            raise ActionRefused("Tickets are disabled in this server.")
+        await interaction.response.send_message(
+            embed=embeds.brand(
+                "Open a ticket",
+                "Pick the category that best matches your request. A private channel "
+                "will be created for you.",
+            ),
+            view=TicketOpener(cog),  # type: ignore[arg-type]
+            ephemeral=True,
+        )
+
+
+async def post_ticket_panel(
+    bot: commands.Bot,
+    channel: discord.TextChannel,
+    title: str | None,
+    description: str | None,
+    button_label: str | None,
+) -> discord.Message:
+    """Post the public ticket panel — used by the dashboard action queue."""
+    view = TicketPanel(bot.get_cog("Tickets"))  # type: ignore[arg-type]
+    if button_label:
+        view.children[0].label = button_label[:80]  # type: ignore[attr-defined]
+    embed = embeds.brand(
+        title or "Need a hand?",
+        description
+        or "Click the button below to open a private ticket with the crew. "
+        "Only you and our staff will be able to see it.",
+    )
+    return await channel.send(embed=embed, view=view)
+
+
 class TicketOpener(discord.ui.View):
     def __init__(self, cog: "Tickets") -> None:
         super().__init__(timeout=120)
@@ -212,4 +264,5 @@ class Tickets(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     bot.add_view(TicketControls(bot))
+    bot.add_view(TicketPanel())
     await bot.add_cog(Tickets(bot))

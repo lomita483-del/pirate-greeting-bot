@@ -10,6 +10,8 @@ import {
 } from "@/components/ui/select";
 
 import { Field, MultiPicker, PickerSelect, SectionHeader, ToggleRow } from "./fields";
+import { TicketPanelPublisher } from "./ticket-panel-publisher";
+
 import { SaveBar } from "./save-bar";
 import type { PanelProps } from "./types";
 import { useDraft } from "./use-draft";
@@ -212,6 +214,12 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
             checked={draft.ticket_transcripts_enabled}
             onChange={(v) => set("ticket_transcripts_enabled", v)}
           />
+          <TicketPanelPublisher
+            guildId={guildId}
+            channels={channels}
+            defaultChannelId={draft.ticket_panel_channel_id}
+          />
+
         </CardContent>
       </Card>
 
@@ -223,7 +231,16 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
 /* ---------------------------------------------------------------- */
 
 export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
-  const w = config.welcome;
+  const w = config.welcome as
+    | (NonNullable<typeof config.welcome> & {
+        dynamic_image_enabled?: boolean | null;
+        dynamic_image_title?: string | null;
+        dynamic_image_subtitle?: string | null;
+        dynamic_image_background_url?: string | null;
+      })
+    | null
+    | undefined;
+
   const channels = config.structure.channels.filter((c) => c.kind === "text");
   const form = useDraft(
     guildId,
@@ -531,7 +548,13 @@ const GRANULAR_CATEGORIES: EventCategory[] = [
 ];
 
 export function LoggingPanel({ guildId, config, onSaved }: PanelProps) {
-  const l = config.logging;
+  const l = config.logging as
+    | (NonNullable<typeof config.logging> & {
+        channel_overrides?: Record<string, string | null> | null;
+      })
+    | null
+    | undefined;
+
   const channels = config.structure.channels.filter((c) => c.kind === "text");
   const form = useDraft(
     guildId,
