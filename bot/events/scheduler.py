@@ -155,6 +155,7 @@ class Scheduler(commands.Cog):
                     log.warning("Dashboard action %s failed: %s", row.get("action"), exc)
                     await repo.finish_bot_action(row["id"], "failed", str(exc)[:400])
             for case in await repo.expired_cases():
+                await self._expire_case(case)
                 await repo.update_case(case["id"], {"active": False})
         except Exception as exc:  # pragma: no cover - keep the loop alive
             log.exception("Dashboard action loop failed: %s", exc)
@@ -162,6 +163,27 @@ class Scheduler(commands.Cog):
     @run_dashboard_actions.before_loop
     async def before_actions(self) -> None:
         await self.bot.wait_until_ready()
+
+    async def _expire_case(self, case: dict) -> None:
+        """Undo time-limited actions (currently channel locks) when they run out."""
+        if case.get("action") != "lock":
+            return
+        meta = case.get("metadata") or {}
+        channel_id = meta.get("channel_id")
+        guild = self.bot.get_guild(int(case["guild_id"])) if case.get("guild_id") else None
+        if not channel_id or guild is None:
+            return
+        channel = guild.get_channel(int(channel_id))
+        if not isinstance(channel, discord.TextChannel):
+            return
+        try:
+            overwrite = channel.overwrites_for(guild.default_role)
+            overwrite.send_messages = None
+            await channel.set_permissions(
+                guild.default_role, overwrite=overwrite, reason="AHOY temporary lock expired"
+            )
+        except discord.HTTPException as exc:
+            log.warning("Could not auto-unlock channel %s: %s", channel_id, exc)
 
     async def _perform(self, row: dict) -> None:
         guild = self.bot.get_guild(int(row["guild_id"]))
