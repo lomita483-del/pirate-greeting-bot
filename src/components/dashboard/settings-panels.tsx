@@ -212,6 +212,12 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
             checked={draft.ticket_transcripts_enabled}
             onChange={(v) => set("ticket_transcripts_enabled", v)}
           />
+          <TicketPanelPublisher
+            guildId={guildId}
+            channels={channels}
+            defaultChannelId={draft.ticket_panel_channel_id}
+          />
+
         </CardContent>
       </Card>
 
