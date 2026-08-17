@@ -540,7 +540,13 @@ const GRANULAR_CATEGORIES: EventCategory[] = [
 ];
 
 export function LoggingPanel({ guildId, config, onSaved }: PanelProps) {
-  const l = config.logging;
+  const l = config.logging as
+    | (NonNullable<typeof config.logging> & {
+        channel_overrides?: Record<string, string | null> | null;
+      })
+    | null
+    | undefined;
+
   const channels = config.structure.channels.filter((c) => c.kind === "text");
   const form = useDraft(
     guildId,
