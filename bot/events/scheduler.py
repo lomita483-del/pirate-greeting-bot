@@ -148,6 +148,8 @@ class Scheduler(commands.Cog):
         repo = self.bot.repo  # type: ignore[attr-defined]
         try:
             for row in await repo.pending_bot_actions():
+                if row.get("action") == "send_message":
+                    continue  # handled by the /send cog poller
                 try:
                     await self._perform(row)
                     await repo.finish_bot_action(row["id"], "done")
@@ -219,8 +221,6 @@ class Scheduler(commands.Cog):
                 payload.get("button_label"),
             )
             return
-        elif action == "send_message":
-            return  # handled by the /send cog poller
         else:
             raise RuntimeError(f"Unsupported action: {action}")
 
