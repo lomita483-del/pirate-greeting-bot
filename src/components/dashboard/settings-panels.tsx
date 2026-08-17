@@ -223,7 +223,16 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
 /* ---------------------------------------------------------------- */
 
 export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
-  const w = config.welcome;
+  const w = config.welcome as
+    | (NonNullable<typeof config.welcome> & {
+        dynamic_image_enabled?: boolean | null;
+        dynamic_image_title?: string | null;
+        dynamic_image_subtitle?: string | null;
+        dynamic_image_background_url?: string | null;
+      })
+    | null
+    | undefined;
+
   const channels = config.structure.channels.filter((c) => c.kind === "text");
   const form = useDraft(
     guildId,
