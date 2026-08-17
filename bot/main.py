@@ -13,6 +13,8 @@ from __future__ import annotations
 
 import asyncio
 import signal
+import sys
+import traceback
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -52,9 +54,9 @@ EXTENSIONS = (
     "bot.commands.stats",
     "bot.commands.calendar",
     "bot.commands.send",
+    "bot.commands.reports",
     "bot.commands.library",
     "bot.events.guild_events",
-    "bot.events.error_events",
     "bot.events.member_events",
     "bot.events.message_events",
     "bot.events.reaction_events",
@@ -240,11 +242,67 @@ class AhoyBot(commands.Bot):
                 guild.member_count or 0,
             )
 
-    # -- global error handling ----------------------------------------
+    # -- error logging (feeds the website's Error Log page) -------------
+    async def _record_error(
+        self,
+        *,
+        source: str,
+        error: BaseException,
+        guild_id: Optional[str] = None,
+        command: Optional[str] = None,
+        user_id: Optional[str] = None,
+        channel_id: Optional[str] = None,
+    ) -> None:
+        try:
+            tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            await self.repo.log_error(
+                source=source,
+                error_type=type(error).__name__,
+                message=str(error) or repr(error),
+                guild_id=guild_id,
+                command=command,
+                traceback_text=tb,
+                user_id=user_id,
+                channel_id=channel_id,
+            )
+        except Exception:  # never let error logging itself crash the bot
+            log.exception("Failed to record error log entry")
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        await self._record_error(
+            source="command",
+            error=error,
+            guild_id=str(ctx.guild.id) if ctx.guild else None,
+            command=ctx.command.qualified_name if ctx.command else None,
+            user_id=str(ctx.author.id) if ctx.author else None,
+            channel_id=str(ctx.channel.id) if ctx.channel else None,
+        )
+
+    async def on_error(self, event_method: str, *args, **kwargs) -> None:  # noqa: ANN002, ANN003
+        error = sys.exc_info()[1]
+        if error is None:
+            return
+        await self._record_error(source="event", error=error, command=event_method)
+        log.exception("Unhandled error in event %s", event_method)
+
+    # -- global app-command error handling -------------------------------
     async def on_app_command_error(
         self, interaction: discord.Interaction, error: app_commands.AppCommandError
     ) -> None:
         original = getattr(error, "original", error)
+
+        await self._record_error(
+            source="app_command",
+            error=original,
+            guild_id=str(interaction.guild_id) if interaction.guild_id else None,
+            command=(
+                interaction.command.qualified_name
+                if interaction.command
+                else getattr(interaction.command, "name", None)
+            ),
+            user_id=str(interaction.user.id) if interaction.user else None,
+            channel_id=str(interaction.channel_id) if interaction.channel_id else None,
+        )
 
         if isinstance(original, ActionRefused):
             embed = embeds.warning("Action not allowed", str(original))
