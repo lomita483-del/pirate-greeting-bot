@@ -204,6 +204,23 @@ class Scheduler(commands.Cog):
         elif action == "kick":
             member = guild.get_member(int(target_id)) or await guild.fetch_member(int(target_id))
             await member.kick(reason=reason)
+        elif action == "ticket_panel":
+            payload = row.get("payload") or {}
+            channel = guild.get_channel(int(payload.get("channel_id", 0)))
+            if not isinstance(channel, discord.TextChannel):
+                raise RuntimeError("That ticket panel channel no longer exists.")
+            from ..commands.tickets import post_ticket_panel
+
+            await post_ticket_panel(
+                self.bot,
+                channel,
+                payload.get("title"),
+                payload.get("description"),
+                payload.get("button_label"),
+            )
+            return
+        elif action == "send_message":
+            return  # handled by the /send cog poller
         else:
             raise RuntimeError(f"Unsupported action: {action}")
 
