@@ -386,7 +386,11 @@ class Moderation(commands.Cog):
         )
         window = f" for **{humanize(seconds)}**" if seconds else ""
         await target.send(
-            embed=embeds.warning("Channel locked", f"{reason}{window and ' · ' + window.strip('* ')}")
+            embed=embeds.warning(
+                "Channel locked",
+                reason + (f"\nUnlocks automatically in {humanize(seconds)}." if seconds else ""),
+            )
+
         )
         await interaction.followup.send(
             embed=embeds.success("Channel locked", f"{target.mention} is locked{window}."),
