@@ -98,8 +98,43 @@ export const deleteEmbedTemplate = createServerFn({ method: "POST" })
   });
 
 /* ---------------------------------------------------------------- */
+/* Ticket panel                                                       */
+/* ---------------------------------------------------------------- */
+
+export const postTicketPanel = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        channelId: z.string().regex(/^\d{5,25}$/),
+        title: z.string().max(256).optional(),
+        description: z.string().max(2000).optional(),
+        buttonLabel: z.string().max(80).optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
+      guild_id: data.guildId,
+      action: "ticket_panel",
+      payload: {
+        channel_id: data.channelId,
+        title: data.title ?? null,
+        description: data.description ?? null,
+        button_label: data.buttonLabel ?? null,
+      },
+      requested_by: session.userId,
+      status: "pending",
+    });
+    if (error) throw new Error("Could not queue the ticket panel.");
+    return { ok: true };
+  });
+
+/* ---------------------------------------------------------------- */
 /* Send                                                               */
 /* ---------------------------------------------------------------- */
+
 
 export const sendMessage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
