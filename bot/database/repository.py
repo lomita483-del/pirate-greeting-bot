@@ -776,45 +776,6 @@ class Repository:
             lambda c: c.table("moderation_cases").update(payload).eq("id", case_id).execute()
         )
 
-    async def get_case(self, guild_id: str, case_number: int) -> Optional[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("moderation_cases")
-            .select("*")
-            .eq("guild_id", guild_id)
-            .eq("case_number", case_number)
-            .limit(1)
-            .execute()
-        )
-        data = getattr(rows, "data", None) or []
-        return data[0] if data else None
-
-    async def recent_cases(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("moderation_cases")
-            .select("*")
-            .eq("guild_id", guild_id)
-            .order("case_number", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def user_cases(
-        self, guild_id: str, user_id: str, limit: int = 25
-    ) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("moderation_cases")
-            .select("*")
-            .eq("guild_id", guild_id)
-            .eq("target_id", user_id)
-            .order("case_number", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-
-
     # -- activity log -----------------------------------------------------
     async def log_activity(self, payload: dict[str, Any]) -> None:
         await self.db.try_run(
@@ -1101,6 +1062,14 @@ class Repository:
         )
         data = getattr(rows, "data", None) or []
         return data[0] if data else None
+
+    # -- reports ------------------------------------------------------
+    async def create_report(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = await self.db.try_run(
+            lambda c: c.table("user_reports").insert(payload).execute()
+        )
+        rows = getattr(result, "data", None) or [{}]
+        return rows[0]
 
     # -- error log ------------------------------------------------------
     async def log_error(
