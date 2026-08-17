@@ -1,33 +1,36 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CalendarClock } from "lucide-react";
+import { Shield } from "lucide-react";
 
-import { AnnouncementsPanel, StatChannelsPanel } from "@/components/dashboard/automation-panels";
-import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
+import { CasesPanel } from "@/components/dashboard/cases-panel";
+import { ReportsPanel } from "@/components/dashboard/reports-panel";
+import { AppealsPanel } from "@/components/dashboard/appeals-panel";
+import { useGuild } from "@/components/dashboard/guild-context";
+import { ModuleHeader } from "@/components/dashboard/module-page";
 
-export const Route = createFileRoute("/dashboard/$guildId/automation")({
+export const Route = createFileRoute("/dashboard/$guildId/moderation")({
   head: () => ({
     meta: [
-      { title: "Automation — AHOY Control Center" },
-      { name: "description", content: "Schedule recurring announcements and live server stat channels." },
-      { property: "og:title", content: "Automation — AHOY Control Center" },
-      { property: "og:description", content: "Scheduled announcements and live stat channels." },
+      { title: "Moderation — AHOY Control Center" },
+      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by AHOY." },
+      { property: "og:title", content: "Moderation — AHOY Control Center" },
+      { property: "og:description", content: "Manage all ban, kick, mute and warn cases." },
     ],
   }),
-  component: () => (
-    <div>
-      <ModuleHeader
-        icon={CalendarClock}
-        title="Automation"
-        description="Scheduled announcements and automatically updated stat channels."
-      />
-      <WithConfig>
-        {({ guildId, config }) => (
-          <div className="space-y-6">
-            <AnnouncementsPanel guildId={guildId} structure={config.structure} />
-            <StatChannelsPanel guildId={guildId} structure={config.structure} />
-          </div>
-        )}
-      </WithConfig>
-    </div>
-  ),
+  component: ModerationPage,
 });
+
+function ModerationPage() {
+  const { guildId } = useGuild();
+  return (
+    <div className="space-y-6">
+      <ModuleHeader
+        icon={Shield}
+        title="Moderation"
+        description="Manage cases, review member reports, and handle appeals from the dashboard."
+      />
+      <CasesPanel guildId={guildId} />
+      <ReportsPanel guildId={guildId} />
+      <AppealsPanel guildId={guildId} />
+    </div>
+  );
+}
