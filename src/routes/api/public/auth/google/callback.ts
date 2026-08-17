@@ -75,7 +75,11 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
 
           const { error } = existing
             ? await supabaseAdmin.from("google_accounts").update(base).eq("id", existing.id)
-            : await supabaseAdmin.from("google_accounts").insert(base);
+            : await supabaseAdmin.from("google_accounts").insert({
+                ...base,
+                encrypted_refresh_token: await encryptToken(token.refresh_token!),
+              });
+
           if (error) {
             console.error("google_accounts save failed", error);
             return fail("storage_failed");
