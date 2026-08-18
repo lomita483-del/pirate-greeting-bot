@@ -3,6 +3,7 @@ import { Hand } from "lucide-react";
 
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 import { WelcomePanel } from "@/components/dashboard/settings-panels";
+import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-panel";
 
 export const Route = createFileRoute("/dashboard/$guildId/welcome")({
   head: () => ({
@@ -14,7 +15,7 @@ export const Route = createFileRoute("/dashboard/$guildId/welcome")({
     ],
   }),
   component: () => (
-    <div>
+    <div className="space-y-6">
       <ModuleHeader
         icon={Hand}
         title="Welcome messages"
@@ -22,7 +23,10 @@ export const Route = createFileRoute("/dashboard/$guildId/welcome")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <WelcomePanel guildId={guildId} config={config} onSaved={refresh} />
+          <>
+            <WelcomeMessagesPanel guildId={guildId} />
+            <WelcomePanel guildId={guildId} config={config} onSaved={refresh} />
+          </>
         )}
       </WithConfig>
     </div>
