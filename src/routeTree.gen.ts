@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AppealGuildIdRouteImport } from './routes/appeal/$guildId'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
 import { Route as ApiPublicInviteRouteImport } from './routes/api/public/invite'
@@ -47,6 +48,11 @@ const IndexRoute = IndexRouteImport.update({
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppealGuildIdRoute = AppealGuildIdRouteImport.update({
+  id: '/appeal/$guildId',
+  path: '/appeal/$guildId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
@@ -203,6 +209,7 @@ const ApiPublicAuthGoogleStartRoute =
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
@@ -234,6 +241,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
@@ -265,6 +273,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
+  '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/dashboard/': typeof DashboardIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/appeal/$guildId'
     | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/invite'
@@ -329,6 +339,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/admin'
+    | '/appeal/$guildId'
     | '/dashboard'
     | '/api/public/invite'
     | '/dashboard/$guildId/activity'
@@ -359,6 +370,7 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/appeal/$guildId'
     | '/dashboard/$guildId'
     | '/dashboard/'
     | '/api/public/invite'
@@ -391,6 +403,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
+  AppealGuildIdRoute: typeof AppealGuildIdRoute
   DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
   DashboardIndexRoute: typeof DashboardIndexRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       path: '/admin'
       fullPath: '/admin'
       preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/appeal/$guildId': {
+      id: '/appeal/$guildId'
+      path: '/appeal/$guildId'
+      fullPath: '/appeal/$guildId'
+      preLoaderRoute: typeof AppealGuildIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/': {
@@ -658,6 +678,7 @@ const DashboardGuildIdRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
+  AppealGuildIdRoute: AppealGuildIdRoute,
   DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
   DashboardIndexRoute: DashboardIndexRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
