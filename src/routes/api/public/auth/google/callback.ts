@@ -48,12 +48,13 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
 
           // Google only issues a refresh_token on the first consent for an
-          // account. If we already hold one for this guild + email we simply
-          // refresh the cached access token instead of failing the link.
+          // account. If we already hold one for this guild + user + email we
+          // simply refresh the cached access token instead of failing the link.
           const { data: existing } = await supabaseAdmin
             .from("google_accounts")
             .select("id")
             .eq("guild_id", opened.guildId)
+            .eq("connected_by", session.userId)
             .eq("google_email", email)
             .maybeSingle();
 
@@ -81,7 +82,12 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
               });
 
           if (error) {
-            console.error("google_accounts save failed", error);
+            console.error("google_accounts save failed", {
+              message: error.message,
+              details: error.details,
+              hint: error.hint,
+              code: error.code,
+            });
             return fail("storage_failed");
           }
 
