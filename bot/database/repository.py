@@ -1039,6 +1039,19 @@ class Repository:
         )
         return getattr(rows, "data", None) or []
 
+    # -- welcome messages (multi-message, Sapphire-style) -----------------
+    async def list_welcome_messages(self, guild_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("welcome_messages")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("enabled", True)
+            .order("position")
+            .limit(3)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
     # -- embed templates (used by /send and the website embed builder) ----
     async def list_embed_template_names(self, guild_id: str) -> list[str]:
         rows = await self.db.try_run(
