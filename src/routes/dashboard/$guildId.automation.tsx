@@ -7,7 +7,7 @@ import { AppealsPanel } from "@/components/dashboard/appeals-panel";
 import { useGuild } from "@/components/dashboard/guild-context";
 import { ModuleHeader } from "@/components/dashboard/module-page";
 
-export const Route = createFileRoute("/dashboard/$guildId/moderation")({
+export const Route = createFileRoute("/dashboard/$guildId/automation")({
   head: () => ({
     meta: [
       { title: "Moderation — AHOY Control Center" },
