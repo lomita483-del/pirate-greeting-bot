@@ -65,7 +65,9 @@ function rowToMessage(row: unknown): WelcomeMessage {
 }
 
 export const listWelcomeMessages = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
     const { data: rows } = await supabaseAdmin

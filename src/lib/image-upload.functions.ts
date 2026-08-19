@@ -8,7 +8,10 @@ export const uploadDashboardImage = createServerFn({ method: "POST" })
     return data;
   })
   .handler(async ({ data }) => {
-    const guildId = z.string().regex(/^\d{5,25}$/).parse(data.get("guildId"));
+    const guildId = z
+      .string()
+      .regex(/^\d{5,25}$/)
+      .parse(data.get("guildId"));
     const file = data.get("file");
     if (!(file instanceof File)) throw new Error("Choose an image to upload.");
     if (!file.type.startsWith("image/")) throw new Error("Only image files are supported.");
@@ -19,7 +22,12 @@ export const uploadDashboardImage = createServerFn({ method: "POST" })
     if (!session) throw new Error("Please sign in with Discord.");
     await assertGuildAccess(session, guildId);
 
-    const extension = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+    const extension =
+      file.name
+        .split(".")
+        .pop()
+        ?.toLowerCase()
+        .replace(/[^a-z0-9]/g, "") || "png";
     const fileName = `${guildId}-${crypto.randomUUID()}.${extension}`;
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { error } = await supabaseAdmin.storage

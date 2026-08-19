@@ -17,11 +17,16 @@ export const Route = createFileRoute("/dashboard/$guildId/send")({
   head: () => ({
     meta: [
       { title: "Send a message — AHOY Control Center" },
-      { name: "description", content: "Compose and send messages with rich embeds to any channel." },
+      {
+        name: "description",
+        content: "Compose and send messages with rich embeds to any channel.",
+      },
     ],
   }),
   component: () => (
-    <WithConfig>{({ guildId, config }) => <SendPage guildId={guildId} config={config} />}</WithConfig>
+    <WithConfig>
+      {({ guildId, config }) => <SendPage guildId={guildId} config={config} />}
+    </WithConfig>
   ),
 });
 
@@ -30,10 +35,42 @@ type ChannelOption = { id: string; name: string; type?: string };
 
 const emptyEmbed: EmbedShape = { fields: [] };
 const builtInTemplates: Array<{ name: string; embed: EmbedShape }> = [
-  { name: "Announcement", embed: { title: "Important announcement", description: "Add your announcement here.", color: "D4AF37", fields: [] } },
-  { name: "Server update", embed: { title: "Server update", description: "Share what changed with your community.", color: "3498DB", fields: [] } },
-  { name: "Event", embed: { title: "Upcoming event", description: "Add the date, time, and event details.", color: "2ECC71", fields: [] } },
-  { name: "Alert", embed: { title: "Attention", description: "Add the important information here.", color: "E74C3C", fields: [] } },
+  {
+    name: "Announcement",
+    embed: {
+      title: "Important announcement",
+      description: "Add your announcement here.",
+      color: "D4AF37",
+      fields: [],
+    },
+  },
+  {
+    name: "Server update",
+    embed: {
+      title: "Server update",
+      description: "Share what changed with your community.",
+      color: "3498DB",
+      fields: [],
+    },
+  },
+  {
+    name: "Event",
+    embed: {
+      title: "Upcoming event",
+      description: "Add the date, time, and event details.",
+      color: "2ECC71",
+      fields: [],
+    },
+  },
+  {
+    name: "Alert",
+    embed: {
+      title: "Attention",
+      description: "Add the important information here.",
+      color: "E74C3C",
+      fields: [],
+    },
+  },
 ];
 
 function SendPage({
@@ -101,7 +138,10 @@ function SendPage({
     }
   }
 
-  function setField(index: number, patch: Partial<{ name: string; value: string; inline: boolean }>) {
+  function setField(
+    index: number,
+    patch: Partial<{ name: string; value: string; inline: boolean }>,
+  ) {
     const fields = [...(embed.fields ?? [])];
     fields[index] = { name: "", value: "", ...fields[index], ...patch };
     setEmbed({ ...embed, fields });
@@ -180,7 +220,11 @@ function SendPage({
             <h2 className="font-semibold">Embed</h2>
 
             <div className="mt-3 grid gap-3">
-              <Field label="Title" value={embed.title} onChange={(v) => setEmbed({ ...embed, title: v })} />
+              <Field
+                label="Title"
+                value={embed.title}
+                onChange={(v) => setEmbed({ ...embed, title: v })}
+              />
               <div>
                 <label className="text-xs text-muted-foreground">Description</label>
                 <textarea
@@ -192,7 +236,11 @@ function SendPage({
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Field label="URL" value={embed.url} onChange={(v) => setEmbed({ ...embed, url: v })} />
+                <Field
+                  label="URL"
+                  value={embed.url}
+                  onChange={(v) => setEmbed({ ...embed, url: v })}
+                />
                 <div>
                   <label className="text-xs text-muted-foreground">Color</label>
                   <input
@@ -205,30 +253,58 @@ function SendPage({
               </div>
 
               <div className="grid grid-cols-3 gap-3">
-                <Field label="Author name" value={embed.authorName} onChange={(v) => setEmbed({ ...embed, authorName: v })} />
-                <Field label="Author URL" value={embed.authorUrl} onChange={(v) => setEmbed({ ...embed, authorUrl: v })} />
+                <Field
+                  label="Author name"
+                  value={embed.authorName}
+                  onChange={(v) => setEmbed({ ...embed, authorName: v })}
+                />
+                <Field
+                  label="Author URL"
+                  value={embed.authorUrl}
+                  onChange={(v) => setEmbed({ ...embed, authorUrl: v })}
+                />
                 <div>
                   <label className="text-xs text-muted-foreground">Author icon</label>
-                  <ImageUrlField guildId={guildId} value={embed.authorIconUrl} onChange={(value) => setEmbed({ ...embed, authorIconUrl: value ?? undefined })} />
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={embed.authorIconUrl}
+                    onChange={(value) => setEmbed({ ...embed, authorIconUrl: value ?? undefined })}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-muted-foreground">Image</label>
-                  <ImageUrlField guildId={guildId} value={embed.imageUrl} onChange={(value) => setEmbed({ ...embed, imageUrl: value ?? undefined })} />
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={embed.imageUrl}
+                    onChange={(value) => setEmbed({ ...embed, imageUrl: value ?? undefined })}
+                  />
                 </div>
                 <div>
                   <label className="text-xs text-muted-foreground">Thumbnail</label>
-                  <ImageUrlField guildId={guildId} value={embed.thumbnailUrl} onChange={(value) => setEmbed({ ...embed, thumbnailUrl: value ?? undefined })} />
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={embed.thumbnailUrl}
+                    onChange={(value) => setEmbed({ ...embed, thumbnailUrl: value ?? undefined })}
+                  />
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Footer text" value={embed.footerText} onChange={(v) => setEmbed({ ...embed, footerText: v })} />
+                <Field
+                  label="Footer text"
+                  value={embed.footerText}
+                  onChange={(v) => setEmbed({ ...embed, footerText: v })}
+                />
                 <div>
                   <label className="text-xs text-muted-foreground">Footer icon</label>
-                  <ImageUrlField guildId={guildId} value={embed.footerIconUrl} onChange={(value) => setEmbed({ ...embed, footerIconUrl: value ?? undefined })} />
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={embed.footerIconUrl}
+                    onChange={(value) => setEmbed({ ...embed, footerIconUrl: value ?? undefined })}
+                  />
                 </div>
               </div>
 
@@ -325,7 +401,10 @@ function SendPage({
             </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {(templatesQuery.data ?? []).map((t) => (
-                <span key={t.id} className="flex items-center gap-1 rounded-full border px-3 py-1 text-xs">
+                <span
+                  key={t.id}
+                  className="flex items-center gap-1 rounded-full border px-3 py-1 text-xs"
+                >
                   <button type="button" onClick={() => loadTemplate(t.id)}>
                     {t.name}
                   </button>
@@ -460,11 +539,11 @@ function Field({
 function hasEmbedContent(embed: EmbedShape): boolean {
   return Boolean(
     embed.title ||
-      embed.description ||
-      embed.imageUrl ||
-      embed.thumbnailUrl ||
-      embed.authorName ||
-      embed.footerText ||
-      (embed.fields ?? []).length > 0,
+    embed.description ||
+    embed.imageUrl ||
+    embed.thumbnailUrl ||
+    embed.authorName ||
+    embed.footerText ||
+    (embed.fields ?? []).length > 0,
   );
 }

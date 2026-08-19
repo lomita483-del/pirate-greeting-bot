@@ -115,9 +115,7 @@ export function ToggleRow({
     <div className="flex items-start justify-between gap-6 rounded-xl border border-border/70 bg-secondary/30 px-4 py-3">
       <div>
         <p className="text-sm font-medium text-foreground">{label}</p>
-        {description ? (
-          <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
-        ) : null}
+        {description ? <p className="mt-0.5 text-xs text-muted-foreground">{description}</p> : null}
       </div>
       <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
     </div>
@@ -140,10 +138,7 @@ export function PickerSelect({
   emptyLabel?: string;
 }) {
   return (
-    <Select
-      value={value ?? NONE}
-      onValueChange={(next) => onChange(next === NONE ? null : next)}
-    >
+    <Select value={value ?? NONE} onValueChange={(next) => onChange(next === NONE ? null : next)}>
       <SelectTrigger className="bg-secondary/40">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
@@ -182,9 +177,7 @@ export function MultiPicker({
             key={option.id}
             type="button"
             onClick={() =>
-              onChange(
-                active ? values.filter((v) => v !== option.id) : [...values, option.id],
-              )
+              onChange(active ? values.filter((v) => v !== option.id) : [...values, option.id])
             }
             className={`rounded-full border px-3 py-1 text-xs transition-colors ${
               active

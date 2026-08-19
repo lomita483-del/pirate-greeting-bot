@@ -75,11 +75,20 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
           };
 
           const { data: saved, error } = existing
-            ? await supabaseAdmin.from("google_accounts").update(base).eq("id", existing.id).select("id").maybeSingle()
-            : await supabaseAdmin.from("google_accounts").insert({
-                ...base,
-                encrypted_refresh_token: await encryptToken(token.refresh_token ?? ""),
-              }).select("id").maybeSingle();
+            ? await supabaseAdmin
+                .from("google_accounts")
+                .update(base)
+                .eq("id", existing.id)
+                .select("id")
+                .maybeSingle()
+            : await supabaseAdmin
+                .from("google_accounts")
+                .insert({
+                  ...base,
+                  encrypted_refresh_token: await encryptToken(token.refresh_token ?? ""),
+                })
+                .select("id")
+                .maybeSingle();
 
           if (error || !saved) {
             console.error("google_accounts save failed", {
@@ -102,7 +111,6 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
           console.error("Google OAuth callback failed", error);
           return fail("signin_failed");
         }
-
       },
     },
   },

@@ -51,7 +51,9 @@ export type EmbedTemplate = EmbedShape & { id: string; name: string };
 /* ---------------------------------------------------------------- */
 
 export const listEmbedTemplates = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
     const { data: rows } = await supabaseAdmin
@@ -101,7 +103,11 @@ export const deleteEmbedTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    await supabaseAdmin.from("embed_templates").delete().eq("id", data.id).eq("guild_id", data.guildId);
+    await supabaseAdmin
+      .from("embed_templates")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
     return { ok: true };
   });
 
@@ -143,7 +149,6 @@ export const postTicketPanel = createServerFn({ method: "POST" })
 /* Send                                                               */
 /* ---------------------------------------------------------------- */
 
-
 export const sendMessage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
@@ -151,7 +156,10 @@ export const sendMessage = createServerFn({ method: "POST" })
         guildId: z.string().regex(/^\d{5,25}$/),
         channelId: z.string().regex(/^\d{5,25}$/),
         content: z.string().max(2000).optional(),
-        mentionRoleId: z.string().regex(/^\d{5,25}$/).optional(),
+        mentionRoleId: z
+          .string()
+          .regex(/^\d{5,25}$/)
+          .optional(),
         mentionEveryone: z.boolean().optional(),
         embed: embedShape.optional(),
       })

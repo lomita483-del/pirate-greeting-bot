@@ -86,7 +86,8 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
       const messages: Record<string, string> = {
         signed_out: "Your Discord session expired. Sign in again, then reconnect Google.",
         no_access: "You no longer have permission to manage this server.",
-        no_refresh_token: "Google did not provide offline access. Remove AHOY from your Google account permissions and reconnect.",
+        no_refresh_token:
+          "Google did not provide offline access. Remove AHOY from your Google account permissions and reconnect.",
         storage_failed: "Google connected, but AHOY could not save the account. Please try again.",
         signin_failed: "Google sign-in could not be completed. Please try again.",
         invalid_state: "The Google sign-in request expired. Please start again.",
@@ -106,7 +107,12 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
   const addGoogleCalendar = useMutation({
     mutationFn: (calendarName: string) =>
       addGoogleCalendarSource({
-        data: { guildId, accountId: selectedAccountId!, calendarId: selectedCalendarId, calendarName },
+        data: {
+          guildId,
+          accountId: selectedAccountId!,
+          calendarId: selectedCalendarId,
+          calendarName,
+        },
       }),
     onSuccess: (res) => {
       toast.success(
@@ -152,7 +158,8 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
     channelId: string | null;
     mention: string;
   } | null>(null);
-  const current = draft ??
+  const current =
+    draft ??
     (defaults
       ? {
           enabled: defaults.enabled,
@@ -267,9 +274,7 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
           )}
 
           <Button asChild variant="secondary">
-            <a href={`/api/public/auth/google/start?guildId=${guildId}`}>
-              Sign in with Google
-            </a>
+            <a href={`/api/public/auth/google/start?guildId=${guildId}`}>Sign in with Google</a>
           </Button>
 
           {selectedAccountId ? (
@@ -318,9 +323,7 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
                   </Button>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  No calendars found on this account.
-                </p>
+                <p className="text-sm text-muted-foreground">No calendars found on this account.</p>
               )}
             </div>
           ) : null}
@@ -351,11 +354,7 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
                       <div className="min-w-0">
                         <p className="flex items-center gap-2 text-sm font-semibold">
                           {source.sourceType === "google" ? "Google Calendar" : "iCalendar"}
-                          <span
-                            className={
-                              failed ? "text-destructive" : "text-emerald-400"
-                            }
-                          >
+                          <span className={failed ? "text-destructive" : "text-emerald-400"}>
                             {failed ? "🔴" : "🟢"}
                           </span>
                         </p>
@@ -425,9 +424,9 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            In Google Calendar open <strong>Settings → your calendar → Secret address in iCal
-            format</strong> and paste that URL here. The URL is stored server-side only and is never
-            sent back to the browser.
+            In Google Calendar open{" "}
+            <strong>Settings → your calendar → Secret address in iCal format</strong> and paste that
+            URL here. The URL is stored server-side only and is never sent back to the browser.
           </p>
         </CardContent>
       </Card>

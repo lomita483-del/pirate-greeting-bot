@@ -30,12 +30,12 @@ const emptyEmbed: WelcomeEmbedShape = { fields: [] };
 function hasEmbedContent(embed: WelcomeEmbedShape): boolean {
   return Boolean(
     embed.title ||
-      embed.description ||
-      embed.imageUrl ||
-      embed.thumbnailUrl ||
-      embed.authorName ||
-      embed.footerText ||
-      (embed.fields ?? []).length > 0,
+    embed.description ||
+    embed.imageUrl ||
+    embed.thumbnailUrl ||
+    embed.authorName ||
+    embed.footerText ||
+    (embed.fields ?? []).length > 0,
   );
 }
 
@@ -53,8 +53,12 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
 
   const save = useServerFn(saveWelcomeMessage);
   const saveMutation = useMutation({
-    mutationFn: (input: { id?: string; position: number; content: string; embed?: WelcomeEmbedShape }) =>
-      save({ data: { guildId, enabled: true, ...input } }),
+    mutationFn: (input: {
+      id?: string;
+      position: number;
+      content: string;
+      embed?: WelcomeEmbedShape;
+    }) => save({ data: { guildId, enabled: true, ...input } }),
     onSuccess: () => {
       toast.success("Message saved");
       queryClient.invalidateQueries({ queryKey: ["welcome-messages", guildId] });
@@ -86,7 +90,10 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
     }
   }
 
-  function setField(index: number, patch: Partial<{ name: string; value: string; inline: boolean }>) {
+  function setField(
+    index: number,
+    patch: Partial<{ name: string; value: string; inline: boolean }>,
+  ) {
     const fields = [...(embed.fields ?? [])];
     fields[index] = { name: "", value: "", ...fields[index], ...patch };
     setEmbed({ ...embed, fields });
@@ -182,8 +189,16 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
             <div className="space-y-3 rounded-lg border border-border/60 p-3">
               <p className="text-sm font-medium">Embed (optional)</p>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Title" value={embed.title} onChange={(v) => setEmbed({ ...embed, title: v })} />
-                <Field label="URL" value={embed.url} onChange={(v) => setEmbed({ ...embed, url: v })} />
+                <Field
+                  label="Title"
+                  value={embed.title}
+                  onChange={(v) => setEmbed({ ...embed, title: v })}
+                />
+                <Field
+                  label="URL"
+                  value={embed.url}
+                  onChange={(v) => setEmbed({ ...embed, url: v })}
+                />
               </div>
               <div>
                 <label className="text-xs text-muted-foreground">Description</label>
@@ -234,7 +249,9 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
                 <input
                   type="checkbox"
                   checked={Boolean(embed.useMemberAvatarAsThumbnail)}
-                  onChange={(e) => setEmbed({ ...embed, useMemberAvatarAsThumbnail: e.target.checked })}
+                  onChange={(e) =>
+                    setEmbed({ ...embed, useMemberAvatarAsThumbnail: e.target.checked })
+                  }
                 />
                 Use the new member's avatar as the thumbnail
               </label>
@@ -297,7 +314,10 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
                       <button
                         type="button"
                         onClick={() =>
-                          setEmbed({ ...embed, fields: (embed.fields ?? []).filter((_, idx) => idx !== i) })
+                          setEmbed({
+                            ...embed,
+                            fields: (embed.fields ?? []).filter((_, idx) => idx !== i),
+                          })
                         }
                         className="text-muted-foreground hover:text-red-400"
                       >
@@ -313,7 +333,11 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
             <div>
               <label className="text-xs text-muted-foreground">Preview</label>
               <div className="mt-1 rounded-lg bg-[#313338] p-4 text-sm text-gray-100">
-                {content && <p className="mb-2 whitespace-pre-wrap">{content.replace(/\{[a-z_]+\}/gi, (m) => m)}</p>}
+                {content && (
+                  <p className="mb-2 whitespace-pre-wrap">
+                    {content.replace(/\{[a-z_]+\}/gi, (m) => m)}
+                  </p>
+                )}
                 {hasEmbedContent(embed) && (
                   <div
                     className="max-w-md rounded border-l-4 bg-[#2b2d31] p-3"
@@ -330,13 +354,17 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
                       <div className="mt-2 grid grid-cols-2 gap-2">
                         {(embed.fields ?? []).map((f, i) => (
                           <div key={i} className={f.inline ? "" : "col-span-2"}>
-                            <div className="text-xs font-semibold text-white">{f.name || "\u200b"}</div>
+                            <div className="text-xs font-semibold text-white">
+                              {f.name || "\u200b"}
+                            </div>
                             <div className="text-xs text-gray-300">{f.value || "\u200b"}</div>
                           </div>
                         ))}
                       </div>
                     )}
-                    {embed.imageUrl && <img src={embed.imageUrl} alt="" className="mt-2 max-h-56 rounded" />}
+                    {embed.imageUrl && (
+                      <img src={embed.imageUrl} alt="" className="mt-2 max-h-56 rounded" />
+                    )}
                     {embed.footerText && (
                       <div className="mt-2 text-[11px] text-gray-400">{embed.footerText}</div>
                     )}
@@ -353,7 +381,10 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
               onClick={() => {
                 const base = {
                   ...(editingId === "new" ? {} : { id: editingId }),
-                  position: editingId === "new" ? messages.length : messages.findIndex((m) => m.id === editingId),
+                  position:
+                    editingId === "new"
+                      ? messages.length
+                      : messages.findIndex((m) => m.id === editingId),
                   content,
                 };
                 saveMutation.mutate(hasEmbedContent(embed) ? { ...base, embed } : base);
