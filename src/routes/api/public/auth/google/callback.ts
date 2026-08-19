@@ -92,10 +92,10 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
 
           if (error || !saved) {
             console.error("google_accounts save failed", {
-              message: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code,
+              message: error?.message,
+              details: error?.details,
+              hint: error?.hint,
+              code: error?.code,
             });
             return fail("storage_failed");
           }

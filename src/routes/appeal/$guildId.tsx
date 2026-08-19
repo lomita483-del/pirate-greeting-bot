@@ -111,7 +111,7 @@ function AppealPage() {
                         onClick={() =>
                           submitMutation.mutate({
                             caseId: c.id,
-                            caseNumber: c.case_number as number | undefined,
+                            ...(c.case_number != null ? { caseNumber: Number(c.case_number) } : {}),
                             message: message.trim(),
                           })
                         }
