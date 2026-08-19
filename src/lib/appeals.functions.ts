@@ -64,10 +64,21 @@ export const getMyAppealableCases = createServerFn({ method: "GET" })
       supabaseAdmin.from("servers").select("name, icon").eq("guild_id", data.guildId).maybeSingle(),
     ]);
 
-    const appealedByCase = new Map((appeals ?? []).map((a) => [a.case_id, a.status]));
+    type AppealLite = { case_id: string; status: string };
+    type CaseLite = {
+      id: string;
+      case_number: number | null;
+      action: string;
+      reason: string | null;
+      voided: boolean | null;
+      created_at: string;
+    };
+    const appealedByCase = new Map<string, string>(
+      ((appeals ?? []) as AppealLite[]).map((a) => [a.case_id, a.status]),
+    );
     return {
       serverName: server?.name ?? "This server",
-      cases: (cases ?? []).map((c) => ({
+      cases: ((cases ?? []) as CaseLite[]).map((c) => ({
         ...c,
         appealStatus: appealedByCase.get(c.id) ?? null,
       })),
@@ -118,6 +129,20 @@ export const submitAppeal = createServerFn({ method: "POST" })
 /* Admin review                                                       */
 /* ---------------------------------------------------------------- */
 
+export type AppealRow = {
+  id: string;
+  guild_id: string;
+  case_id: string;
+  case_number: number | null;
+  user_id: string;
+  username: string | null;
+  message: string;
+  status: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
 export const getAppeals = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) =>
     z
@@ -132,7 +157,7 @@ export const getAppeals = createServerFn({ method: "GET" })
     let query = supabaseAdmin.from("case_appeals").select("*").eq("guild_id", data.guildId);
     if (data.status !== "all") query = query.eq("status", data.status);
     const { data: rows } = await query.order("created_at", { ascending: false }).limit(100);
-    return { appeals: rows ?? [] };
+    return { appeals: (rows ?? []) as AppealRow[] };
   });
 
 export const resolveAppeal = createServerFn({ method: "POST" })

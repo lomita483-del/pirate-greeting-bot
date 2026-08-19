@@ -79,7 +79,7 @@ export const listWelcomeMessages = createServerFn({ method: "GET" })
       .select("*")
       .eq("guild_id", data.guildId)
       .order("position");
-    return (rows ?? []).map(rowToMessage);
+    return ((rows ?? []) as unknown[]).map(rowToMessage);
   });
 
 export const saveWelcomeMessage = createServerFn({ method: "POST" })

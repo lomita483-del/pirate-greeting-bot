@@ -19,6 +19,22 @@ async function authorize(guildId: string) {
   return { session, guild, supabaseAdmin: looseAdmin };
 }
 
+export type ReportRow = {
+  id: string;
+  guild_id: string;
+  reporter_id: string;
+  reporter_name: string | null;
+  reported_user_id: string;
+  reported_user_name: string | null;
+  channel_id: string | null;
+  message_id: string | null;
+  reason: string;
+  status: string;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+};
+
 export const getReports = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) =>
     z
@@ -33,7 +49,7 @@ export const getReports = createServerFn({ method: "GET" })
     let query = supabaseAdmin.from("user_reports").select("*").eq("guild_id", data.guildId);
     if (data.status !== "all") query = query.eq("status", data.status);
     const { data: rows } = await query.order("created_at", { ascending: false }).limit(100);
-    return { reports: rows ?? [] };
+    return { reports: (rows ?? []) as ReportRow[] };
   });
 
 export const resolveReport = createServerFn({ method: "POST" })
