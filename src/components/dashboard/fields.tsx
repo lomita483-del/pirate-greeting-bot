@@ -1,4 +1,7 @@
-import type { ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
+import { ImageUp, Loader2 } from "lucide-react";
+import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
@@ -10,8 +13,74 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { uploadDashboardImage } from "@/lib/image-upload.functions";
 
 export type Option = { id: string; name: string };
+
+export function ImageUrlField({
+  guildId,
+  value,
+  onChange,
+  placeholder = "https://example.com/image.png",
+}: {
+  guildId: string;
+  value: string | null | undefined;
+  onChange: (value: string | null) => void;
+  placeholder?: string;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const upload = useServerFn(uploadDashboardImage);
+
+  async function uploadFile(file: File | undefined) {
+    if (!file) return;
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.set("guildId", guildId);
+      form.set("file", file);
+      const result = await upload({ data: form });
+      onChange(result.url);
+      toast.success("Image uploaded");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not upload that image.");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      <Input
+        type="url"
+        placeholder={placeholder}
+        value={value ?? ""}
+        onChange={(event) => onChange(event.target.value || null)}
+      />
+      <input
+        ref={inputRef}
+        className="sr-only"
+        type="file"
+        accept="image/*"
+        onChange={(event) => void uploadFile(event.target.files?.[0])}
+      />
+      <Button
+        type="button"
+        variant="outline"
+        size="icon"
+        title="Upload image"
+        aria-label="Upload image"
+        disabled={uploading}
+        onClick={() => inputRef.current?.click()}
+      >
+        {uploading ? <Loader2 className="animate-spin" /> : <ImageUp />}
+      </Button>
+    </div>
+  );
+}
 
 export function Field({
   label,
