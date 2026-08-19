@@ -16,7 +16,7 @@ import {
   type WelcomeEmbedShape,
   type WelcomeMessage,
 } from "@/lib/welcome-messages.functions";
-import { SectionHeader } from "./fields";
+import { ImageUrlField, SectionHeader } from "./fields";
 
 const VARIABLES: Array<[string, string]> = [
   ["{user}", "Mentions the member (@Name)"],
@@ -88,7 +88,7 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
 
   function setField(index: number, patch: Partial<{ name: string; value: string; inline: boolean }>) {
     const fields = [...(embed.fields ?? [])];
-    fields[index] = { ...fields[index], ...patch };
+    fields[index] = { name: "", value: "", ...fields[index], ...patch };
     setEmbed({ ...embed, fields });
   }
 
@@ -203,11 +203,14 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
                     onChange={(e) => setEmbed({ ...embed, color: e.target.value.replace("#", "") })}
                   />
                 </div>
-                <Field
-                  label="Image URL"
-                  value={embed.imageUrl}
-                  onChange={(v) => setEmbed({ ...embed, imageUrl: v })}
-                />
+                <div>
+                  <label className="text-xs text-muted-foreground">Image</label>
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={embed.imageUrl}
+                    onChange={(value) => setEmbed({ ...embed, imageUrl: value ?? undefined })}
+                  />
+                </div>
               </div>
               <label className="flex items-center gap-2 text-xs text-muted-foreground">
                 <input
@@ -323,7 +326,7 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
               disabled={saveMutation.isPending}
               onClick={() =>
                 saveMutation.mutate({
-                  id: editingId === "new" ? undefined : editingId,
+                  ...(editingId === "new" ? {} : { id: editingId }),
                   position: editingId === "new" ? messages.length : messages.findIndex((m) => m.id === editingId),
                   content,
                   embed: hasEmbedContent(embed) ? embed : undefined,

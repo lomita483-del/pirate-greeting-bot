@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import {
@@ -74,6 +74,27 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
     queryKey: ["google-accounts", guildId],
     queryFn: () => listGoogleAccounts({ data: { guildId } }),
   });
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    const error = params.get("error");
+    if (connected) {
+      toast.success(`${connected} connected to Google Calendar.`);
+      void queryClient.invalidateQueries({ queryKey: ["google-accounts", guildId] });
+    } else if (error) {
+      const messages: Record<string, string> = {
+        signed_out: "Your Discord session expired. Sign in again, then reconnect Google.",
+        no_access: "You no longer have permission to manage this server.",
+        no_refresh_token: "Google did not provide offline access. Remove AHOY from your Google account permissions and reconnect.",
+        storage_failed: "Google connected, but AHOY could not save the account. Please try again.",
+        signin_failed: "Google sign-in could not be completed. Please try again.",
+        invalid_state: "The Google sign-in request expired. Please start again.",
+      };
+      toast.error(messages[error] ?? "Google sign-in could not be completed.");
+    }
+    if (connected || error) window.history.replaceState({}, "", window.location.pathname);
+  }, [guildId, queryClient]);
 
   const calendarsQuery = useQuery({
     queryKey: ["google-calendars", guildId, selectedAccountId],

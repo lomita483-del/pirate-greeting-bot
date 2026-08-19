@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-import { Field, MultiPicker, PickerSelect, SectionHeader, ToggleRow } from "./fields";
+import { Field, ImageUrlField, MultiPicker, PickerSelect, SectionHeader, ToggleRow } from "./fields";
 import { TicketPanelPublisher } from "./ticket-panel-publisher";
 
 import { SaveBar } from "./save-bar";
@@ -329,10 +329,10 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
             label="Banner image URL"
             hint="Optional image shown at the bottom of the welcome embed. Ignored when a dynamic image is enabled below."
           >
-            <Input
-              placeholder="https://example.com/banner.png"
-              value={draft.embed_image_url ?? ""}
-              onChange={(e) => set("embed_image_url", e.target.value.trim() || null)}
+            <ImageUrlField
+              guildId={guildId}
+              value={draft.embed_image_url}
+              onChange={(value) => set("embed_image_url", value)}
             />
           </Field>
         </CardContent>
@@ -368,10 +368,11 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
             label="Background image URL"
             hint="Optional — a photo/banner to use as the card's backdrop instead of the default gradient."
           >
-            <Input
+            <ImageUrlField
+              guildId={guildId}
+              value={draft.dynamic_image_background_url}
+              onChange={(value) => set("dynamic_image_background_url", value)}
               placeholder="https://example.com/backdrop.png"
-              value={draft.dynamic_image_background_url ?? ""}
-              onChange={(e) => set("dynamic_image_background_url", e.target.value.trim() || null)}
             />
           </Field>
           {draft.dynamic_image_enabled && (
