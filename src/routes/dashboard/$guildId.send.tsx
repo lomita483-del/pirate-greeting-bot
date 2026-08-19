@@ -207,7 +207,10 @@ function SendPage({
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Author name" value={embed.authorName} onChange={(v) => setEmbed({ ...embed, authorName: v })} />
                 <Field label="Author URL" value={embed.authorUrl} onChange={(v) => setEmbed({ ...embed, authorUrl: v })} />
-                <Field label="Author icon URL" value={embed.authorIconUrl} onChange={(v) => setEmbed({ ...embed, authorIconUrl: v })} />
+                <div>
+                  <label className="text-xs text-muted-foreground">Author icon</label>
+                  <ImageUrlField guildId={guildId} value={embed.authorIconUrl} onChange={(value) => setEmbed({ ...embed, authorIconUrl: value ?? undefined })} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -223,7 +226,10 @@ function SendPage({
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Footer text" value={embed.footerText} onChange={(v) => setEmbed({ ...embed, footerText: v })} />
-                <Field label="Footer icon URL" value={embed.footerIconUrl} onChange={(v) => setEmbed({ ...embed, footerIconUrl: v })} />
+                <div>
+                  <label className="text-xs text-muted-foreground">Footer icon</label>
+                  <ImageUrlField guildId={guildId} value={embed.footerIconUrl} onChange={(value) => setEmbed({ ...embed, footerIconUrl: value ?? undefined })} />
+                </div>
               </div>
 
               <label className="flex items-center gap-2 text-sm">
