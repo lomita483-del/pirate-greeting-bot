@@ -4,6 +4,7 @@ import { Send, Save, Trash2, Plus, X } from "lucide-react";
 import { useState } from "react";
 
 import { WithConfig } from "@/components/dashboard/module-page";
+import { ImageUrlField } from "@/components/dashboard/fields";
 import {
   listEmbedTemplates,
   saveEmbedTemplate,
@@ -28,6 +29,12 @@ type RoleOption = { id: string; name: string };
 type ChannelOption = { id: string; name: string; type?: string };
 
 const emptyEmbed: EmbedShape = { fields: [] };
+const builtInTemplates: Array<{ name: string; embed: EmbedShape }> = [
+  { name: "Announcement", embed: { title: "Important announcement", description: "Add your announcement here.", color: "D4AF37", fields: [] } },
+  { name: "Server update", embed: { title: "Server update", description: "Share what changed with your community.", color: "3498DB", fields: [] } },
+  { name: "Event", embed: { title: "Upcoming event", description: "Add the date, time, and event details.", color: "2ECC71", fields: [] } },
+  { name: "Alert", embed: { title: "Attention", description: "Add the important information here.", color: "E74C3C", fields: [] } },
+];
 
 function SendPage({
   guildId,
@@ -204,8 +211,14 @@ function SendPage({
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Image URL" value={embed.imageUrl} onChange={(v) => setEmbed({ ...embed, imageUrl: v })} />
-                <Field label="Thumbnail URL" value={embed.thumbnailUrl} onChange={(v) => setEmbed({ ...embed, thumbnailUrl: v })} />
+                <div>
+                  <label className="text-xs text-muted-foreground">Image</label>
+                  <ImageUrlField guildId={guildId} value={embed.imageUrl} onChange={(value) => setEmbed({ ...embed, imageUrl: value ?? undefined })} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground">Thumbnail</label>
+                  <ImageUrlField guildId={guildId} value={embed.thumbnailUrl} onChange={(value) => setEmbed({ ...embed, thumbnailUrl: value ?? undefined })} />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -289,6 +302,21 @@ function SendPage({
           {/* Templates */}
           <div className="rounded-lg border p-4">
             <h2 className="font-semibold">Templates</h2>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {builtInTemplates.map((template) => (
+                <button
+                  key={template.name}
+                  type="button"
+                  className="rounded-md border px-3 py-1.5 text-xs hover:bg-secondary"
+                  onClick={() => {
+                    setEmbed(template.embed);
+                    setTemplateName(template.name);
+                  }}
+                >
+                  {template.name}
+                </button>
+              ))}
+            </div>
             <div className="mt-2 flex flex-wrap gap-2">
               {(templatesQuery.data ?? []).map((t) => (
                 <span key={t.id} className="flex items-center gap-1 rounded-full border px-3 py-1 text-xs">
