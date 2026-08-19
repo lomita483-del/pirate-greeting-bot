@@ -87,15 +87,21 @@ class SendCommands(commands.Cog):
     @app_commands.command(name="send", description="Send a message to a channel as AHOY.")
     @app_commands.describe(
         channel="Channel to send the message to",
-        message="Plain text content (optional if you use a saved embed template)",
+        message_title="Title shown at the top of the embed",
+        message_content="Message text or embed description",
         mention_role="Role to ping alongside the message",
-        mention_everyone="Ping @everyone alongside the message",
-        embed_template="Name of an embed template built on the website (overrides the fields below)",
-        embed_title="Optional embed title",
-        embed_description="Optional embed description",
-        embed_color="Optional embed color, e.g. #5865F2",
-        embed_image_url="Optional embed image URL",
-        embed_footer="Optional embed footer text",
+        embed="Send the title and content as a rich embed",
+        embed_color="Color used when embed is enabled",
+    )
+    @app_commands.choices(
+        embed_color=[
+            app_commands.Choice(name="AHOY Gold", value="D4AF37"),
+            app_commands.Choice(name="Discord Blurple", value="5865F2"),
+            app_commands.Choice(name="Ocean Blue", value="3498DB"),
+            app_commands.Choice(name="Emerald Green", value="2ECC71"),
+            app_commands.Choice(name="Sunset Orange", value="E67E22"),
+            app_commands.Choice(name="Signal Red", value="E74C3C"),
+        ]
     )
     @app_commands.default_permissions(manage_messages=True)
     @app_commands.guild_only()
@@ -103,60 +109,44 @@ class SendCommands(commands.Cog):
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel,
-        message: str | None = None,
+        message_content: str,
+        message_title: str | None = None,
         mention_role: discord.Role | None = None,
-        mention_everyone: bool = False,
-        embed_template: str | None = None,
-        embed_title: str | None = None,
-        embed_description: str | None = None,
-        embed_color: str | None = None,
-        embed_image_url: str | None = None,
-        embed_footer: str | None = None,
+        embed: bool = False,
+        embed_color: app_commands.Choice[str] | None = None,
     ) -> None:
         guild = interaction.guild
         assert guild is not None
 
-        embed: discord.Embed | None = None
-        if embed_template:
-            template = await self.bot.repo.get_embed_template(  # type: ignore[attr-defined]
-                str(guild.id), embed_template
-            )
-            if not template:
-                raise ActionRefused(f"No saved embed template named `{embed_template}`.")
-            embed = _build_embed(template)
-        elif embed_title or embed_description:
-            embed = _build_embed(
+        rich_embed: discord.Embed | None = None
+        if embed:
+            rich_embed = _build_embed(
                 {
-                    "title": embed_title,
-                    "description": embed_description,
-                    "color": embed_color,
-                    "image_url": embed_image_url,
-                    "footer_text": embed_footer,
+                    "title": message_title,
+                    "description": message_content,
+                    "color": embed_color.value if embed_color else "D4AF37",
                 }
             )
-
-        if not message and embed is None:
-            raise ActionRefused("Provide a message, an embed template, or embed title/description.")
 
         perms = channel.permissions_for(guild.me)
         if not perms.send_messages:
             raise ActionRefused(f"AHOY can't send messages in {channel.mention}.")
 
         content_parts = []
-        if mention_everyone:
-            content_parts.append("@everyone")
-        elif mention_role:
+        if mention_role:
             content_parts.append(mention_role.mention)
-        if message:
-            content_parts.append(message)
+        if not embed:
+            if message_title:
+                content_parts.append(f"**{message_title}**")
+            content_parts.append(message_content)
         content = " ".join(content_parts) if content_parts else None
 
         allowed_mentions = discord.AllowedMentions(
-            everyone=mention_everyone, roles=bool(mention_role), users=True
+            everyone=False, roles=bool(mention_role), users=True
         )
 
         try:
-            await channel.send(content=content, embed=embed, allowed_mentions=allowed_mentions)
+            await channel.send(content=content, embed=rich_embed, allowed_mentions=allowed_mentions)
         except discord.HTTPException as exc:
             raise ActionRefused(f"Discord rejected that message: {exc}") from exc
 
@@ -172,18 +162,6 @@ class SendCommands(commands.Cog):
         await interaction.response.send_message(
             embed=embeds.success("Message sent", f"Posted to {channel.mention}."), ephemeral=True
         )
-
-    @send.autocomplete("embed_template")
-    async def _autocomplete_template(
-        self, interaction: discord.Interaction, current: str
-    ) -> list[app_commands.Choice[str]]:
-        guild_id = str(interaction.guild_id)
-        try:
-            names = await self.bot.repo.list_embed_template_names(guild_id)  # type: ignore[attr-defined]
-        except Exception:
-            return []
-        current = (current or "").lower()
-        return [app_commands.Choice(name=n, value=n) for n in names if current in n.lower()][:25]
 
     # -- website-initiated sends (from the Discohook-style builder) --------
     @tasks.loop(seconds=10)

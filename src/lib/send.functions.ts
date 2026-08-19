@@ -21,18 +21,23 @@ const embedField = z.object({
   inline: z.boolean().optional(),
 });
 
+const optionalUrl = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().url().optional(),
+);
+
 const embedShape = z.object({
   title: z.string().max(256).optional(),
   description: z.string().max(4000).optional(),
-  url: z.string().url().optional().or(z.literal("")),
+  url: optionalUrl,
   color: z.string().max(7).optional(),
   authorName: z.string().max(256).optional(),
-  authorUrl: z.string().url().optional().or(z.literal("")),
-  authorIconUrl: z.string().url().optional().or(z.literal("")),
+  authorUrl: optionalUrl,
+  authorIconUrl: optionalUrl,
   footerText: z.string().max(2048).optional(),
-  footerIconUrl: z.string().url().optional().or(z.literal("")),
-  imageUrl: z.string().url().optional().or(z.literal("")),
-  thumbnailUrl: z.string().url().optional().or(z.literal("")),
+  footerIconUrl: optionalUrl,
+  imageUrl: optionalUrl,
+  thumbnailUrl: optionalUrl,
   timestamp: z.boolean().optional(),
   fields: z.array(embedField).max(25).optional(),
 });
@@ -46,7 +51,9 @@ export type EmbedTemplate = EmbedShape & { id: string; name: string };
 /* ---------------------------------------------------------------- */
 
 export const listEmbedTemplates = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
     const { data: rows } = await supabaseAdmin
@@ -83,7 +90,10 @@ export const saveEmbedTemplate = createServerFn({ method: "POST" })
       )
       .select("*")
       .maybeSingle();
-    if (error || !row) throw new Error("Could not save that template.");
+    if (error || !row) {
+      console.error("Embed template save failed", error);
+      throw new Error(`Could not save that template${error?.message ? `: ${error.message}` : "."}`);
+    }
     return rowToTemplate(row);
   });
 
@@ -93,7 +103,11 @@ export const deleteEmbedTemplate = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    await supabaseAdmin.from("embed_templates").delete().eq("id", data.id).eq("guild_id", data.guildId);
+    await supabaseAdmin
+      .from("embed_templates")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
     return { ok: true };
   });
 
@@ -135,7 +149,6 @@ export const postTicketPanel = createServerFn({ method: "POST" })
 /* Send                                                               */
 /* ---------------------------------------------------------------- */
 
-
 export const sendMessage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
@@ -143,7 +156,10 @@ export const sendMessage = createServerFn({ method: "POST" })
         guildId: z.string().regex(/^\d{5,25}$/),
         channelId: z.string().regex(/^\d{5,25}$/),
         content: z.string().max(2000).optional(),
-        mentionRoleId: z.string().regex(/^\d{5,25}$/).optional(),
+        mentionRoleId: z
+          .string()
+          .regex(/^\d{5,25}$/)
+          .optional(),
         mentionEveryone: z.boolean().optional(),
         embed: embedShape.optional(),
       })
@@ -175,7 +191,10 @@ export const sendMessage = createServerFn({ method: "POST" })
       requested_by: session.userId,
       status: "pending",
     });
-    if (error) throw new Error("Could not queue that message.");
+    if (error) {
+      console.error("Message queue insert failed", error);
+      throw new Error(`Could not queue that message${error.message ? `: ${error.message}` : "."}`);
+    }
     return { ok: true };
   });
 

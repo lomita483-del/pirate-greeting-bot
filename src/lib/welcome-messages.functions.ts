@@ -8,18 +8,23 @@ const embedField = z.object({
   inline: z.boolean().optional(),
 });
 
+const optionalUrl = z.preprocess(
+  (value) => (typeof value === "string" && value.trim() === "" ? undefined : value),
+  z.string().url().optional(),
+);
+
 const embedShape = z.object({
   title: z.string().max(256).optional(),
   description: z.string().max(4000).optional(),
-  url: z.string().url().optional().or(z.literal("")),
+  url: optionalUrl,
   color: z.string().max(7).optional(),
   authorName: z.string().max(256).optional(),
-  authorUrl: z.string().url().optional().or(z.literal("")),
-  authorIconUrl: z.string().url().optional().or(z.literal("")),
+  authorUrl: optionalUrl,
+  authorIconUrl: optionalUrl,
   footerText: z.string().max(2048).optional(),
-  footerIconUrl: z.string().url().optional().or(z.literal("")),
-  imageUrl: z.string().url().optional().or(z.literal("")),
-  thumbnailUrl: z.string().url().optional().or(z.literal("")),
+  footerIconUrl: optionalUrl,
+  imageUrl: optionalUrl,
+  thumbnailUrl: optionalUrl,
   useMemberAvatarAsThumbnail: z.boolean().optional(),
   timestamp: z.boolean().optional(),
   fields: z.array(embedField).max(25).optional(),
@@ -60,7 +65,9 @@ function rowToMessage(row: unknown): WelcomeMessage {
 }
 
 export const listWelcomeMessages = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) => z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data))
+  .inputValidator((data: unknown) =>
+    z.object({ guildId: z.string().regex(/^\d{5,25}$/) }).parse(data),
+  )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
     const { data: rows } = await supabaseAdmin
@@ -116,7 +123,7 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
 
     if (error || !row) {
       console.error("Welcome message save failed", error);
-      throw new Error("Could not save that message.");
+      throw new Error(`Could not save that message${error?.message ? `: ${error.message}` : "."}`);
     }
     return rowToMessage(row);
   });
