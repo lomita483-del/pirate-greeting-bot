@@ -14,7 +14,11 @@ async function authorizeSelf() {
     throw new Error("Your access to AHOY has been revoked.");
   }
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return { session, supabaseAdmin };
+  const looseAdmin = supabaseAdmin as unknown as {
+    from: (table: string) => any;
+    rpc: (fn: string, args?: any) => any;
+  };
+  return { session, supabaseAdmin: looseAdmin };
 }
 
 async function authorizeManager(guildId: string) {
@@ -27,7 +31,11 @@ async function authorizeManager(guildId: string) {
   }
   await assertGuildAccess(session, guildId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return { session, supabaseAdmin };
+  const looseAdmin = supabaseAdmin as unknown as {
+    from: (table: string) => any;
+    rpc: (fn: string, args?: any) => any;
+  };
+  return { session, supabaseAdmin: looseAdmin };
 }
 
 /** The signed-in user's own cases in this guild that are eligible to appeal

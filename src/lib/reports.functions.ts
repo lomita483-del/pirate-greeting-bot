@@ -12,7 +12,11 @@ async function authorize(guildId: string) {
   }
   const guild = await assertGuildAccess(session, guildId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-  return { session, guild, supabaseAdmin };
+  const looseAdmin = supabaseAdmin as unknown as {
+    from: (table: string) => any;
+    rpc: (fn: string, args?: any) => any;
+  };
+  return { session, guild, supabaseAdmin: looseAdmin };
 }
 
 export const getReports = createServerFn({ method: "GET" })
