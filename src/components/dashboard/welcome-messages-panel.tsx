@@ -324,14 +324,14 @@ export function WelcomeMessagesPanel({ guildId }: { guildId: string }) {
 
             <Button
               disabled={saveMutation.isPending}
-              onClick={() =>
-                saveMutation.mutate({
+              onClick={() => {
+                const base = {
                   ...(editingId === "new" ? {} : { id: editingId }),
                   position: editingId === "new" ? messages.length : messages.findIndex((m) => m.id === editingId),
                   content,
-                  embed: hasEmbedContent(embed) ? embed : undefined,
-                })
-              }
+                };
+                saveMutation.mutate(hasEmbedContent(embed) ? { ...base, embed } : base);
+              }}
             >
               Save message
             </Button>
