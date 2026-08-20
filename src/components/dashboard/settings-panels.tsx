@@ -252,37 +252,17 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
 
 /* ---------------------------------------------------------------- */
 
-export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
-  const w = config.welcome as
-    | (NonNullable<typeof config.welcome> & {
-        dynamic_image_enabled?: boolean | null;
-        dynamic_image_title?: string | null;
-        dynamic_image_subtitle?: string | null;
-        dynamic_image_background_url?: string | null;
-      })
-    | null
-    | undefined;
-
+export function GoodbyePanel({ guildId, config, onSaved }: PanelProps) {
+  const w = config.welcome;
   const channels = config.structure.channels.filter((c) => c.kind === "text");
+
   const form = useDraft(
     guildId,
     "welcome",
     {
-      enabled: w?.enabled ?? false,
-      welcome_channel_id: w?.welcome_channel_id ?? null,
-      welcome_message: w?.welcome_message ?? "Ahoy {user}, welcome aboard {server}!",
       goodbye_enabled: w?.goodbye_enabled ?? false,
       goodbye_channel_id: w?.goodbye_channel_id ?? null,
       goodbye_message: w?.goodbye_message ?? "{user} has sailed off into the fog.",
-      auto_role_id: w?.auto_role_id ?? null,
-      use_embed: w?.use_embed ?? true,
-      embed_color: w?.embed_color ?? "#14b8a6",
-      embed_title: w?.embed_title ?? "Welcome aboard!",
-      embed_image_url: w?.embed_image_url ?? null,
-      dynamic_image_enabled: w?.dynamic_image_enabled ?? false,
-      dynamic_image_title: w?.dynamic_image_title ?? "Welcome {username}!",
-      dynamic_image_subtitle: w?.dynamic_image_subtitle ?? "to {server} · member #{membercount}",
-      dynamic_image_background_url: w?.dynamic_image_background_url ?? null,
     },
     onSaved,
   );
@@ -293,124 +273,9 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
       <Card className="glass border-0">
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
-            title="Welcome"
-            description="Greet new crew members. Placeholders: {user}, {username}, {server}, {membercount}."
+            title="Goodbye"
+            description="Send a farewell when someone leaves. Placeholders: {user}, {username}, {server}, {membercount}."
           />
-          <ToggleRow
-            label="Enable welcome messages"
-            checked={draft.enabled}
-            onChange={(v) => set("enabled", v)}
-          />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Welcome channel">
-              <PickerSelect
-                value={draft.welcome_channel_id}
-                options={channels}
-                onChange={(v) => set("welcome_channel_id", v)}
-                placeholder="Select a channel"
-              />
-            </Field>
-            <Field label="Auto role">
-              <PickerSelect
-                value={draft.auto_role_id}
-                options={config.structure.roles}
-                onChange={(v) => set("auto_role_id", v)}
-                placeholder="Select a role"
-              />
-            </Field>
-          </div>
-          <Field label="Welcome message">
-            <Textarea
-              rows={3}
-              value={draft.welcome_message}
-              onChange={(e) => set("welcome_message", e.target.value)}
-            />
-          </Field>
-          <ToggleRow
-            label="Send as embed"
-            checked={draft.use_embed}
-            onChange={(v) => set("use_embed", v)}
-          />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Embed title">
-              <Input
-                value={draft.embed_title}
-                onChange={(e) => set("embed_title", e.target.value)}
-              />
-            </Field>
-            <Field label="Embed colour">
-              <Input
-                type="color"
-                className="h-10 w-24 p-1"
-                value={draft.embed_color}
-                onChange={(e) => set("embed_color", e.target.value)}
-              />
-            </Field>
-          </div>
-          <Field
-            label="Banner image URL"
-            hint="Optional image shown at the bottom of the welcome embed. Ignored when a dynamic image is enabled below."
-          >
-            <ImageUrlField
-              guildId={guildId}
-              value={draft.embed_image_url}
-              onChange={(value) => set("embed_image_url", value)}
-            />
-          </Field>
-        </CardContent>
-      </Card>
-
-      <Card className="glass border-0">
-        <CardContent className="space-y-5 pt-6">
-          <SectionHeader
-            title="Dynamic image"
-            description="Generate a banner card with the new member's avatar, a title and a subtitle — rendered fresh for every join. Placeholders: {user}, {username}, {server}, {membercount}."
-          />
-          <ToggleRow
-            label="Enable dynamic image"
-            description="Attaches a generated card to the welcome message instead of a static banner."
-            checked={draft.dynamic_image_enabled}
-            onChange={(v) => set("dynamic_image_enabled", v)}
-          />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Card title">
-              <Input
-                value={draft.dynamic_image_title}
-                onChange={(e) => set("dynamic_image_title", e.target.value)}
-              />
-            </Field>
-            <Field label="Card subtitle">
-              <Input
-                value={draft.dynamic_image_subtitle}
-                onChange={(e) => set("dynamic_image_subtitle", e.target.value)}
-              />
-            </Field>
-          </div>
-          <Field
-            label="Background image URL"
-            hint="Optional — a photo/banner to use as the card's backdrop instead of the default gradient."
-          >
-            <ImageUrlField
-              guildId={guildId}
-              value={draft.dynamic_image_background_url}
-              onChange={(value) => set("dynamic_image_background_url", value)}
-              placeholder="https://example.com/backdrop.png"
-            />
-          </Field>
-          {draft.dynamic_image_enabled && (
-            <div className="rounded-xl border border-dashed border-border/70 p-4 text-center text-sm text-muted-foreground">
-              A live preview isn't rendered here since the card is generated by the bot with Pillow
-              — try <code className="rounded bg-secondary/50 px-1.5 py-0.5">/profile</code> style
-              rendering by having a member join a test server, or check{" "}
-              <code className="rounded bg-secondary/50 px-1.5 py-0.5">#welcome</code> after saving.
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="glass border-0">
-        <CardContent className="space-y-5 pt-6">
-          <SectionHeader title="Goodbye" description="Send a farewell when someone leaves." />
           <ToggleRow
             label="Enable goodbye messages"
             checked={draft.goodbye_enabled}
@@ -438,6 +303,7 @@ export function WelcomePanel({ guildId, config, onSaved }: PanelProps) {
     </div>
   );
 }
+
 
 /* ---------------------------------------------------------------- */
 /* Logging — granular, per-event-type channel routing               */
