@@ -38,6 +38,8 @@ export type WelcomeMessage = {
   content: string;
   embed: WelcomeEmbedShape | null;
   enabled: boolean;
+  useEmbed: boolean;
+  attachDynamicImage: boolean;
 };
 
 async function authorize(guildId: string) {
@@ -65,6 +67,8 @@ function rowToMessage(row: unknown): WelcomeMessage {
     content: (r["content"] as string) ?? "",
     embed: (r["embed"] as WelcomeEmbedShape | null) ?? null,
     enabled: r["enabled"] !== false,
+    useEmbed: r["use_embed"] !== false,
+    attachDynamicImage: r["attach_dynamic_image"] === true,
   };
 }
 
@@ -92,6 +96,8 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
         content: z.string().max(2000).optional(),
         embed: embedShape.optional(),
         enabled: z.boolean().default(true),
+        useEmbed: z.boolean().default(true),
+        attachDynamicImage: z.boolean().default(false),
       })
       .parse(data),
   )
@@ -112,6 +118,8 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
       content: data.content ?? "",
       embed: data.embed ?? null,
       enabled: data.enabled,
+      use_embed: data.useEmbed,
+      attach_dynamic_image: data.attachDynamicImage,
       updated_at: new Date().toISOString(),
     };
 
