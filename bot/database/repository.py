@@ -333,6 +333,50 @@ class Repository:
         )
 
     # -- calendar events / RSVPs ---------------------------------------
+    async def due_event_reminders(self, limit: int = 25) -> list[dict[str, Any]]:
+        """Pending event_reminders whose time has come, each with its
+        parent calendar_events row attached under 'event'."""
+        rows = await self.db.try_run(
+            lambda c: c.table("event_reminders")
+            .select("*")
+            .eq("status", "pending")
+            .lte("scheduled_for", _now())
+            .order("scheduled_for")
+            .limit(limit)
+            .execute()
+        )
+        reminders = getattr(rows, "data", None) or []
+        if not reminders:
+            return []
+
+        event_ids = list({r["event_id"] for r in reminders if r.get("event_id")})
+        events_rows = await self.db.try_run(
+            lambda c: c.table("calendar_events").select("*").in_("id", event_ids).execute()
+        )
+        events_by_id = {e["id"]: e for e in (getattr(events_rows, "data", None) or [])}
+        for reminder in reminders:
+            reminder["event"] = events_by_id.get(reminder.get("event_id"))
+        return reminders
+
+    async def mark_event_reminder_sent(self, reminder_id: str, message_id: Optional[str] = None) -> None:
+        await self.db.try_run(
+            lambda c: c.table("event_reminders")
+            .update({"status": "sent", "sent_at": _now(), "message_id": message_id})
+            .eq("id", reminder_id)
+            .execute()
+        )
+
+    async def mark_event_reminder_failed(self, reminder_id: str, error: str, attempts: int) -> None:
+        # Give up after 3 attempts so a permanently-broken channel doesn't
+        # spin forever; otherwise leave it pending so the next loop retries.
+        status = "failed" if attempts >= 3 else "pending"
+        await self.db.try_run(
+            lambda c: c.table("event_reminders")
+            .update({"status": status, "attempts": attempts, "error": error[:500]})
+            .eq("id", reminder_id)
+            .execute()
+        )
+
     async def calendar_event(self, event_id: str) -> Optional[dict[str, Any]]:
         rows = await self.db.try_run(
             lambda c: c.table("calendar_events")
