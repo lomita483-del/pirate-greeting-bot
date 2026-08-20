@@ -67,37 +67,33 @@ class MemberEvents(commands.Cog):
         if not isinstance(channel, discord.TextChannel):
             return
 
-        text = render_template(
-            config.get("welcome_message", "Welcome {user} to {server}! ⚓"),
-            user=member.mention,
-            username=member.name,
-            server=guild.name,
-            member_count=str(guild.member_count or 0),
-            membercount=str(guild.member_count or 0),
-        )
+        messages = await repo.list_welcome_messages(guild_id)
+        if not messages:
+            return
 
-        dynamic_image_file: discord.File | None = None
-        if config.get("dynamic_image_enabled"):
+        def _fill(template: str) -> str:
+            return render_template(
+                template,
+                user=member.mention,
+                username=member.display_name,
+                server=guild.name,
+                member_count=str(guild.member_count or 0),
+                membercount=str(guild.member_count or 0),
+            )
+
+        dynamic_image_bytes: bytes | None = None
+        needs_dynamic_image = config.get("dynamic_image_enabled") and any(
+            m.get("attach_dynamic_image") for m in messages
+        )
+        if needs_dynamic_image:
             try:
                 import asyncio
 
                 avatar_bytes = await member.display_avatar.replace(size=256, format="png").read()
                 bg_bytes = await _fetch_bytes(config.get("dynamic_image_background_url"))
-                title = render_template(
-                    config.get("dynamic_image_title") or "Welcome {username}!",
-                    user=member.mention,
-                    username=member.display_name,
-                    server=guild.name,
-                    member_count=str(guild.member_count or 0),
-                    membercount=str(guild.member_count or 0),
-                )
-                subtitle = render_template(
-                    config.get("dynamic_image_subtitle") or "to {server} · member #{membercount}",
-                    user=member.mention,
-                    username=member.display_name,
-                    server=guild.name,
-                    member_count=str(guild.member_count or 0),
-                    membercount=str(guild.member_count or 0),
+                title = _fill(config.get("dynamic_image_title") or "Welcome {username}!")
+                subtitle = _fill(
+                    config.get("dynamic_image_subtitle") or "to {server} · member #{membercount}"
                 )
                 buffer = await asyncio.to_thread(
                     render_welcome_card,
@@ -107,35 +103,61 @@ class MemberEvents(commands.Cog):
                     subtitle=subtitle,
                     background_bytes=bg_bytes,
                 )
-                dynamic_image_file = discord.File(buffer, filename="welcome-card.png")
+                dynamic_image_bytes = buffer.getvalue() if hasattr(buffer, "getvalue") else buffer
             except Exception as exc:  # pragma: no cover - Pillow/runtime issues
                 log.warning("Welcome dynamic image render failed in %s: %s", guild_id, exc)
-                dynamic_image_file = None
+                dynamic_image_bytes = None
 
-        try:
-            if config.get("use_embed", True):
-                color = config.get("embed_color") or "#1FB6A6"
-                embed = discord.Embed(
-                    title=config.get("embed_title") or "Ahoy, new crew member!",
-                    description=text,
-                    color=discord.Color.from_str(color),
-                )
-                embed.set_thumbnail(url=member.display_avatar.url)
-                if dynamic_image_file:
-                    embed.set_image(url="attachment://welcome-card.png")
-                elif config.get("embed_image_url"):
-                    embed.set_image(url=config["embed_image_url"])
-                embed.set_footer(text="AHOY ⚓")
-                if dynamic_image_file:
-                    await channel.send(embed=embed, file=dynamic_image_file)
+        for message in messages:
+            content = _fill(message.get("content") or "")
+            use_embed = message.get("use_embed", True)
+            attach_image = bool(message.get("attach_dynamic_image")) and dynamic_image_bytes is not None
+
+            image_file: discord.File | None = None
+            if attach_image and dynamic_image_bytes is not None:
+                import io
+
+                image_file = discord.File(io.BytesIO(dynamic_image_bytes), filename="welcome-card.png")
+
+            try:
+                if use_embed and message.get("embed"):
+                    e = message["embed"] or {}
+                    embed = discord.Embed(
+                        title=_fill(e.get("title")) if e.get("title") else None,
+                        description=_fill(e.get("description")) if e.get("description") else None,
+                        url=e.get("url") or None,
+                        color=discord.Color.from_str(f"#{e['color'].lstrip('#')}")
+                        if e.get("color")
+                        else discord.Color.from_str("#1FB6A6"),
+                    )
+                    if e.get("authorName"):
+                        embed.set_author(name=e["authorName"], url=e.get("authorUrl") or None, icon_url=e.get("authorIconUrl") or None)
+                    if e.get("footerText"):
+                        embed.set_footer(text=e["footerText"], icon_url=e.get("footerIconUrl") or None)
+                    if e.get("useMemberAvatarAsThumbnail"):
+                        embed.set_thumbnail(url=member.display_avatar.url)
+                    elif e.get("thumbnailUrl"):
+                        embed.set_thumbnail(url=e["thumbnailUrl"])
+                    if image_file:
+                        embed.set_image(url="attachment://welcome-card.png")
+                    elif e.get("imageUrl"):
+                        embed.set_image(url=e["imageUrl"])
+                    for field in (e.get("fields") or [])[:25]:
+                        embed.add_field(
+                            name=field.get("name") or "\u200b",
+                            value=field.get("value") or "\u200b",
+                            inline=bool(field.get("inline")),
+                        )
+                    if image_file:
+                        await channel.send(content=content or None, embed=embed, file=image_file)
+                    else:
+                        await channel.send(content=content or None, embed=embed)
+                elif image_file:
+                    await channel.send(content=content or None, file=image_file)
                 else:
-                    await channel.send(embed=embed)
-            elif dynamic_image_file:
-                await channel.send(content=text, file=dynamic_image_file)
-            else:
-                await channel.send(text)
-        except (discord.HTTPException, ValueError) as exc:
-            log.warning("Welcome message failed in %s: %s", guild_id, exc)
+                    await channel.send(content or "\u200b")
+            except (discord.HTTPException, ValueError) as exc:
+                log.warning("Welcome message failed in %s: %s", guild_id, exc)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
