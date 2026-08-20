@@ -1,4 +1,5 @@
-"""Background loops for scheduled announcements and live stat channels."""
+"""Background loops for scheduled announcements, live stat channels, the
+dashboard action queue, and calendar event reminder delivery."""
 
 from __future__ import annotations
 
@@ -22,11 +23,13 @@ class Scheduler(commands.Cog):
         self.run_announcements.start()
         self.refresh_stat_channels.start()
         self.run_dashboard_actions.start()
+        self.run_event_reminders.start()
 
     async def cog_unload(self) -> None:
         self.run_announcements.cancel()
         self.refresh_stat_channels.cancel()
         self.run_dashboard_actions.cancel()
+        self.run_event_reminders.cancel()
 
     def _ready(self) -> bool:
         repo = getattr(self.bot, "repo", None)
@@ -138,6 +141,90 @@ class Scheduler(commands.Cog):
             row["id"], value
         )
 
+    # -- calendar event reminders ------------------------------------------
+    @tasks.loop(seconds=30)
+    async def run_event_reminders(self) -> None:
+        if not self._ready():
+            return
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        try:
+            for reminder in await repo.due_event_reminders():
+                await self._deliver_reminder(reminder)
+        except Exception as exc:  # pragma: no cover - keep the loop alive
+            log.exception("Event reminder dispatch failed: %s", exc)
+
+    @run_event_reminders.before_loop
+    async def before_event_reminders(self) -> None:
+        await self.bot.wait_until_ready()
+
+    async def _deliver_reminder(self, reminder: dict) -> None:
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        reminder_id = reminder["id"]
+        attempts = int(reminder.get("attempts") or 0) + 1
+        event = reminder.get("event")
+
+        if not event:
+            await repo.mark_event_reminder_failed(reminder_id, "Parent event no longer exists.", 3)
+            return
+
+        channel_id = reminder.get("discord_channel_id") or event.get("discord_channel_id")
+        if not channel_id:
+            await repo.mark_event_reminder_failed(reminder_id, "No channel configured.", 3)
+            return
+
+        guild_id = reminder.get("guild_id") or event.get("guild_id")
+        guild = self.bot.get_guild(int(guild_id)) if guild_id else None
+        channel = guild.get_channel(int(channel_id)) if guild else None
+        if not isinstance(channel, discord.TextChannel):
+            await repo.mark_event_reminder_failed(
+                reminder_id, "Configured channel no longer exists.", attempts
+            )
+            return
+
+        perms = channel.permissions_for(channel.guild.me)
+        if not perms.send_messages or not perms.embed_links:
+            await repo.mark_event_reminder_failed(
+                reminder_id, "AHOY lacks permission to post there.", attempts
+            )
+            return
+
+        minutes = int(reminder.get("reminder_minutes") or 0)
+        when_text = "starting now" if minutes <= 0 else f"starting in {_format_minutes(minutes)}"
+
+        start = event.get("start_time")
+        start_ts = None
+        if start:
+            try:
+                start_ts = int(datetime.fromisoformat(str(start).replace("Z", "+00:00")).timestamp())
+            except ValueError:
+                start_ts = None
+
+        description_lines = [f"**{event.get('title') or 'Untitled event'}** — {when_text}"]
+        if start_ts:
+            description_lines.append(f"<t:{start_ts}:F> (<t:{start_ts}:R>)")
+        if event.get("location"):
+            description_lines.append(f"📍 {event['location']}")
+        if event.get("html_link"):
+            description_lines.append(f"[Open in calendar]({event['html_link']})")
+
+        embed = embeds.brand("📅 Event reminder", "\n".join(description_lines))
+
+        mention_text = ""
+        mention = reminder.get("mention") or "none"
+        role_mentions = reminder.get("role_mentions") or []
+        if mention == "everyone":
+            mention_text = "@everyone"
+        elif mention == "here":
+            mention_text = "@here"
+        elif role_mentions:
+            mention_text = " ".join(f"<@&{rid}>" for rid in role_mentions)
+
+        try:
+            sent = await channel.send(content=mention_text or None, embed=embed)
+            await repo.mark_event_reminder_sent(reminder_id, str(sent.id))
+        except discord.HTTPException as exc:
+            log.warning("Failed to deliver event reminder %s: %s", reminder_id, exc)
+            await repo.mark_event_reminder_failed(reminder_id, str(exc)[:400], attempts)
 
     # -- dashboard action queue -------------------------------------------
     @tasks.loop(seconds=20)
@@ -233,6 +320,16 @@ class Scheduler(commands.Cog):
                 moderator=None,
                 reason=f"{reason} (by {moderator})",
             )
+
+
+def _format_minutes(minutes: int) -> str:
+    if minutes % 1440 == 0:
+        days = minutes // 1440
+        return f"{days} day{'s' if days != 1 else ''}"
+    if minutes % 60 == 0:
+        hours = minutes // 60
+        return f"{hours} hour{'s' if hours != 1 else ''}"
+    return f"{minutes} minute{'s' if minutes != 1 else ''}"
 
 
 async def setup(bot: commands.Bot) -> None:
