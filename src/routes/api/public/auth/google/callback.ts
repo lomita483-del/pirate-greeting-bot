@@ -74,21 +74,51 @@ export const Route = createFileRoute("/api/public/auth/google/callback")({
               : {}),
           };
 
-          const { data: saved, error } = existing
-            ? await supabaseAdmin
+          let saved: { id: string } | null = null;
+          let error: { code?: string; message?: string; details?: string; hint?: string } | null = null;
+
+          if (existing) {
+            ({ data: saved, error } = await supabaseAdmin
+              .from("google_accounts")
+              .update(base)
+              .eq("id", existing.id)
+              .select("id")
+              .maybeSingle());
+          } else {
+            ({ data: saved, error } = await supabaseAdmin
+              .from("google_accounts")
+              .insert({
+                ...base,
+                encrypted_refresh_token: await encryptToken(token.refresh_token ?? ""),
+              })
+              .select("id")
+              .maybeSingle());
+
+            // Race condition: two requests (double-tap, retry after a
+            // slow response) can both pass the `existing` check above
+            // before either write commits. The loser hits the unique
+            // constraint on (guild_id, connected_by, google_email) — that's
+            // not a real failure, the account IS connected (by the other
+            // request), so fall back to updating that row instead of
+            // reporting storage_failed for what is actually a success.
+            if (error?.code === "23505") {
+              const { data: nowExisting } = await supabaseAdmin
                 .from("google_accounts")
-                .update(base)
-                .eq("id", existing.id)
                 .select("id")
-                .maybeSingle()
-            : await supabaseAdmin
-                .from("google_accounts")
-                .insert({
-                  ...base,
-                  encrypted_refresh_token: await encryptToken(token.refresh_token ?? ""),
-                })
-                .select("id")
+                .eq("guild_id", opened.guildId)
+                .eq("connected_by", session.userId)
+                .eq("google_email", email)
                 .maybeSingle();
+              if (nowExisting) {
+                ({ data: saved, error } = await supabaseAdmin
+                  .from("google_accounts")
+                  .update(base)
+                  .eq("id", nowExisting.id)
+                  .select("id")
+                  .maybeSingle());
+              }
+            }
+          }
 
           if (error || !saved) {
             console.error("google_accounts save failed", {
