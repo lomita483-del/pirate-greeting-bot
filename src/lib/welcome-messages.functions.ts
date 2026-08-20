@@ -39,7 +39,12 @@ export type WelcomeMessage = {
   embed: WelcomeEmbedShape | null;
   enabled: boolean;
   useEmbed: boolean;
-  attachDynamicImage: boolean;
+  channelId: string | null;
+  autoRoleId: string | null;
+  dynamicImageEnabled: boolean;
+  dynamicImageTitle: string;
+  dynamicImageSubtitle: string;
+  dynamicImageBackgroundUrl: string | null;
 };
 
 async function authorize(guildId: string) {
@@ -68,7 +73,13 @@ function rowToMessage(row: unknown): WelcomeMessage {
     embed: (r["embed"] as WelcomeEmbedShape | null) ?? null,
     enabled: r["enabled"] !== false,
     useEmbed: r["use_embed"] !== false,
-    attachDynamicImage: r["attach_dynamic_image"] === true,
+    channelId: (r["channel_id"] as string | null) ?? null,
+    autoRoleId: (r["auto_role_id"] as string | null) ?? null,
+    dynamicImageEnabled: r["dynamic_image_enabled"] === true,
+    dynamicImageTitle: (r["dynamic_image_title"] as string) ?? "Welcome {username}!",
+    dynamicImageSubtitle:
+      (r["dynamic_image_subtitle"] as string) ?? "to {server} · member #{membercount}",
+    dynamicImageBackgroundUrl: (r["dynamic_image_background_url"] as string | null) ?? null,
   };
 }
 
@@ -86,6 +97,8 @@ export const listWelcomeMessages = createServerFn({ method: "GET" })
     return ((rows ?? []) as unknown[]).map(rowToMessage);
   });
 
+const snowflake = z.string().regex(/^\d{5,25}$/).nullable().optional();
+
 export const saveWelcomeMessage = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
@@ -97,7 +110,12 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
         embed: embedShape.optional(),
         enabled: z.boolean().default(true),
         useEmbed: z.boolean().default(true),
-        attachDynamicImage: z.boolean().default(false),
+        channelId: snowflake,
+        autoRoleId: snowflake,
+        dynamicImageEnabled: z.boolean().default(false),
+        dynamicImageTitle: z.string().max(120).optional(),
+        dynamicImageSubtitle: z.string().max(160).optional(),
+        dynamicImageBackgroundUrl: z.string().url().nullable().optional(),
       })
       .parse(data),
   )
@@ -119,7 +137,12 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
       embed: data.embed ?? null,
       enabled: data.enabled,
       use_embed: data.useEmbed,
-      attach_dynamic_image: data.attachDynamicImage,
+      channel_id: data.channelId ?? null,
+      auto_role_id: data.autoRoleId ?? null,
+      dynamic_image_enabled: data.dynamicImageEnabled,
+      dynamic_image_title: data.dynamicImageTitle ?? "Welcome {username}!",
+      dynamic_image_subtitle: data.dynamicImageSubtitle ?? "to {server} · member #{membercount}",
+      dynamic_image_background_url: data.dynamicImageBackgroundUrl ?? null,
       updated_at: new Date().toISOString(),
     };
 
