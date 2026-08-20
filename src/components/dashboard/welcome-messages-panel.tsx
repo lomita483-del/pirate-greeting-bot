@@ -47,20 +47,22 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
   const [editingId, setEditingId] = useState<string | "new" | null>(null);
   const [content, setContent] = useState("");
   const [embed, setEmbed] = useState<WelcomeEmbedShape>(emptyEmbed);
+  const [enabled, setEnabled] = useState(true);
   const [useEmbed, setUseEmbed] = useState(true);
   const [attachDynamicImage, setAttachDynamicImage] = useState(false);
+  const [channelId, setChannelId] = useState<string | null>(null);
+  const [autoRoleId, setAutoRoleId] = useState<string | null>(null);
   const [showVariables, setShowVariables] = useState(false);
 
   const w = config.welcome;
   const channels = config.structure.channels.filter((c) => c.kind === "text");
 
-  const topForm = useDraft(
+  // Shared only: the dynamic-image *template* (one rendered look). Whether it's
+  // attached is a per-message choice below, not part of this card.
+  const imageForm = useDraft(
     guildId,
     "welcome",
     {
-      enabled: w?.enabled ?? false,
-      welcome_channel_id: w?.welcome_channel_id ?? null,
-      auto_role_id: w?.auto_role_id ?? null,
       dynamic_image_enabled: w?.dynamic_image_enabled ?? false,
       dynamic_image_title: w?.dynamic_image_title ?? "Welcome {username}!",
       dynamic_image_subtitle: w?.dynamic_image_subtitle ?? "to {server} · member #{membercount}",
@@ -68,7 +70,7 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
     },
     onSaved,
   );
-  const top = topForm.draft;
+  const img = imageForm.draft;
 
   const query = useQuery({
     queryKey: ["welcome-messages", guildId],
@@ -82,9 +84,12 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       position: number;
       content: string;
       embed?: WelcomeEmbedShape;
+      enabled: boolean;
       useEmbed: boolean;
       attachDynamicImage: boolean;
-    }) => save({ data: { guildId, enabled: true, ...input } }),
+      channelId: string | null;
+      autoRoleId: string | null;
+    }) => save({ data: { guildId, ...input } }),
     onSuccess: () => {
       toast.success("Message saved");
       queryClient.invalidateQueries({ queryKey: ["welcome-messages", guildId] });
@@ -109,14 +114,20 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       setEditingId(message.id);
       setContent(message.content);
       setEmbed(message.embed ?? emptyEmbed);
+      setEnabled(message.enabled);
       setUseEmbed(message.useEmbed);
       setAttachDynamicImage(message.attachDynamicImage);
+      setChannelId(message.channelId);
+      setAutoRoleId(message.autoRoleId);
     } else {
       setEditingId("new");
       setContent("");
       setEmbed(emptyEmbed);
+      setEnabled(true);
       setUseEmbed(true);
       setAttachDynamicImage(false);
+      setChannelId(null);
+      setAutoRoleId(null);
     }
   }
 
@@ -134,81 +145,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       <Card className="glass border-0">
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
-            title="Welcome"
-            description="Where welcome messages go, and who's greeted automatically."
-          />
-          <ToggleRow
-            label="Enable welcome messages"
-            checked={top.enabled}
-            onChange={(v) => topForm.set("enabled", v)}
-          />
-          <div className="grid gap-5 md:grid-cols-2">
-            <Field label="Welcome channel">
-              <PickerSelect
-                value={top.welcome_channel_id}
-                options={channels}
-                onChange={(v) => topForm.set("welcome_channel_id", v)}
-                placeholder="Select a channel"
-              />
-            </Field>
-            <Field label="Auto role" hint="Assigned to the member automatically on join.">
-              <PickerSelect
-                value={top.auto_role_id}
-                options={config.structure.roles}
-                onChange={(v) => topForm.set("auto_role_id", v)}
-                placeholder="Select a role"
-              />
-            </Field>
-          </div>
-
-          <div className="space-y-4 rounded-xl border border-border/70 p-4">
-            <ToggleRow
-              label="Dynamic welcome image"
-              description="Render a card with the member's avatar. Attach it to any of the messages below."
-              checked={top.dynamic_image_enabled}
-              onChange={(v) => topForm.set("dynamic_image_enabled", v)}
-            />
-            {top.dynamic_image_enabled && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Title" hint="Placeholders: {user}, {username}, {server}, {membercount}">
-                  <Input
-                    value={top.dynamic_image_title}
-                    onChange={(e) => topForm.set("dynamic_image_title", e.target.value)}
-                  />
-                </Field>
-                <Field label="Subtitle">
-                  <Input
-                    value={top.dynamic_image_subtitle}
-                    onChange={(e) => topForm.set("dynamic_image_subtitle", e.target.value)}
-                  />
-                </Field>
-                <div className="md:col-span-2">
-                  <Field label="Background image">
-                    <ImageUrlField
-                      guildId={guildId}
-                      value={top.dynamic_image_background_url}
-                      onChange={(v) => topForm.set("dynamic_image_background_url", v)}
-                    />
-                  </Field>
-                </div>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      <SaveBar
-        dirty={topForm.dirty}
-        saving={topForm.saving}
-        onSave={topForm.save}
-        onReset={topForm.reset}
-      />
-
-      <Card className="glass border-0">
-        <CardContent className="space-y-5 pt-6">
-          <SectionHeader
             title="Messages"
-            description="Every enabled message here is sent every time someone joins. Up to 3."
+            description="Every enabled message here is sent when someone joins — each with its own channel, role, and embed. Up to 3."
             badge={`${messages.length}/3`}
           />
 
@@ -222,8 +160,12 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
                   <p className="text-sm font-medium">
                     Message {index + 1}
                     <span className="ml-2 text-xs font-normal text-muted-foreground">
+                      {message.enabled ? "Enabled" : "Disabled"} ·{" "}
                       {message.useEmbed ? "Embed" : "Plain text"}
                       {message.attachDynamicImage ? " · Dynamic image" : ""}
+                      {message.channelId
+                        ? ` · #${channels.find((c) => c.id === message.channelId)?.name ?? "unknown"}`
+                        : " · No channel set"}
                     </span>
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
@@ -286,16 +228,41 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
               )}
 
               <ToggleRow
+                label="Enable this welcome message"
+                checked={enabled}
+                onChange={setEnabled}
+              />
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Welcome channel">
+                  <PickerSelect
+                    value={channelId}
+                    options={channels}
+                    onChange={setChannelId}
+                    placeholder="Select a channel"
+                  />
+                </Field>
+                <Field label="Auto role" hint="Assigned to the member when this message sends.">
+                  <PickerSelect
+                    value={autoRoleId}
+                    options={config.structure.roles}
+                    onChange={setAutoRoleId}
+                    placeholder="Select a role"
+                  />
+                </Field>
+              </div>
+
+              <ToggleRow
                 label="Send as embed"
                 description="Off sends the plain-text content only, ignoring the embed fields below."
                 checked={useEmbed}
                 onChange={setUseEmbed}
               />
 
-              {top.dynamic_image_enabled && (
+              {img.dynamic_image_enabled && (
                 <ToggleRow
                   label="Attach dynamic welcome image"
-                  description="Include the rendered avatar card with this message."
+                  description="Include the rendered avatar card (configured below) with this message."
                   checked={attachDynamicImage}
                   onChange={setAttachDynamicImage}
                 />
@@ -517,8 +484,11 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
                         ? messages.length
                         : messages.findIndex((m) => m.id === editingId),
                     content,
+                    enabled,
                     useEmbed,
                     attachDynamicImage,
+                    channelId,
+                    autoRoleId,
                   };
                   saveMutation.mutate(
                     useEmbed && hasEmbedContent(embed) ? { ...base, embed } : base,
@@ -531,6 +501,52 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
           )}
         </CardContent>
       </Card>
+
+      <Card className="glass border-0">
+        <CardContent className="space-y-5 pt-6">
+          <SectionHeader
+            title="Dynamic welcome image"
+            description="One rendered card design, using the member's avatar. Attach it to any message above."
+          />
+          <ToggleRow
+            label="Enable dynamic image"
+            checked={img.dynamic_image_enabled}
+            onChange={(v) => imageForm.set("dynamic_image_enabled", v)}
+          />
+          {img.dynamic_image_enabled && (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Title" hint="Placeholders: {user}, {username}, {server}, {membercount}">
+                <Input
+                  value={img.dynamic_image_title}
+                  onChange={(e) => imageForm.set("dynamic_image_title", e.target.value)}
+                />
+              </Field>
+              <Field label="Subtitle">
+                <Input
+                  value={img.dynamic_image_subtitle}
+                  onChange={(e) => imageForm.set("dynamic_image_subtitle", e.target.value)}
+                />
+              </Field>
+              <div className="md:col-span-2">
+                <Field label="Background image">
+                  <ImageUrlField
+                    guildId={guildId}
+                    value={img.dynamic_image_background_url}
+                    onChange={(v) => imageForm.set("dynamic_image_background_url", v)}
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <SaveBar
+        dirty={imageForm.dirty}
+        saving={imageForm.saving}
+        onSave={imageForm.save}
+        onReset={imageForm.reset}
+      />
     </div>
   );
 }
