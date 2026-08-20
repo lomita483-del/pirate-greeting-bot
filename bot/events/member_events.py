@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import io
+
 import discord
 from discord.ext import commands
 
@@ -37,7 +39,6 @@ class MemberEvents(commands.Cog):
         guild = member.guild
         guild_id = str(guild.id)
         repo = self.bot.repo  # type: ignore[attr-defined]
-        settings_service = self.bot.settings  # type: ignore[attr-defined]
 
         await repo.upsert_member(guild_id, member)
         join_embed = embeds.info(
@@ -46,26 +47,6 @@ class MemberEvents(commands.Cog):
         )
         await self.bot.logs.send(guild, "member_join", join_embed)  # type: ignore[attr-defined]
         await self.bot.logs.log(guild, "user_join", join_embed)  # type: ignore[attr-defined]
-
-        config = await settings_service.get(guild_id, "welcome_settings")
-        if not config or not config.get("enabled"):
-            return
-
-        role_id = config.get("auto_role_id")
-        if role_id and guild.me.guild_permissions.manage_roles:
-            role = guild.get_role(int(role_id))
-            if role and role < guild.me.top_role and not role.managed:
-                try:
-                    await member.add_roles(role, reason="AHOY auto-role")
-                except discord.HTTPException as exc:
-                    log.warning("Auto-role failed in %s: %s", guild_id, exc)
-
-        channel_id = config.get("welcome_channel_id")
-        if not channel_id:
-            return
-        channel = guild.get_channel(int(channel_id))
-        if not isinstance(channel, discord.TextChannel):
-            return
 
         messages = await repo.list_welcome_messages(guild_id)
         if not messages:
@@ -81,43 +62,59 @@ class MemberEvents(commands.Cog):
                 membercount=str(guild.member_count or 0),
             )
 
-        dynamic_image_bytes: bytes | None = None
-        needs_dynamic_image = config.get("dynamic_image_enabled") and any(
-            m.get("attach_dynamic_image") for m in messages
-        )
-        if needs_dynamic_image:
+        avatar_bytes: bytes | None = None
+        if any(m.get("dynamic_image_enabled") for m in messages):
             try:
-                import asyncio
-
                 avatar_bytes = await member.display_avatar.replace(size=256, format="png").read()
-                bg_bytes = await _fetch_bytes(config.get("dynamic_image_background_url"))
-                title = _fill(config.get("dynamic_image_title") or "Welcome {username}!")
-                subtitle = _fill(
-                    config.get("dynamic_image_subtitle") or "to {server} · member #{membercount}"
-                )
-                buffer = await asyncio.to_thread(
-                    render_welcome_card,
-                    username=member.display_name,
-                    avatar_bytes=avatar_bytes,
-                    title=title,
-                    subtitle=subtitle,
-                    background_bytes=bg_bytes,
-                )
-                dynamic_image_bytes = buffer.getvalue() if hasattr(buffer, "getvalue") else buffer
-            except Exception as exc:  # pragma: no cover - Pillow/runtime issues
-                log.warning("Welcome dynamic image render failed in %s: %s", guild_id, exc)
-                dynamic_image_bytes = None
+            except discord.HTTPException:
+                avatar_bytes = None
+
+        can_assign_roles = guild.me.guild_permissions.manage_roles
 
         for message in messages:
+            channel_id = message.get("channel_id")
+            if not channel_id:
+                continue
+            channel = guild.get_channel(int(channel_id))
+            if not isinstance(channel, discord.TextChannel):
+                continue
+
+            role_id = message.get("auto_role_id")
+            if role_id and can_assign_roles:
+                role = guild.get_role(int(role_id))
+                if role and role < guild.me.top_role and not role.managed:
+                    try:
+                        await member.add_roles(role, reason="AHOY auto-role")
+                    except discord.HTTPException as exc:
+                        log.warning("Auto-role failed in %s: %s", guild_id, exc)
+
             content = _fill(message.get("content") or "")
             use_embed = message.get("use_embed", True)
-            attach_image = bool(message.get("attach_dynamic_image")) and dynamic_image_bytes is not None
 
             image_file: discord.File | None = None
-            if attach_image and dynamic_image_bytes is not None:
-                import io
+            if message.get("dynamic_image_enabled") and avatar_bytes is not None:
+                try:
+                    import asyncio
 
-                image_file = discord.File(io.BytesIO(dynamic_image_bytes), filename="welcome-card.png")
+                    bg_bytes = await _fetch_bytes(message.get("dynamic_image_background_url"))
+                    title = _fill(message.get("dynamic_image_title") or "Welcome {username}!")
+                    subtitle = _fill(
+                        message.get("dynamic_image_subtitle")
+                        or "to {server} · member #{membercount}"
+                    )
+                    buffer = await asyncio.to_thread(
+                        render_welcome_card,
+                        username=member.display_name,
+                        avatar_bytes=avatar_bytes,
+                        title=title,
+                        subtitle=subtitle,
+                        background_bytes=bg_bytes,
+                    )
+                    data = buffer.getvalue() if hasattr(buffer, "getvalue") else buffer
+                    image_file = discord.File(io.BytesIO(data), filename="welcome-card.png")
+                except Exception as exc:  # pragma: no cover - Pillow/runtime issues
+                    log.warning("Welcome dynamic image render failed in %s: %s", guild_id, exc)
+                    image_file = None
 
             try:
                 if use_embed and message.get("embed"):
@@ -131,7 +128,11 @@ class MemberEvents(commands.Cog):
                         else discord.Color.from_str("#1FB6A6"),
                     )
                     if e.get("authorName"):
-                        embed.set_author(name=e["authorName"], url=e.get("authorUrl") or None, icon_url=e.get("authorIconUrl") or None)
+                        embed.set_author(
+                            name=e["authorName"],
+                            url=e.get("authorUrl") or None,
+                            icon_url=e.get("authorIconUrl") or None,
+                        )
                     if e.get("footerText"):
                         embed.set_footer(text=e["footerText"], icon_url=e.get("footerIconUrl") or None)
                     if e.get("useMemberAvatarAsThumbnail"):
@@ -171,7 +172,7 @@ class MemberEvents(commands.Cog):
         config = await self.bot.settings.get(guild_id, "welcome_settings")  # type: ignore[attr-defined]
         if not config or not config.get("goodbye_enabled"):
             return
-        channel_id = config.get("goodbye_channel_id") or config.get("welcome_channel_id")
+        channel_id = config.get("goodbye_channel_id")
         if not channel_id:
             return
         channel = guild.get_channel(int(channel_id))
@@ -191,7 +192,6 @@ class MemberEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
-        # Roles changed
         if before.roles != after.roles:
             added = [r for r in after.roles if r not in before.roles]
             removed = [r for r in before.roles if r not in after.roles]
@@ -216,7 +216,6 @@ class MemberEvents(commands.Cog):
                     embeds.info(f"Roles removed · {after}", ", ".join(r.name for r in removed)),
                 )
 
-        # Nickname changed
         if before.nick != after.nick:
             await self.bot.logs.log(  # type: ignore[attr-defined]
                 after.guild,
@@ -224,13 +223,11 @@ class MemberEvents(commands.Cog):
                 embeds.info(f"Nickname changed · {after}", f"**{before.nick or before.name}** → **{after.nick or after.name}**"),
             )
 
-        # Server-specific avatar changed
         if before.guild_avatar != after.guild_avatar:
             await self.bot.logs.log(  # type: ignore[attr-defined]
                 after.guild, "user_avatar_update", embeds.info(f"Avatar changed · {after}", "")
             )
 
-        # Timeout applied / removed
         before_until = before.timed_out_until
         after_until = after.timed_out_until
         if before_until != after_until:
