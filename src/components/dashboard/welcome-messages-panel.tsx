@@ -54,7 +54,7 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
   const [autoRoleId, setAutoRoleId] = useState<string | null>(null);
   const [showVariables, setShowVariables] = useState(false);
 
-  const w = config.welcome;
+  const w = config.welcome as (typeof config.welcome & Record<string, any>) | null;
   const channels = config.structure.channels.filter((c) => c.kind === "text");
 
   // Shared only: the dynamic-image *template* (one rendered look). Whether it's
