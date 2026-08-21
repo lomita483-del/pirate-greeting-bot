@@ -54,7 +54,7 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
   const [autoRoleId, setAutoRoleId] = useState<string | null>(null);
   const [showVariables, setShowVariables] = useState(false);
 
-  const w = config.welcome;
+  const w = config.welcome as (typeof config.welcome & Record<string, any>) | null;
   const channels = config.structure.channels.filter((c) => c.kind === "text");
 
   // Shared only: the dynamic-image *template* (one rendered look). Whether it's
@@ -63,10 +63,10 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
     guildId,
     "welcome",
     {
-      dynamic_image_enabled: w?.dynamic_image_enabled ?? false,
-      dynamic_image_title: w?.dynamic_image_title ?? "Welcome {username}!",
-      dynamic_image_subtitle: w?.dynamic_image_subtitle ?? "to {server} · member #{membercount}",
-      dynamic_image_background_url: w?.dynamic_image_background_url ?? null,
+      dynamic_image_enabled: w?.["dynamic_image_enabled"] ?? false,
+      dynamic_image_title: w?.["dynamic_image_title"] ?? "Welcome {username}!",
+      dynamic_image_subtitle: w?.["dynamic_image_subtitle"] ?? "to {server} · member #{membercount}",
+      dynamic_image_background_url: w?.["dynamic_image_background_url"] ?? null,
     },
     onSaved,
   );

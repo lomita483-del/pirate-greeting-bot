@@ -6645,6 +6645,453 @@ export const COMMAND_CATEGORIES: CommandCategory[] = [
         "desc": "Dashboard open \u2014 AHOY Dashboard."
       }
     ]
+  },
+  {
+    "slug": "xyz-general",
+    "title": "XYZ General",
+    "commands": [
+      {
+        "name": "xyz-config",
+        "sub": "config",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Open bot configuration (Administrator)."
+      },
+      {
+        "name": "xyz-disable",
+        "sub": "disable",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Disable a command (Administrator)."
+      },
+      {
+        "name": "xyz-enable",
+        "sub": "enable",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Enable a command (Administrator)."
+      },
+      {
+        "name": "xyz-info",
+        "sub": "info",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Display bot or server information (Everyone)."
+      },
+      {
+        "name": "xyz-list",
+        "sub": "list",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "List available commands (Everyone)."
+      },
+      {
+        "name": "xyz-permissions",
+        "sub": "permissions",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Inspect command permissions (Administrator)."
+      },
+      {
+        "name": "xyz-ping",
+        "sub": "ping",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Check bot health and latency (Everyone)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-moderation",
+    "title": "XYZ Moderation",
+    "commands": [
+      {
+        "name": "xyz-automoderation",
+        "sub": "automoderation",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Configure automatic moderation (Administrator)."
+      },
+      {
+        "name": "xyz-message-histories",
+        "sub": "message-histories",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Review authorized moderation history (Moderator)."
+      },
+      {
+        "name": "xyz-mute",
+        "sub": "mute",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Timeout a member (Moderator)."
+      },
+      {
+        "name": "xyz-nameban",
+        "sub": "nameban",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Act on a prohibited name (Moderator)."
+      },
+      {
+        "name": "xyz-namekick",
+        "sub": "namekick",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Kick for a prohibited name (Moderator)."
+      },
+      {
+        "name": "xyz-namemute",
+        "sub": "namemute",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Timeout for a prohibited name (Moderator)."
+      },
+      {
+        "name": "xyz-namewarn",
+        "sub": "namewarn",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Warn for a prohibited name (Moderator)."
+      },
+      {
+        "name": "xyz-prune",
+        "sub": "prune",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Remove recent messages (Moderator)."
+      },
+      {
+        "name": "xyz-purge",
+        "sub": "purge",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Advanced message deletion (Moderator)."
+      },
+      {
+        "name": "xyz-predefinedreasons",
+        "sub": "predefinedreasons",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Manage reason templates (Administrator)."
+      },
+      {
+        "name": "xyz-setproof",
+        "sub": "setproof",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Configure proof requirements (Administrator)."
+      },
+      {
+        "name": "xyz-setslowmode",
+        "sub": "setslowmode",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Configure channel slowmode (Moderator)."
+      },
+      {
+        "name": "xyz-timeban",
+        "sub": "timeban",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Temporarily ban a member (Moderator)."
+      },
+      {
+        "name": "xyz-timekick",
+        "sub": "timekick",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Schedule a member kick (Moderator)."
+      },
+      {
+        "name": "xyz-timemute",
+        "sub": "timemute",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Temporarily timeout a member (Moderator)."
+      },
+      {
+        "name": "xyz-timewarn",
+        "sub": "timewarn",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Create an expiring warning (Moderator)."
+      },
+      {
+        "name": "xyz-unban",
+        "sub": "unban",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Remove a server ban (Moderator)."
+      },
+      {
+        "name": "xyz-unmute",
+        "sub": "unmute",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Remove an active timeout (Moderator)."
+      },
+      {
+        "name": "xyz-unwarn",
+        "sub": "unwarn",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Revoke a warning (Moderator)."
+      },
+      {
+        "name": "xyz-usernotes",
+        "sub": "usernotes",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Manage private staff notes (Moderator)."
+      },
+      {
+        "name": "xyz-warn",
+        "sub": "warn",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Issue a warning (Moderator)."
+      },
+      {
+        "name": "xyz-warns",
+        "sub": "warns",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show warning history (Moderator)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-information",
+    "title": "XYZ Information",
+    "commands": [
+      {
+        "name": "xyz-avatarinfo",
+        "sub": "avatarinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show avatar metadata (Everyone)."
+      },
+      {
+        "name": "xyz-bannerinfo",
+        "sub": "bannerinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show user banner metadata (Everyone)."
+      },
+      {
+        "name": "xyz-channelinfo",
+        "sub": "channelinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show channel metadata (Everyone)."
+      },
+      {
+        "name": "xyz-emojiinfo",
+        "sub": "emojiinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show emoji metadata (Everyone)."
+      },
+      {
+        "name": "xyz-guildbannerinfo",
+        "sub": "guildbannerinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show server banner (Everyone)."
+      },
+      {
+        "name": "xyz-guildchannelcount",
+        "sub": "guildchannelcount",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show channel statistics (Everyone)."
+      },
+      {
+        "name": "xyz-guildiconinfo",
+        "sub": "guildiconinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show server icon (Everyone)."
+      },
+      {
+        "name": "xyz-guildinfo",
+        "sub": "guildinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show server information (Everyone)."
+      },
+      {
+        "name": "xyz-guildmembercount",
+        "sub": "guildmembercount",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show member counts (Everyone)."
+      },
+      {
+        "name": "xyz-guildsplashinfo",
+        "sub": "guildsplashinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show server splash (Everyone)."
+      },
+      {
+        "name": "xyz-roleinfo",
+        "sub": "roleinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show role metadata (Everyone)."
+      },
+      {
+        "name": "xyz-searchdocumentation",
+        "sub": "searchdocumentation",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Search bot documentation (Everyone)."
+      },
+      {
+        "name": "xyz-stickerinfo",
+        "sub": "stickerinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show sticker metadata (Everyone)."
+      },
+      {
+        "name": "xyz-stickerpackinfo",
+        "sub": "stickerpackinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show sticker pack metadata (Everyone)."
+      },
+      {
+        "name": "xyz-userinfo",
+        "sub": "userinfo",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Show user information (Everyone)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-interactions",
+    "title": "XYZ Interactions",
+    "commands": [
+      {
+        "name": "xyz-interactions",
+        "sub": "interactions",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Inspect interactive components (Administrator)."
+      },
+      {
+        "name": "xyz-transfer-slash-commands-to-cb",
+        "sub": "transfer-slash-commands-to-cb",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Migrate slash commands safely (Administrator)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-reports",
+    "title": "XYZ Reports",
+    "commands": [
+      {
+        "name": "xyz-report-blacklist",
+        "sub": "report-blacklist",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Manage report blacklist (Administrator)."
+      },
+      {
+        "name": "xyz-report-ignoreall",
+        "sub": "report-ignoreall",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Ignore configured reports (Administrator)."
+      },
+      {
+        "name": "xyz-report-sendmissing",
+        "sub": "report-sendmissing",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Retry undelivered reports (Moderator)."
+      },
+      {
+        "name": "xyz-report",
+        "sub": "report",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Create a private report (Everyone)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-appeals",
+    "title": "XYZ Appeals",
+    "commands": [
+      {
+        "name": "xyz-restore-appeal-messages",
+        "sub": "restore-appeal-messages",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Restore appeal messages (Moderator)."
+      },
+      {
+        "name": "xyz-send-to-appeal",
+        "sub": "send-to-appeal",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Send a case to appeals (Moderator)."
+      },
+      {
+        "name": "xyz-unblock-appeal-user",
+        "sub": "unblock-appeal-user",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Remove an appeal restriction (Moderator)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-tickets",
+    "title": "XYZ Tickets",
+    "commands": [
+      {
+        "name": "xyz-unlock",
+        "sub": "unlock",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Unlock a channel or ticket (Moderator)."
+      },
+      {
+        "name": "xyz-unlockall",
+        "sub": "unlockall",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Unlock a configured scope (Administrator)."
+      }
+    ]
+  },
+  {
+    "slug": "xyz-engagement",
+    "title": "XYZ Engagement",
+    "commands": [
+      {
+        "name": "xyz-reactionroles",
+        "sub": "reactionroles",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Manage role panels (Administrator)."
+      },
+      {
+        "name": "xyz-reactionrolesconfig",
+        "sub": "reactionrolesconfig",
+        "dedicated": false,
+        "kind": "action",
+        "desc": "Configure role panel options (Administrator)."
+      }
+    ]
   }
 ] as const satisfies CommandCategory[];
 
