@@ -63,10 +63,10 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
     guildId,
     "welcome",
     {
-      dynamic_image_enabled: w?.dynamic_image_enabled ?? false,
-      dynamic_image_title: w?.dynamic_image_title ?? "Welcome {username}!",
-      dynamic_image_subtitle: w?.dynamic_image_subtitle ?? "to {server} · member #{membercount}",
-      dynamic_image_background_url: w?.dynamic_image_background_url ?? null,
+      dynamic_image_enabled: w?.["dynamic_image_enabled"] ?? false,
+      dynamic_image_title: w?.["dynamic_image_title"] ?? "Welcome {username}!",
+      dynamic_image_subtitle: w?.["dynamic_image_subtitle"] ?? "to {server} · member #{membercount}",
+      dynamic_image_background_url: w?.["dynamic_image_background_url"] ?? null,
     },
     onSaved,
   );
