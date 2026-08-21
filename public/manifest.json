@@ -1,0 +1,25 @@
+{
+  "name": "AHOY Control Center",
+  "short_name": "AHOY",
+  "description": "Manage your AHOY Discord bot — moderation, logging, welcome messages, and more.",
+  "start_url": "/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
