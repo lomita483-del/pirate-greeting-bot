@@ -1,6 +1,19 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Activity, Bell, Filter, FileText, Loader2, Plus, Rss, ScrollText, Trash2 } from "lucide-react";
+import {
+  Activity,
+  Bell,
+  ChevronDown,
+  ChevronUp,
+  Filter,
+  FileText,
+  Loader2,
+  Plus,
+  Rss,
+  ScrollText,
+  Trash2,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -157,6 +170,11 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
   } | null>(null);
   const [feedDrafts, setFeedDrafts] = useState<Record<string, Record<string, unknown>>>({});
   const [filterDraft, setFilterDraft] = useState<FilterDraft | null>(null);
+  // Feed settings are dense and rarely touched — collapsed behind a button by default.
+  const [feedSettingsOpen, setFeedSettingsOpen] = useState(false);
+  // Manual "N units before" entry for the notifier editor's reminder offsets.
+  const [customValue, setCustomValue] = useState("");
+  const [customUnit, setCustomUnit] = useState<"minutes" | "hours" | "days">("minutes");
 
   const filterSave = useMutation({
     mutationFn: (draft: FilterDraft) => {
@@ -330,124 +348,157 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
       templateId: data.summary.templateId,
     };
 
+  const addCustomOffset = () => {
+    if (!notifier) return;
+    const n = Number(customValue);
+    if (!Number.isFinite(n) || n < 0) return;
+    const mult = customUnit === "days" ? 1440 : customUnit === "hours" ? 60 : 1;
+    const minutes = Math.min(20160, Math.round(n * mult));
+    setNotifier({
+      ...notifier,
+      offsets: notifier.offsets.includes(minutes) ? notifier.offsets : [...notifier.offsets, minutes],
+    });
+    setCustomValue("");
+  };
+
   return (
     <div className="space-y-6">
       {/* Feed settings ----------------------------------------------------- */}
       <Card className="glass border-0">
         <CardContent className="space-y-5 pt-6">
-          <SectionHeader
-            title="Event feed settings"
-            description="Per-feed sync behaviour: target channel, lookahead window, default voice-event duration and sync direction."
-            badge={`${data.feeds.length} feed(s)`}
-          />
-          {data.feeds.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Connect a calendar above and its feed settings appear here.
-            </p>
-          ) : (
-            data.feeds.map((feed) => {
-              const draft = { ...feed, ...(feedDrafts[feed.id] ?? {}) } as typeof feed;
-              const patch = (next: Partial<typeof feed>) =>
-                setFeedDrafts((prev) => ({
-                  ...prev,
-                  [feed.id]: { ...(prev[feed.id] ?? {}), ...next },
-                }));
-              return (
-                <div
-                  key={feed.id}
-                  className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4"
-                >
-                  <p className="flex items-center gap-2 text-sm font-semibold">
-                    <Rss className="h-4 w-4 text-primary" /> {feed.name}
-                  </p>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Target channel" hint="Where this feed's events are announced.">
-                      <PickerSelect
-                        value={draft.targetChannelId}
-                        options={channels}
-                        onChange={(v) => patch({ targetChannelId: v })}
-                        placeholder="Select a channel"
-                        emptyLabel="Use the server default"
-                      />
-                    </Field>
-                    <Field label="Calendar ID" hint="e.g. you@gmail.com — shown on event cards.">
-                      <Input
-                        value={draft.calendarId ?? ""}
-                        onChange={(e) => patch({ calendarId: e.target.value })}
-                        placeholder="you@gmail.com"
-                      />
-                    </Field>
-                    <Field label="Voice event duration (minutes)">
-                      <Input
-                        type="number"
-                        min={5}
-                        max={1440}
-                        value={draft.voiceDurationDefault}
-                        onChange={(e) => patch({ voiceDurationDefault: Number(e.target.value) })}
-                      />
-                    </Field>
-                    <Field label="Lookahead (days)" hint="How far ahead events are imported.">
-                      <Input
-                        type="number"
-                        min={1}
-                        max={365}
-                        value={draft.lookaheadDays}
-                        onChange={(e) => patch({ lookaheadDays: Number(e.target.value) })}
-                      />
-                    </Field>
-                    <Field label="Sync direction">
-                      <PickerSelect
-                        value={draft.syncDirection}
-                        options={[
-                          { id: "gcal_to_discord", name: "Calendar → Discord" },
-                          { id: "discord_to_gcal", name: "Discord → Calendar" },
-                          { id: "two_way", name: "Two-way" },
-                        ]}
-                        onChange={(v) => patch({ syncDirection: v ?? "gcal_to_discord" })}
-                        placeholder="Calendar → Discord"
-                        emptyLabel="Calendar → Discord"
-                      />
-                    </Field>
-                  </div>
-                  <Field
-                    label="Allowed categories"
-                    hint="Restrict this feed's automation to channels inside these categories."
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <SectionHeader
+              title="Event feed settings"
+              description="Per-feed sync behaviour: target channel, lookahead window, default voice-event duration and sync direction."
+              badge={`${data.feeds.length} feed(s)`}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              onClick={() => setFeedSettingsOpen((open) => !open)}
+            >
+              {feedSettingsOpen ? (
+                <>
+                  <ChevronUp className="h-3.5 w-3.5" /> Hide feed settings
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="h-3.5 w-3.5" /> Show feed settings
+                </>
+              )}
+            </Button>
+          </div>
+          {feedSettingsOpen ? (
+            data.feeds.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Connect a calendar above and its feed settings appear here.
+              </p>
+            ) : (
+              data.feeds.map((feed) => {
+                const draft = { ...feed, ...(feedDrafts[feed.id] ?? {}) } as typeof feed;
+                const patch = (next: Partial<typeof feed>) =>
+                  setFeedDrafts((prev) => ({
+                    ...prev,
+                    [feed.id]: { ...(prev[feed.id] ?? {}), ...next },
+                  }));
+                return (
+                  <div
+                    key={feed.id}
+                    className="space-y-4 rounded-2xl border border-border/40 bg-background/30 p-4"
                   >
-                    <MultiPicker
-                      values={draft.allowedCategoryIds}
-                      options={categories}
-                      onChange={(v) => patch({ allowedCategoryIds: v })}
-                      emptyLabel="This server has no categories."
+                    <p className="flex items-center gap-2 text-sm font-semibold">
+                      <Rss className="h-4 w-4 text-primary" /> {feed.name}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="Target channel" hint="Where this feed's events are announced.">
+                        <PickerSelect
+                          value={draft.targetChannelId}
+                          options={channels}
+                          onChange={(v) => patch({ targetChannelId: v })}
+                          placeholder="Select a channel"
+                          emptyLabel="Use the server default"
+                        />
+                      </Field>
+                      <Field label="Calendar ID" hint="e.g. you@gmail.com — shown on event cards.">
+                        <Input
+                          value={draft.calendarId ?? ""}
+                          onChange={(e) => patch({ calendarId: e.target.value })}
+                          placeholder="you@gmail.com"
+                        />
+                      </Field>
+                      <Field label="Voice event duration (minutes)">
+                        <Input
+                          type="number"
+                          min={5}
+                          max={1440}
+                          value={draft.voiceDurationDefault}
+                          onChange={(e) => patch({ voiceDurationDefault: Number(e.target.value) })}
+                        />
+                      </Field>
+                      <Field label="Lookahead (days)" hint="How far ahead events are imported.">
+                        <Input
+                          type="number"
+                          min={1}
+                          max={365}
+                          value={draft.lookaheadDays}
+                          onChange={(e) => patch({ lookaheadDays: Number(e.target.value) })}
+                        />
+                      </Field>
+                      <Field label="Sync direction">
+                        <PickerSelect
+                          value={draft.syncDirection}
+                          options={[
+                            { id: "gcal_to_discord", name: "Calendar → Discord" },
+                            { id: "discord_to_gcal", name: "Discord → Calendar" },
+                            { id: "two_way", name: "Two-way" },
+                          ]}
+                          onChange={(v) => patch({ syncDirection: v ?? "gcal_to_discord" })}
+                          placeholder="Calendar → Discord"
+                          emptyLabel="Calendar → Discord"
+                        />
+                      </Field>
+                    </div>
+                    <Field
+                      label="Allowed categories"
+                      hint="Restrict this feed's automation to channels inside these categories."
+                    >
+                      <MultiPicker
+                        values={draft.allowedCategoryIds}
+                        options={categories}
+                        onChange={(v) => patch({ allowedCategoryIds: v })}
+                        emptyLabel="This server has no categories."
+                      />
+                    </Field>
+                    <ToggleRow
+                      label="Create native Discord events"
+                      description="Mirror synced events as Discord scheduled events."
+                      checked={draft.createDiscordEvents}
+                      onChange={(v) => patch({ createDiscordEvents: v })}
                     />
-                  </Field>
-                  <ToggleRow
-                    label="Create native Discord events"
-                    description="Mirror synced events as Discord scheduled events."
-                    checked={draft.createDiscordEvents}
-                    onChange={(v) => patch({ createDiscordEvents: v })}
-                  />
-                  <Button
-                    size="sm"
-                    disabled={feedSave.isPending}
-                    onClick={() =>
-                      feedSave.mutate({
-                        sourceId: feed.id,
-                        targetChannelId: draft.targetChannelId,
-                        calendarId: draft.calendarId?.trim() || null,
-                        voiceDurationDefault: draft.voiceDurationDefault || 30,
-                        lookaheadDays: draft.lookaheadDays || 30,
-                        syncDirection: draft.syncDirection,
-                        allowedCategoryIds: draft.allowedCategoryIds,
-                        createDiscordEvents: draft.createDiscordEvents,
-                      })
-                    }
-                  >
-                    Save feed settings
-                  </Button>
-                </div>
-              );
-            })
-          )}
+                    <Button
+                      size="sm"
+                      disabled={feedSave.isPending}
+                      onClick={() =>
+                        feedSave.mutate({
+                          sourceId: feed.id,
+                          targetChannelId: draft.targetChannelId,
+                          calendarId: draft.calendarId?.trim() || null,
+                          voiceDurationDefault: draft.voiceDurationDefault || 30,
+                          lookaheadDays: draft.lookaheadDays || 30,
+                          syncDirection: draft.syncDirection,
+                          allowedCategoryIds: draft.allowedCategoryIds,
+                          createDiscordEvents: draft.createDiscordEvents,
+                        })
+                      }
+                    >
+                      Save feed settings
+                    </Button>
+                  </div>
+                );
+              })
+            )
+          ) : null}
         </CardContent>
       </Card>
 
@@ -602,6 +653,56 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                       {preset.label}
                     </label>
                   ))}
+                </div>
+                {/* Manual "N units before" entry — not limited to the presets above. */}
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Input
+                    className="w-24"
+                    type="number"
+                    min={0}
+                    placeholder="45"
+                    value={customValue}
+                    onChange={(e) => setCustomValue(e.target.value)}
+                  />
+                  <select
+                    className="h-9 rounded-md border border-border/50 bg-background px-2 text-sm"
+                    value={customUnit}
+                    onChange={(e) => setCustomUnit(e.target.value as typeof customUnit)}
+                  >
+                    <option value="minutes">Minutes</option>
+                    <option value="hours">Hours</option>
+                    <option value="days">Days</option>
+                  </select>
+                  <Button type="button" size="sm" variant="secondary" onClick={addCustomOffset}>
+                    Add reminder
+                  </Button>
+                  <div className="flex flex-wrap gap-1">
+                    {notifier.offsets
+                      .slice()
+                      .sort((a, b) => b - a)
+                      .map((m) => (
+                        <Badge
+                          key={m}
+                          variant="outline"
+                          className="flex items-center gap-1 pr-1 text-[10px]"
+                        >
+                          {offsetLabel(m)}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setNotifier({
+                                ...notifier,
+                                offsets: notifier.offsets.filter((x) => x !== m),
+                              })
+                            }
+                            className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-destructive"
+                            aria-label={`Remove ${offsetLabel(m)} reminder`}
+                          >
+                            <X className="h-2.5 w-2.5" />
+                          </button>
+                        </Badge>
+                      ))}
+                  </div>
                 </div>
               </Field>
               <Field label="Role mentions">
