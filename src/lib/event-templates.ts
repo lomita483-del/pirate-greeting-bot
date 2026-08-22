@@ -47,14 +47,31 @@ export const TEMPLATE_VARIABLES = [
   "{{.Frontmatter.Thumbnail}}",
 ] as const;
 
+/**
+ * Detailed by default: a short lede plus a field grid (Scheduled for, Duration,
+ * Location, Calendar, RSVP, Status) so a reminder is informative at a glance
+ * instead of a single paragraph. Empty fields render as "—" rather than being
+ * silently dropped, so admins editing this in the dashboard can see exactly
+ * what each field is for.
+ */
 export const DEFAULT_REMINDER_TEMPLATE: TemplateStructure = {
   title: "🏴‍☠️ {{.Title}}",
-  description:
-    "The event starts {{discordDateTime .StartTime 'R'}}.\n\n📅 {{discordDateTime .StartTime 'F'}}\n📍 {{.Location}}\n\n{{.Description}}",
+  description: "{{.Description}}",
   color: "#D4AF37",
-  footer: "AHOY Event Automation",
+  footer: "AHOY Event Automation · {{.Status}}",
   content: "{{.Mentions}}",
-  fields: [],
+  fields: [
+    {
+      name: "📅 Scheduled for",
+      value: "{{discordDateTime .StartTime 'F'}}\n{{discordDateTime .StartTime 'R'}}",
+      inline: true,
+    },
+    { name: "⏱️ Duration", value: "{{.Duration}}", inline: true },
+    { name: "📍 Location", value: "{{.Location}}", inline: true },
+    { name: "🗓️ Calendar", value: "{{.Calendar}}", inline: true },
+    { name: "✅ RSVP", value: "{{.Rsvp}}", inline: true },
+    { name: "🔗 Link", value: "{{.Url}}", inline: true },
+  ],
 };
 
 export const DEFAULT_SUMMARY_TEMPLATE: TemplateStructure = {
@@ -132,7 +149,7 @@ export function renderTemplate(
   const fields = (tpl.fields ?? [])
     .map((f) => ({
       name: clean(renderTemplateString(f.name, ctx)).slice(0, 256) || "\u200b",
-      value: clean(renderTemplateString(f.value, ctx)).slice(0, 1024) || "\u200b",
+      value: clean(renderTemplateString(f.value, ctx)).slice(0, 1024) || "—",
       inline: Boolean(f.inline),
     }))
     .slice(0, 25);
@@ -169,15 +186,15 @@ export function contextFromEvent(
   return {
     Title: event.title,
     Description: event.description ?? "",
-    Location: event.location ?? "",
+    Location: event.location ?? "—",
     Url: event.html_link ?? "",
     StartTime: start,
     EndTime: end,
     Duration: durationLabel(start, end, extras.fallbackMinutes ?? 30),
     Status: (event.status ?? "confirmed").toUpperCase(),
     Mentions: extras.mentions ?? "",
-    Calendar: extras.calendar ?? "",
-    Rsvp: extras.rsvp ?? "",
+    Calendar: extras.calendar ?? "—",
+    Rsvp: extras.rsvp ?? "—",
     Frontmatter: {},
   };
 }
