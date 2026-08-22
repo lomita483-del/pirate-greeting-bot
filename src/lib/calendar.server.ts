@@ -711,34 +711,6 @@ export async function writeCalendarAudit(
 /* Reminder scheduling                                                 */
 /* ------------------------------------------------------------------ */
 
-/**
- * Recalculate pending reminder jobs for every upcoming event in a guild.
- * Sent reminders are never touched; obsolete pending jobs are cancelled.
- */
-export async function rebuildRemindersForGuild(supabaseAdmin: Admin, guildId: string) {
-  const [defaults, notifiers, filters] = await Promise.all([
-    loadDefaults(supabaseAdmin, guildId),
-    loadNotifiers(supabaseAdmin, guildId),
-    loadFilters(supabaseAdmin, guildId),
-  ]);
-  const { data: events } = await supabaseAdmin
-    .from("calendar_events")
-    .select("*")
-    .eq("guild_id", guildId)
-    .gte("start_time", new Date().toISOString())
-    .limit(500);
-
-  for (const event of events ?? []) {
-    await rebuildRemindersForEvent(
-      supabaseAdmin,
-      event as Record<string, unknown>,
-      defaults,
-      notifiers,
-      filters,
-    );
-  }
-}
-
 type ReminderTarget = {
   notifierId: string | null;
   channelId: string;
@@ -748,19 +720,34 @@ type ReminderTarget = {
   templateId: string | null;
 };
 
-export async function rebuildRemindersForEvent(
-  supabaseAdmin: Admin,
+type ReminderJobRow = {
+  id: string;
+  reminder_minutes: number;
+  status: string;
+  notifier_id: string | null;
+};
+
+type ReminderAction =
+  | { kind: "cancel"; id: string }
+  | { kind: "update"; id: string; payload: Record<string, unknown> }
+  | { kind: "insert"; payload: Record<string, unknown> };
+
+/**
+ * Work out (without writing anything) which reminder jobs a single event
+ * needs, given the current notifiers/filters and its existing jobs. Pure —
+ * safe to call in a loop and flush the results once at the end.
+ */
+function computeReminderActions(
   event: Record<string, unknown>,
   defaults: ReminderDefaults,
-  notifiers?: NotifierRow[],
-  filters?: FilterRow[],
-) {
+  notifiers: NotifierRow[],
+  filters: FilterRow[],
+  jobs: ReminderJobRow[],
+): ReminderAction[] {
   const eventId = event["id"] as string;
   const guildId = event["guild_id"] as string;
   const sourceId = event["calendar_source_id"] as string | null;
   const start = new Date(String(event["start_time"]));
-  const list = notifiers ?? (await loadNotifiers(supabaseAdmin, guildId));
-  const rules = filters ?? (await loadFilters(supabaseAdmin, guildId));
 
   const eventActive =
     event["reminders_enabled"] !== false && event["status"] === "confirmed" && start.getTime() > 0;
@@ -770,7 +757,7 @@ export async function rebuildRemindersForEvent(
   // 1. Server default reminder stream (with per-event overrides).
   const defaultChannel =
     (event["discord_channel_id"] as string | null) ?? defaults.discord_channel_id;
-  if (defaults.enabled && defaultChannel && eventPassesFilters(event, rules, null)) {
+  if (defaults.enabled && defaultChannel && eventPassesFilters(event, filters, null)) {
     targets.push({
       notifierId: null,
       channelId: defaultChannel,
@@ -782,9 +769,9 @@ export async function rebuildRemindersForEvent(
   }
 
   // 2. Every notifier bound to this guild (optionally scoped to one feed).
-  for (const notifier of list) {
+  for (const notifier of notifiers) {
     if (notifier.calendar_source_id && notifier.calendar_source_id !== sourceId) continue;
-    if (!eventPassesFilters(event, rules, notifier.id)) continue;
+    if (!eventPassesFilters(event, filters, notifier.id)) continue;
 
     // Detection horizon — events beyond it are not scheduled yet.
     const horizonDays = notifier.detection_days ?? 30;
@@ -805,11 +792,6 @@ export async function rebuildRemindersForEvent(
     });
   }
 
-  const { data: jobs } = await supabaseAdmin
-    .from("event_reminders")
-    .select("id, reminder_minutes, status, notifier_id")
-    .eq("event_id", eventId);
-
   const wanted = new Map<string, ReminderTarget & { minutes: number }>();
   if (eventActive) {
     for (const target of targets) {
@@ -819,26 +801,15 @@ export async function rebuildRemindersForEvent(
     }
   }
 
-  // Cancel pending jobs that are no longer wanted.
-  for (const job of jobs ?? []) {
-    const j = job as Record<string, unknown>;
-    if (j["status"] === "sent") continue;
-    const key = `${(j["notifier_id"] as string | null) ?? "default"}|${Number(j["reminder_minutes"])}`;
+  const actions: ReminderAction[] = [];
+  const existing = new Map<string, ReminderJobRow>();
+  for (const job of jobs) {
+    const key = `${job.notifier_id ?? "default"}|${Number(job.reminder_minutes)}`;
+    existing.set(key, job);
+    if (job.status === "sent") continue;
     if (!wanted.has(key)) {
-      await supabaseAdmin
-        .from("event_reminders")
-        .update({ status: "cancelled" })
-        .eq("id", j["id"] as string);
+      actions.push({ kind: "cancel", id: job.id });
     }
-  }
-
-  const existing = new Map<string, Record<string, unknown>>();
-  for (const job of jobs ?? []) {
-    const j = job as Record<string, unknown>;
-    existing.set(
-      `${(j["notifier_id"] as string | null) ?? "default"}|${Number(j["reminder_minutes"])}`,
-      j,
-    );
   }
 
   for (const [key, target] of wanted) {
@@ -857,17 +828,134 @@ export async function rebuildRemindersForEvent(
       error: null,
     };
     if (prior) {
-      if (prior["status"] === "sent") continue;
-      await supabaseAdmin
-        .from("event_reminders")
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .update(payload as any)
-        .eq("id", prior["id"] as string);
+      if (prior.status === "sent") continue;
+      actions.push({ kind: "update", id: prior.id, payload });
     } else {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await supabaseAdmin.from("event_reminders").insert(payload as any);
+      actions.push({ kind: "insert", payload });
     }
   }
+
+  return actions;
+}
+
+/** Execute a batch of reminder actions in at most 3 database round-trips. */
+async function flushReminderActions(supabaseAdmin: Admin, actions: ReminderAction[]) {
+  const cancelIds = actions
+    .filter((a): a is Extract<ReminderAction, { kind: "cancel" }> => a.kind === "cancel")
+    .map((a) => a.id);
+  const updates = actions.filter(
+    (a): a is Extract<ReminderAction, { kind: "update" }> => a.kind === "update",
+  );
+  const inserts = actions
+    .filter((a): a is Extract<ReminderAction, { kind: "insert" }> => a.kind === "insert")
+    .map((a) => a.payload);
+
+  if (cancelIds.length) {
+    await supabaseAdmin.from("event_reminders").update({ status: "cancelled" }).in("id", cancelIds);
+  }
+  if (updates.length) {
+    await supabaseAdmin
+      .from("event_reminders")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .upsert(
+        updates.map((u) => ({ id: u.id, ...u.payload })) as any,
+        { onConflict: "id" },
+      );
+  }
+  if (inserts.length) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await supabaseAdmin.from("event_reminders").insert(inserts as any);
+  }
+}
+
+/**
+ * Recalculate pending reminder jobs for every upcoming event in a guild.
+ * Sent reminders are never touched; obsolete pending jobs are cancelled.
+ * All writes for the whole guild are batched into ~5 round-trips total,
+ * regardless of how many events or reminders exist.
+ */
+export async function rebuildRemindersForGuild(supabaseAdmin: Admin, guildId: string) {
+  const [defaults, notifiers, filters] = await Promise.all([
+    loadDefaults(supabaseAdmin, guildId),
+    loadNotifiers(supabaseAdmin, guildId),
+    loadFilters(supabaseAdmin, guildId),
+  ]);
+  const { data: events } = await supabaseAdmin
+    .from("calendar_events")
+    .select("*")
+    .eq("guild_id", guildId)
+    .gte("start_time", new Date().toISOString())
+    .limit(500);
+
+  const eventList = (events ?? []) as Record<string, unknown>[];
+  const eventIds = eventList.map((e) => e["id"] as string);
+
+  // One query for every existing reminder job across all of this guild's
+  // upcoming events, instead of one query per event.
+  const jobsByEvent = new Map<string, ReminderJobRow[]>();
+  if (eventIds.length) {
+    const { data: jobs } = await supabaseAdmin
+      .from("event_reminders")
+      .select("id, reminder_minutes, status, notifier_id, event_id")
+      .in("event_id", eventIds);
+    for (const job of (jobs ?? []) as Record<string, unknown>[]) {
+      const eventId = job["event_id"] as string;
+      const row: ReminderJobRow = {
+        id: job["id"] as string,
+        reminder_minutes: Number(job["reminder_minutes"]),
+        status: job["status"] as string,
+        notifier_id: (job["notifier_id"] as string | null) ?? null,
+      };
+      const list = jobsByEvent.get(eventId) ?? [];
+      list.push(row);
+      jobsByEvent.set(eventId, list);
+    }
+  }
+
+  const allActions: ReminderAction[] = [];
+  for (const event of eventList) {
+    const eventId = event["id"] as string;
+    allActions.push(
+      ...computeReminderActions(event, defaults, notifiers, filters, jobsByEvent.get(eventId) ?? []),
+    );
+  }
+  await flushReminderActions(supabaseAdmin, allActions);
+}
+
+/**
+ * Recalculate pending reminder jobs for a single event (e.g. after a
+ * per-event override is saved). Writes are batched into at most 3
+ * round-trips instead of one call per reminder.
+ */
+export async function rebuildRemindersForEvent(
+  supabaseAdmin: Admin,
+  event: Record<string, unknown>,
+  defaults: ReminderDefaults,
+  notifiers?: NotifierRow[],
+  filters?: FilterRow[],
+) {
+  const eventId = event["id"] as string;
+  const guildId = event["guild_id"] as string;
+  const list = notifiers ?? (await loadNotifiers(supabaseAdmin, guildId));
+  const rules = filters ?? (await loadFilters(supabaseAdmin, guildId));
+
+  const { data: jobs } = await supabaseAdmin
+    .from("event_reminders")
+    .select("id, reminder_minutes, status, notifier_id")
+    .eq("event_id", eventId);
+
+  const jobRows: ReminderJobRow[] = (jobs ?? []).map((job) => {
+    const j = job as Record<string, unknown>;
+    return {
+      id: j["id"] as string,
+      reminder_minutes: Number(j["reminder_minutes"]),
+      status: j["status"] as string,
+      notifier_id: (j["notifier_id"] as string | null) ?? null,
+    };
+  });
+
+  const actions = computeReminderActions(event, defaults, list, rules, jobRows);
+  await flushReminderActions(supabaseAdmin, actions);
 }
 
 /* ------------------------------------------------------------------ */
