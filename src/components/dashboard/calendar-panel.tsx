@@ -572,11 +572,12 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
                 </Field>
               </div>
 
-              <Button onClick={() => saveDefaults.mutate()} disabled={saveDefaults.isPending}>
-                {saveDefaults.isPending ? "Saving…" : "Save reminder automation"}
-              </Button>
             </CollapsibleContent>
           </Collapsible>
+
+          <Button onClick={() => saveDefaults.mutate()} disabled={saveDefaults.isPending}>
+            {saveDefaults.isPending ? "Saving…" : "Save reminder automation"}
+          </Button>
         </CardContent>
       </Card>
 
