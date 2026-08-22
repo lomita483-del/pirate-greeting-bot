@@ -32,6 +32,11 @@ function settingsKey(category: string, entry: CommandEntry): string {
   return entry.dedicated ? entry.name : `${category} ${entry.sub}`;
 }
 
+/** Every command key across every category, regardless of the active search filter. */
+const ALL_COMMAND_KEYS = COMMAND_CATEGORIES.flatMap((category) =>
+  category.commands.map((entry) => settingsKey(category.slug, entry)),
+);
+
 export function CommandListPanel({ guildId, config }: PanelProps) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<{ key: string; desc: string } | null>(null);
@@ -116,6 +121,9 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
     query.trim() ? command.name.toLowerCase().includes(query.trim().toLowerCase()) : true,
   );
 
+  // Selection count against every command that actually exists, not just what search shows.
+  const globalChosen = ALL_COMMAND_KEYS.filter((key) => selected.has(key));
+
   return (
     <div className="space-y-6">
       <Card className="glass border-0">
@@ -133,6 +141,67 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+          </div>
+
+          {/* Global quick actions — apply to every category and every command at once. */}
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              {globalChosen.length > 0
+                ? `${globalChosen.length} selected across all categories`
+                : `Quick actions for all ${ALL_COMMAND_KEYS.length} commands`}
+            </span>
+            <div className="ml-auto flex flex-wrap gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  selectMany(ALL_COMMAND_KEYS, globalChosen.length !== ALL_COMMAND_KEYS.length)
+                }
+              >
+                {globalChosen.length === ALL_COMMAND_KEYS.length ? "Clear selection" : "Select all"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={bulkToggle.isPending}
+                onClick={() =>
+                  bulkToggle.mutate({
+                    commands: globalChosen.length ? globalChosen : ALL_COMMAND_KEYS,
+                    enabled: true,
+                  })
+                }
+              >
+                Enable
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={bulkToggle.isPending}
+                onClick={() =>
+                  bulkToggle.mutate({
+                    commands: globalChosen.length ? globalChosen : ALL_COMMAND_KEYS,
+                    enabled: false,
+                  })
+                }
+              >
+                Disable
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() =>
+                  setBulk({
+                    commands: globalChosen.length ? globalChosen : ALL_COMMAND_KEYS,
+                    label:
+                      globalChosen.length > 0
+                        ? `${globalChosen.length} selected command(s)`
+                        : `All ${ALL_COMMAND_KEYS.length} commands`,
+                  })
+                }
+              >
+                <Settings2 className="h-3.5 w-3.5" /> Mass edit
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
