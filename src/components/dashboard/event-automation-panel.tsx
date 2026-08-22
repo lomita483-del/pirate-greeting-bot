@@ -157,6 +157,13 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
     { id: "here", name: "@here" },
     ...config.structure.roles.map((r) => ({ id: r.id, name: `@${r.name}` })),
   ];
+  // Role-only list — used by "Role mentions" below so @everyone/@here can
+  // never be selected there by accident. "Default mention" still uses the
+  // full mentionOptions list above, since it's meant to offer @everyone/@here.
+  const roleOnlyOptions: Option[] = config.structure.roles.map((r) => ({
+    id: r.id,
+    name: `@${r.name}`,
+  }));
 
   const [notifier, setNotifier] = useState<NotifierDraft | null>(null);
   const [template, setTemplate] = useState<TemplateDraft | null>(null);
@@ -708,7 +715,7 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
               <Field label="Role mentions">
                 <MultiPicker
                   values={notifier.roleMentions}
-                  options={mentionOptions}
+                  options={roleOnlyOptions}
                   onChange={(v) => setNotifier({ ...notifier, roleMentions: v })}
                   emptyLabel="No roles available."
                 />
