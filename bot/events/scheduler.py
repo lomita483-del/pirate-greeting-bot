@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 import discord
 from discord.ext import commands, tasks
 
+from ..commands.calendar import _rsvp_view
 from ..services.schedule_service import compute_next_run
 from ..utils import embeds
 from ..utils.logger import get_logger
@@ -220,7 +221,11 @@ class Scheduler(commands.Cog):
             mention_text = " ".join(f"<@&{rid}>" for rid in role_mentions)
 
         try:
-            sent = await channel.send(content=mention_text or None, embed=embed)
+            sent = await channel.send(
+                content=mention_text or None,
+                embed=embed,
+                view=_rsvp_view(str(event.get("id"))),
+            )
             await repo.mark_event_reminder_sent(reminder_id, str(sent.id))
         except discord.HTTPException as exc:
             log.warning("Failed to deliver event reminder %s: %s", reminder_id, exc)
