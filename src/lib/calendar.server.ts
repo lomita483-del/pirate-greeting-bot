@@ -213,6 +213,8 @@ export async function syncCalendarSource(
 
   const seen = new Set<string>();
   const activity: ActivityChange[] = [];
+  const payloads: Array<{ key: string; payload: Record<string, unknown> }> = [];
+
   for (const event of parsed) {
     const key = `${event.externalEventId}|${event.start.toISOString()}`;
     if (seen.has(key)) {
@@ -220,56 +222,80 @@ export async function syncCalendarSource(
       continue;
     }
     seen.add(key);
+    payloads.push({
+      key,
+      payload: {
+        calendar_source_id: source.id,
+        guild_id: source.guild_id,
+        external_event_id: event.externalEventId,
+        parent_external_event_id: event.parentExternalEventId,
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        start_time: event.start.toISOString(),
+        end_time: event.end ? event.end.toISOString() : null,
+        timezone: event.timezone,
+        is_all_day: event.isAllDay,
+        is_recurring: event.isRecurring,
+        recurrence_rule: event.recurrenceRule,
+        status: event.status,
+        external_updated_at: event.externalUpdatedAt,
+        updated_at: new Date().toISOString(),
+      },
+    });
+  }
 
-    const payload = {
-      calendar_source_id: source.id,
-      guild_id: source.guild_id,
-      external_event_id: event.externalEventId,
-      parent_external_event_id: event.parentExternalEventId,
-      title: event.title,
-      description: event.description,
-      location: event.location,
-      start_time: event.start.toISOString(),
-      end_time: event.end ? event.end.toISOString() : null,
-      timezone: event.timezone,
-      is_all_day: event.isAllDay,
-      is_recurring: event.isRecurring,
-      recurrence_rule: event.recurrenceRule,
-      status: event.status,
-      external_updated_at: event.externalUpdatedAt,
-      updated_at: new Date().toISOString(),
-    };
-
-    const prior = existing.get(key);
+  // Batch the writes: one round-trip per 200 events instead of per event,
+  // which is what made large feeds time out with "failed to fetch".
+  const CHUNK = 200;
+  for (let i = 0; i < payloads.length; i += CHUNK) {
+    const chunk = payloads.slice(i, i + CHUNK);
     const { data: savedRows, error } = await supabaseAdmin
       .from("calendar_events")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(payload as any, { onConflict: "calendar_source_id,external_event_id,start_time" })
+      .upsert(chunk.map((c) => c.payload) as any, {
+        onConflict: "calendar_source_id,external_event_id,start_time",
+      })
       .select("*");
     if (error) {
       console.error("Calendar upsert failed", error);
       continue;
     }
-    const saved = ((savedRows ?? [])[0] ?? null) as Record<string, unknown> | null;
-    const changed =
-      prior !== undefined &&
-      (prior["title"] !== payload.title ||
-        prior["status"] !== payload.status ||
-        prior["location"] !== payload.location ||
-        prior["description"] !== payload.description ||
-        new Date(String(prior["start_time"])).getTime() !== event.start.getTime());
+    const savedByKey = new Map<string, Record<string, unknown>>();
+    for (const row of (savedRows ?? []) as Record<string, unknown>[]) {
+      savedByKey.set(
+        `${row["external_event_id"]}|${new Date(String(row["start_time"])).toISOString()}`,
+        row,
+      );
+    }
 
-    if (!prior) result.created += 1;
-    else if (changed) result.updated += 1;
-    if (event.status === "cancelled") result.cancelled += 1;
+    for (const { key, payload } of chunk) {
+      const prior = existing.get(key);
+      const saved = savedByKey.get(key) ?? null;
+      const changed =
+        prior !== undefined &&
+        (prior["title"] !== payload["title"] ||
+          prior["status"] !== payload["status"] ||
+          prior["location"] !== payload["location"] ||
+          prior["description"] !== payload["description"] ||
+          new Date(String(prior["start_time"])).getTime() !==
+            new Date(String(payload["start_time"])).getTime());
 
-    if (saved) {
-      if (!prior) {
-        activity.push({ kind: event.status === "cancelled" ? "cancelled" : "created", event: saved });
-      } else if (event.status === "cancelled" && prior["status"] !== "cancelled") {
-        activity.push({ kind: "cancelled", event: saved });
-      } else if (changed) {
-        activity.push({ kind: "updated", event: saved, previous: prior });
+      if (!prior) result.created += 1;
+      else if (changed) result.updated += 1;
+      if (payload["status"] === "cancelled") result.cancelled += 1;
+
+      if (saved) {
+        if (!prior) {
+          activity.push({
+            kind: payload["status"] === "cancelled" ? "cancelled" : "created",
+            event: saved,
+          });
+        } else if (payload["status"] === "cancelled" && prior["status"] !== "cancelled") {
+          activity.push({ kind: "cancelled", event: saved });
+        } else if (changed) {
+          activity.push({ kind: "updated", event: saved, previous: prior });
+        }
       }
     }
   }
@@ -280,13 +306,21 @@ export async function syncCalendarSource(
     const key = `${r["external_event_id"]}|${new Date(String(r["start_time"])).toISOString()}`;
     return !seen.has(key) && new Date(String(r["start_time"])).getTime() > Date.now();
   });
-  for (const row of missing) {
-    const r = row as Record<string, unknown>;
-    const id = r["id"] as string;
-    await supabaseAdmin.from("calendar_events").update({ status: "cancelled" }).eq("id", id);
-    result.cancelled += 1;
-    activity.push({ kind: "cancelled", event: { ...r, status: "cancelled" } });
+  if (missing.length) {
+    const missingIds = missing.map((row) => (row as Record<string, unknown>)["id"] as string);
+    for (let i = 0; i < missingIds.length; i += CHUNK) {
+      await supabaseAdmin
+        .from("calendar_events")
+        .update({ status: "cancelled" })
+        .in("id", missingIds.slice(i, i + CHUNK));
+    }
+    for (const row of missing) {
+      const r = row as Record<string, unknown>;
+      result.cancelled += 1;
+      activity.push({ kind: "cancelled", event: { ...r, status: "cancelled" } });
+    }
   }
+
 
   await supabaseAdmin
     .from("calendar_sources")
