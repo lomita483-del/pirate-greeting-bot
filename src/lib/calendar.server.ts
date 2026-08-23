@@ -157,10 +157,20 @@ export type CalendarSourceRow = {
 };
 
 export async function fetchIcs(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: { accept: "text/calendar, text/plain;q=0.8, */*;q=0.5" },
-    redirect: "follow",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { accept: "text/calendar, text/plain;q=0.8, */*;q=0.5" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch (error) {
+    const name = (error as Error).name;
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new Error("The calendar feed took too long to respond. Try syncing again.");
+    }
+    throw new Error(`Could not reach that calendar feed: ${(error as Error).message}`);
+  }
   if (!response.ok) throw new Error(`Calendar responded with HTTP ${response.status}`);
   const body = await response.text();
   if (!body.includes("BEGIN:VCALENDAR")) {
@@ -168,6 +178,7 @@ export async function fetchIcs(url: string): Promise<string> {
   }
   return body;
 }
+
 
 /** Sync one calendar source. Safe to run concurrently / repeatedly. */
 export async function syncCalendarSource(
@@ -202,6 +213,8 @@ export async function syncCalendarSource(
 
   const seen = new Set<string>();
   const activity: ActivityChange[] = [];
+  const payloads: Array<{ key: string; payload: Record<string, unknown> }> = [];
+
   for (const event of parsed) {
     const key = `${event.externalEventId}|${event.start.toISOString()}`;
     if (seen.has(key)) {
@@ -209,56 +222,80 @@ export async function syncCalendarSource(
       continue;
     }
     seen.add(key);
+    payloads.push({
+      key,
+      payload: {
+        calendar_source_id: source.id,
+        guild_id: source.guild_id,
+        external_event_id: event.externalEventId,
+        parent_external_event_id: event.parentExternalEventId,
+        title: event.title,
+        description: event.description,
+        location: event.location,
+        start_time: event.start.toISOString(),
+        end_time: event.end ? event.end.toISOString() : null,
+        timezone: event.timezone,
+        is_all_day: event.isAllDay,
+        is_recurring: event.isRecurring,
+        recurrence_rule: event.recurrenceRule,
+        status: event.status,
+        external_updated_at: event.externalUpdatedAt,
+        updated_at: new Date().toISOString(),
+      },
+    });
+  }
 
-    const payload = {
-      calendar_source_id: source.id,
-      guild_id: source.guild_id,
-      external_event_id: event.externalEventId,
-      parent_external_event_id: event.parentExternalEventId,
-      title: event.title,
-      description: event.description,
-      location: event.location,
-      start_time: event.start.toISOString(),
-      end_time: event.end ? event.end.toISOString() : null,
-      timezone: event.timezone,
-      is_all_day: event.isAllDay,
-      is_recurring: event.isRecurring,
-      recurrence_rule: event.recurrenceRule,
-      status: event.status,
-      external_updated_at: event.externalUpdatedAt,
-      updated_at: new Date().toISOString(),
-    };
-
-    const prior = existing.get(key);
+  // Batch the writes: one round-trip per 200 events instead of per event,
+  // which is what made large feeds time out with "failed to fetch".
+  const CHUNK = 200;
+  for (let i = 0; i < payloads.length; i += CHUNK) {
+    const chunk = payloads.slice(i, i + CHUNK);
     const { data: savedRows, error } = await supabaseAdmin
       .from("calendar_events")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .upsert(payload as any, { onConflict: "calendar_source_id,external_event_id,start_time" })
+      .upsert(chunk.map((c) => c.payload) as any, {
+        onConflict: "calendar_source_id,external_event_id,start_time",
+      })
       .select("*");
     if (error) {
       console.error("Calendar upsert failed", error);
       continue;
     }
-    const saved = ((savedRows ?? [])[0] ?? null) as Record<string, unknown> | null;
-    const changed =
-      prior !== undefined &&
-      (prior["title"] !== payload.title ||
-        prior["status"] !== payload.status ||
-        prior["location"] !== payload.location ||
-        prior["description"] !== payload.description ||
-        new Date(String(prior["start_time"])).getTime() !== event.start.getTime());
+    const savedByKey = new Map<string, Record<string, unknown>>();
+    for (const row of (savedRows ?? []) as Record<string, unknown>[]) {
+      savedByKey.set(
+        `${row["external_event_id"]}|${new Date(String(row["start_time"])).toISOString()}`,
+        row,
+      );
+    }
 
-    if (!prior) result.created += 1;
-    else if (changed) result.updated += 1;
-    if (event.status === "cancelled") result.cancelled += 1;
+    for (const { key, payload } of chunk) {
+      const prior = existing.get(key);
+      const saved = savedByKey.get(key) ?? null;
+      const changed =
+        prior !== undefined &&
+        (prior["title"] !== payload["title"] ||
+          prior["status"] !== payload["status"] ||
+          prior["location"] !== payload["location"] ||
+          prior["description"] !== payload["description"] ||
+          new Date(String(prior["start_time"])).getTime() !==
+            new Date(String(payload["start_time"])).getTime());
 
-    if (saved) {
-      if (!prior) {
-        activity.push({ kind: event.status === "cancelled" ? "cancelled" : "created", event: saved });
-      } else if (event.status === "cancelled" && prior["status"] !== "cancelled") {
-        activity.push({ kind: "cancelled", event: saved });
-      } else if (changed) {
-        activity.push({ kind: "updated", event: saved, previous: prior });
+      if (!prior) result.created += 1;
+      else if (changed) result.updated += 1;
+      if (payload["status"] === "cancelled") result.cancelled += 1;
+
+      if (saved) {
+        if (!prior) {
+          activity.push({
+            kind: payload["status"] === "cancelled" ? "cancelled" : "created",
+            event: saved,
+          });
+        } else if (payload["status"] === "cancelled" && prior["status"] !== "cancelled") {
+          activity.push({ kind: "cancelled", event: saved });
+        } else if (changed) {
+          activity.push({ kind: "updated", event: saved, previous: prior });
+        }
       }
     }
   }
@@ -269,13 +306,21 @@ export async function syncCalendarSource(
     const key = `${r["external_event_id"]}|${new Date(String(r["start_time"])).toISOString()}`;
     return !seen.has(key) && new Date(String(r["start_time"])).getTime() > Date.now();
   });
-  for (const row of missing) {
-    const r = row as Record<string, unknown>;
-    const id = r["id"] as string;
-    await supabaseAdmin.from("calendar_events").update({ status: "cancelled" }).eq("id", id);
-    result.cancelled += 1;
-    activity.push({ kind: "cancelled", event: { ...r, status: "cancelled" } });
+  if (missing.length) {
+    const missingIds = missing.map((row) => (row as Record<string, unknown>)["id"] as string);
+    for (let i = 0; i < missingIds.length; i += CHUNK) {
+      await supabaseAdmin
+        .from("calendar_events")
+        .update({ status: "cancelled" })
+        .in("id", missingIds.slice(i, i + CHUNK));
+    }
+    for (const row of missing) {
+      const r = row as Record<string, unknown>;
+      result.cancelled += 1;
+      activity.push({ kind: "cancelled", event: { ...r, status: "cancelled" } });
+    }
   }
+
 
   await supabaseAdmin
     .from("calendar_sources")
@@ -754,19 +799,22 @@ function computeReminderActions(
 
   const targets: ReminderTarget[] = [];
 
-  // 1. Server default reminder stream (with per-event overrides).
-  const defaultChannel =
-    (event["discord_channel_id"] as string | null) ?? defaults.discord_channel_id;
-  if (defaults.enabled && defaultChannel && eventPassesFilters(event, filters, null)) {
+  // 1. Per-event override stream. The old server-wide "reminder automation"
+  //    defaults were removed — notifiers are the single source of truth — but
+  //    an event that names its own channel still gets its own reminders.
+  const overrideChannel = event["discord_channel_id"] as string | null;
+  const overrideOffsets = (event["reminder_offsets"] as number[] | null) ?? [];
+  if (overrideChannel && overrideOffsets.length && eventPassesFilters(event, filters, null)) {
     targets.push({
       notifierId: null,
-      channelId: defaultChannel,
+      channelId: overrideChannel,
       mention: (event["mention"] as string | null) ?? defaults.mention,
       roleMentions: [],
-      offsets: ((event["reminder_offsets"] as number[] | null) ?? defaults.offsets) ?? [],
+      offsets: overrideOffsets,
       templateId: null,
     });
   }
+
 
   // 2. Every notifier bound to this guild (optionally scoped to one feed).
   for (const notifier of notifiers) {
@@ -1020,7 +1068,41 @@ function statusBadge(event: { status?: string | null; start_time: string; end_ti
   return "[UPCOMING]";
 }
 
-/** Legacy/built-in reminder embed used when no template is configured. */
+export const AHOY_LOGO_URL = "https://ahoy.lovable.app/favicon.png";
+
+/** Discord CDN icon for a guild, if AHOY knows it. Cached for the request. */
+export async function guildIconUrl(
+  supabaseAdmin: Admin,
+  guildId: string | null | undefined,
+): Promise<string | null> {
+  if (!guildId) return null;
+  const { data } = await supabaseAdmin
+    .from("servers")
+    .select("icon")
+    .eq("guild_id", guildId)
+    .maybeSingle();
+  const icon = (data as Record<string, unknown> | null)?.["icon"] as string | null | undefined;
+  if (!icon) return null;
+  const ext = icon.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/icons/${guildId}/${icon}.${ext}?size=256`;
+}
+
+/** Attach the server icon as thumbnail and the AHOY logo to the footer. */
+export function decorateEmbed(
+  embed: Record<string, unknown>,
+  options: { guildIcon?: string | null } = {},
+): Record<string, unknown> {
+  if (options.guildIcon && !embed["thumbnail"]) {
+    embed["thumbnail"] = { url: options.guildIcon };
+  }
+  const footer = (embed["footer"] as { text?: string; icon_url?: string } | undefined) ?? {
+    text: "AHOY Event Automation",
+  };
+  embed["footer"] = { text: footer.text ?? "AHOY Event Automation", icon_url: AHOY_LOGO_URL };
+  return embed;
+}
+
+/** Built-in reminder embed: 📅 EVENT REMINDER card. */
 export function reminderEmbed(
   event: {
     title: string;
@@ -1040,27 +1122,29 @@ export function reminderEmbed(
     start_time: event.start.toISOString(),
     end_time: event.end ? event.end.toISOString() : null,
   });
-  const title = test
-    ? "🏴‍☠️ TEST EVENT REMINDER"
-    : starting
-      ? "🏴‍☠️ EVENT STARTING NOW"
-      : "🏴‍☠️ AHOY EVENT REMINDER";
-  const lead = starting ? "The event is starting now!" : `The event starts <t:${stamp}:R>.`;
-  const lines = [`${badge}`, "", lead, "", `📅 <t:${stamp}:F>`];
-  lines.push(`⏱️ ${durationLabel(event.start, event.end ?? null)}`);
-  if (event.location) lines.push(`📍 ${event.location}`);
+
+  const lines = [
+    `**Event Name:** ${event.title}`,
+    `**Starting In:** ${starting ? "**now**" : `<t:${stamp}:R>`}`,
+    `**Date And Time:** <t:${stamp}:F>`,
+    `> **Duration:** ${durationLabel(event.start, event.end ?? null)}`,
+  ];
+  if (event.location) lines.push(`**Location:** ${event.location}`);
+  if (badge === "[CANCELLED]") lines.push("", "🚫 **This event has been cancelled.**");
   if (event.description) lines.push("", event.description.slice(0, 600));
 
   return {
-    title,
-    description: `**${event.title}**\n\n${lines.join("\n")}`,
+    title: test ? "📅 TEST EVENT REMINDER" : "📅 EVENT REMINDER",
+    description: lines.join("\n"),
     color: GOLD,
     footer: {
       text: test ? "AHOY · test reminder — nothing was scheduled" : "AHOY Event Automation",
+      icon_url: AHOY_LOGO_URL,
     },
     timestamp: new Date().toISOString(),
   };
 }
+
 
 export async function postToDiscord(
   channelId: string,
