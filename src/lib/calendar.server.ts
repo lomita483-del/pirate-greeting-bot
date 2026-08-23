@@ -799,19 +799,22 @@ function computeReminderActions(
 
   const targets: ReminderTarget[] = [];
 
-  // 1. Server default reminder stream (with per-event overrides).
-  const defaultChannel =
-    (event["discord_channel_id"] as string | null) ?? defaults.discord_channel_id;
-  if (defaults.enabled && defaultChannel && eventPassesFilters(event, filters, null)) {
+  // 1. Per-event override stream. The old server-wide "reminder automation"
+  //    defaults were removed — notifiers are the single source of truth — but
+  //    an event that names its own channel still gets its own reminders.
+  const overrideChannel = event["discord_channel_id"] as string | null;
+  const overrideOffsets = (event["reminder_offsets"] as number[] | null) ?? [];
+  if (overrideChannel && overrideOffsets.length && eventPassesFilters(event, filters, null)) {
     targets.push({
       notifierId: null,
-      channelId: defaultChannel,
+      channelId: overrideChannel,
       mention: (event["mention"] as string | null) ?? defaults.mention,
       roleMentions: [],
-      offsets: ((event["reminder_offsets"] as number[] | null) ?? defaults.offsets) ?? [],
+      offsets: overrideOffsets,
       templateId: null,
     });
   }
+
 
   // 2. Every notifier bound to this guild (optionally scoped to one feed).
   for (const notifier of notifiers) {
