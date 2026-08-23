@@ -1068,7 +1068,41 @@ function statusBadge(event: { status?: string | null; start_time: string; end_ti
   return "[UPCOMING]";
 }
 
-/** Legacy/built-in reminder embed used when no template is configured. */
+export const AHOY_LOGO_URL = "https://ahoy.lovable.app/favicon.png";
+
+/** Discord CDN icon for a guild, if AHOY knows it. Cached for the request. */
+export async function guildIconUrl(
+  supabaseAdmin: Admin,
+  guildId: string | null | undefined,
+): Promise<string | null> {
+  if (!guildId) return null;
+  const { data } = await supabaseAdmin
+    .from("servers")
+    .select("icon")
+    .eq("guild_id", guildId)
+    .maybeSingle();
+  const icon = (data as Record<string, unknown> | null)?.["icon"] as string | null | undefined;
+  if (!icon) return null;
+  const ext = icon.startsWith("a_") ? "gif" : "png";
+  return `https://cdn.discordapp.com/icons/${guildId}/${icon}.${ext}?size=256`;
+}
+
+/** Attach the server icon as thumbnail and the AHOY logo to the footer. */
+export function decorateEmbed(
+  embed: Record<string, unknown>,
+  options: { guildIcon?: string | null } = {},
+): Record<string, unknown> {
+  if (options.guildIcon && !embed["thumbnail"]) {
+    embed["thumbnail"] = { url: options.guildIcon };
+  }
+  const footer = (embed["footer"] as { text?: string; icon_url?: string } | undefined) ?? {
+    text: "AHOY Event Automation",
+  };
+  embed["footer"] = { text: footer.text ?? "AHOY Event Automation", icon_url: AHOY_LOGO_URL };
+  return embed;
+}
+
+/** Built-in reminder embed: 📅 EVENT REMINDER card. */
 export function reminderEmbed(
   event: {
     title: string;
@@ -1088,27 +1122,29 @@ export function reminderEmbed(
     start_time: event.start.toISOString(),
     end_time: event.end ? event.end.toISOString() : null,
   });
-  const title = test
-    ? "🏴‍☠️ TEST EVENT REMINDER"
-    : starting
-      ? "🏴‍☠️ EVENT STARTING NOW"
-      : "🏴‍☠️ AHOY EVENT REMINDER";
-  const lead = starting ? "The event is starting now!" : `The event starts <t:${stamp}:R>.`;
-  const lines = [`${badge}`, "", lead, "", `📅 <t:${stamp}:F>`];
-  lines.push(`⏱️ ${durationLabel(event.start, event.end ?? null)}`);
-  if (event.location) lines.push(`📍 ${event.location}`);
+
+  const lines = [
+    `**Event Name:** ${event.title}`,
+    `**Starting In:** ${starting ? "**now**" : `<t:${stamp}:R>`}`,
+    `**Date And Time:** <t:${stamp}:F>`,
+    `> **Duration:** ${durationLabel(event.start, event.end ?? null)}`,
+  ];
+  if (event.location) lines.push(`**Location:** ${event.location}`);
+  if (badge === "[CANCELLED]") lines.push("", "🚫 **This event has been cancelled.**");
   if (event.description) lines.push("", event.description.slice(0, 600));
 
   return {
-    title,
-    description: `**${event.title}**\n\n${lines.join("\n")}`,
+    title: test ? "📅 TEST EVENT REMINDER" : "📅 EVENT REMINDER",
+    description: lines.join("\n"),
     color: GOLD,
     footer: {
       text: test ? "AHOY · test reminder — nothing was scheduled" : "AHOY Event Automation",
+      icon_url: AHOY_LOGO_URL,
     },
     timestamp: new Date().toISOString(),
   };
 }
+
 
 export async function postToDiscord(
   channelId: string,
