@@ -460,7 +460,9 @@ export const sendTestReminder = createServerFn({ method: "POST" })
     const { reminderEmbed, postToDiscord } = await import("@/lib/calendar.server");
     await postToDiscord(
       data.channelId,
-      reminderEmbed(
+      await reminderEmbed(
+        supabaseAdmin,
+        data.guildId,
         {
           title: String(r["title"]),
           description: r["description"] as string | null,
