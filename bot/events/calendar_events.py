@@ -1,8 +1,11 @@
 """Interaction handling for AHOY calendar event reminder buttons.
 
-The website schedules and delivers event reminders; the embeds carry three
-buttons (`ahoy:rsvp:{event_id}:{attending|declined|remindme}`). This cog
-records the response and — for "remind me" — creates a personal reminder.
+The website schedules and delivers event reminders; the embeds carry a
+"Remind me" button (`ahoy:rsvp:{event_id}:remindme`). This cog creates a
+personal DM reminder for whoever clicks it. Older messages sent before this
+update may still show the retired "Attending"/"Can't make it" buttons —
+those are handled here too, for backward compatibility, but are no longer
+attached to any new reminder.
 """
 
 from __future__ import annotations
@@ -70,7 +73,11 @@ class CalendarEvents(commands.Cog):
             await repo.add_reminder(
                 {
                     "guild_id": guild_id,
-                    "channel_id": str(interaction.channel_id) if interaction.channel_id else None,
+                    # No channel_id — this must always be delivered by DM,
+                    # never posted back into the channel the button was
+                    # clicked in. bot/commands/reminders.py's dispatcher
+                    # falls back to a DM whenever channel_id is empty.
+                    "channel_id": None,
                     "user_id": str(interaction.user.id),
                     "message": f"Event starting soon: {title}",
                     "remind_at": remind_at.isoformat(),
@@ -78,10 +85,13 @@ class CalendarEvents(commands.Cog):
                 }
             )
             await interaction.response.send_message(
-                f"⏰ I'll ping you 15 minutes before **{title}**.", ephemeral=True
+                f"⏰ I'll DM you 15 minutes before **{title}**.", ephemeral=True
             )
             return
 
+        # Retired: "attending" / "declined" are no longer offered on new
+        # reminders, but old messages sent before this update may still
+        # carry those buttons — keep honoring them rather than breaking.
         response = "attending" if action == "attending" else "declined"
         await repo.set_event_rsvp(event_id, guild_id, str(interaction.user.id), response)
         counts = await repo.event_rsvp_counts(event_id)
