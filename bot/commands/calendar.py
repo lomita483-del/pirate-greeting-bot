@@ -51,19 +51,14 @@ def _line(event: dict[str, Any]) -> str:
 
 def _rsvp_view(event_id: str) -> discord.ui.View:
     view = discord.ui.View(timeout=None)
-    for action, label, style, emoji in (
-        ("attending", "Attending", discord.ButtonStyle.success, "✅"),
-        ("declined", "Can't make it", discord.ButtonStyle.secondary, "❌"),
-        ("remindme", "Remind me", discord.ButtonStyle.primary, "🔔"),
-    ):
-        view.add_item(
-            discord.ui.Button(
-                label=label,
-                style=style,
-                emoji=emoji,
-                custom_id=f"ahoy:rsvp:{event_id}:{action}",
-            )
+    view.add_item(
+        discord.ui.Button(
+            label="Remind me",
+            style=discord.ButtonStyle.primary,
+            emoji="🔔",
+            custom_id=f"ahoy:rsvp:{event_id}:remindme",
         )
+    )
     return view
 
 
