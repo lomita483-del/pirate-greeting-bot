@@ -200,15 +200,32 @@ class Scheduler(commands.Cog):
             except ValueError:
                 start_ts = None
 
-        description_lines = [f"**{event.get('title') or 'Untitled event'}** — {when_text}"]
+        description_lines = [
+            f"**Event Name:** {event.get('title') or 'Untitled event'}",
+            f"**Starting In:** {when_text.removeprefix('starting ')}",
+        ]
         if start_ts:
-            description_lines.append(f"<t:{start_ts}:F> (<t:{start_ts}:R>)")
+            description_lines.append(f"**Date And Time:** <t:{start_ts}:F>")
+            description_lines.append(f">>> **Duration:** <t:{start_ts}:R> <<<")
+        else:
+            description_lines.append(f">>> **Duration:** {when_text} <<<")
         if event.get("location"):
             description_lines.append(f"📍 {event['location']}")
         if event.get("html_link"):
             description_lines.append(f"[Open in calendar]({event['html_link']})")
 
-        embed = embeds.brand("📅 Event reminder", "\n".join(description_lines))
+        embed = discord.Embed(
+            title="📅 EVENT REMINDER",
+            description="\n".join(description_lines),
+            color=embeds.TEAL,
+            timestamp=datetime.now(timezone.utc),
+        )
+        if guild is not None and guild.icon is not None:
+            embed.set_thumbnail(url=guild.icon.url)
+        if self.bot.user is not None:
+            embed.set_footer(text=f"{embeds.BRAND} ⚓", icon_url=self.bot.user.display_avatar.url)
+        else:
+            embed.set_footer(text=f"{embeds.BRAND} ⚓")
 
         mention_text = ""
         mention = reminder.get("mention") or "none"
