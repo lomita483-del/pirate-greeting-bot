@@ -1058,16 +1058,6 @@ export function rsvpComponents(eventId: string) {
   ];
 }
 
-function statusBadge(event: { status?: string | null; start_time: string; end_time?: string | null }) {
-  const now = Date.now();
-  const start = new Date(event.start_time).getTime();
-  const end = event.end_time ? new Date(event.end_time).getTime() : start + 30 * 60_000;
-  if ((event.status ?? "confirmed") !== "confirmed") return "[CANCELLED]";
-  if (now >= start && now <= end) return "[IN PROGRESS]";
-  if (now > end) return "[ENDED]";
-  return "[UPCOMING]";
-}
-
 export const AHOY_LOGO_URL = "https://ahoy.lovable.app/favicon.png";
 
 /** Discord CDN icon for a guild, if AHOY knows it. Cached for the request. */
@@ -1102,8 +1092,10 @@ export function decorateEmbed(
   return embed;
 }
 
-/** Built-in reminder embed: 📅 EVENT REMINDER card. */
-export function reminderEmbed(
+/** Built-in reminder embed: 📅EVENT REMINDER card. */
+export async function reminderEmbed(
+  supabaseAdmin: Admin,
+  guildId: string | null | undefined,
   event: {
     title: string;
     description?: string | null;
@@ -1117,26 +1109,21 @@ export function reminderEmbed(
 ) {
   const stamp = Math.floor(event.start.getTime() / 1000);
   const starting = minutes <= 0;
-  const badge = statusBadge({
-    status: event.status ?? "confirmed",
-    start_time: event.start.toISOString(),
-    end_time: event.end ? event.end.toISOString() : null,
-  });
 
   const lines = [
-    `**Event Name:** ${event.title}`,
-    `**Starting In:** ${starting ? "**now**" : `<t:${stamp}:R>`}`,
-    `**Date And Time:** <t:${stamp}:F>`,
-    `> **Duration:** ${durationLabel(event.start, event.end ?? null)}`,
+    `Event Name: ${event.title}`,
+    `Starting In: ${starting ? "Now" : `<t:${stamp}:R>`}`,
+    `Date And Time: <t:${stamp}:F>`,
+    `>>>Duration: ${durationLabel(event.start, event.end ?? null)}<<<`,
   ];
-  if (event.location) lines.push(`**Location:** ${event.location}`);
-  if (badge === "[CANCELLED]") lines.push("", "🚫 **This event has been cancelled.**");
-  if (event.description) lines.push("", event.description.slice(0, 600));
+
+  const thumbnail = await guildIconUrl(supabaseAdmin, guildId);
 
   return {
-    title: test ? "📅 TEST EVENT REMINDER" : "📅 EVENT REMINDER",
+    title: test ? "📅TEST EVENT REMINDER" : "📅EVENT REMINDER",
     description: lines.join("\n"),
     color: GOLD,
+    ...(thumbnail ? { thumbnail: { url: thumbnail } } : {}),
     footer: {
       text: test ? "AHOY · test reminder — nothing was scheduled" : "AHOY Event Automation",
       icon_url: AHOY_LOGO_URL,
@@ -1219,7 +1206,9 @@ export async function buildReminderMessage(
   if (!structure) {
     return {
       content: mentions,
-      embed: reminderEmbed(
+      embed: (await reminderEmbed(
+        supabaseAdmin,
+        event["guild_id"] as string,
         {
           title: String(event["title"]),
           description: event["description"] as string | null,
@@ -1229,7 +1218,7 @@ export async function buildReminderMessage(
           status: event["status"] as string | null,
         },
         Number(job.reminder_minutes),
-      ) as Record<string, unknown>,
+      )) as Record<string, unknown>,
     };
   }
   const ctx = contextFromEvent(
