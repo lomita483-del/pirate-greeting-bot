@@ -157,10 +157,20 @@ export type CalendarSourceRow = {
 };
 
 export async function fetchIcs(url: string): Promise<string> {
-  const response = await fetch(url, {
-    headers: { accept: "text/calendar, text/plain;q=0.8, */*;q=0.5" },
-    redirect: "follow",
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      headers: { accept: "text/calendar, text/plain;q=0.8, */*;q=0.5" },
+      redirect: "follow",
+      signal: AbortSignal.timeout(25_000),
+    });
+  } catch (error) {
+    const name = (error as Error).name;
+    if (name === "TimeoutError" || name === "AbortError") {
+      throw new Error("The calendar feed took too long to respond. Try syncing again.");
+    }
+    throw new Error(`Could not reach that calendar feed: ${(error as Error).message}`);
+  }
   if (!response.ok) throw new Error(`Calendar responded with HTTP ${response.status}`);
   const body = await response.text();
   if (!body.includes("BEGIN:VCALENDAR")) {
@@ -168,6 +178,7 @@ export async function fetchIcs(url: string): Promise<string> {
   }
   return body;
 }
+
 
 /** Sync one calendar source. Safe to run concurrently / repeatedly. */
 export async function syncCalendarSource(
