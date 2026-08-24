@@ -486,11 +486,12 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
           {configureMode === "choosing" ? (
             <div className="flex flex-wrap gap-2 rounded-xl border border-border/40 bg-background/30 p-3">
               <p className="w-full text-sm text-muted-foreground">
-                Configure every event at once, or pick a specific one?
+                Configure every event at once with an event notifier, or pick a specific one?
               </p>
               <Button size="sm" onClick={openAllAtOnce}>
                 All at once
               </Button>
+
               <Button size="sm" variant="secondary" onClick={() => setConfigureMode("specific")}>
                 A specific event
               </Button>
