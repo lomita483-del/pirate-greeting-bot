@@ -1,6 +1,10 @@
 """Statahoy — Statbot-style analytics commands, running in the same bot
 and reading/writing the same Supabase database as the rest of AHOY.
 
+Everything lives under a single /statahoy command group so it can never
+collide with AHOY's existing top-level commands (general.py already has
+a plain "/stats" command for bot runtime stats).
+
 Data comes from bot/events/stats_events.py (messages) and the voice-time
 bucketing added to bot/events/activity_events.py — see bot/database/
 repository.py for the underlying queries.
@@ -36,19 +40,18 @@ def _channel_lines(rows: list[dict], key: str, fmt) -> str:
 
 
 class Statahoy(commands.Cog):
-    """/stats and /top — message, voice, member and channel analytics."""
+    """/statahoy — message, voice, member and channel analytics."""
 
-    stats = app_commands.Group(name="stats", description="Statahoy analytics for this server.")
-    top = app_commands.Group(name="top", description="Statahoy leaderboards for this server.")
+    statahoy = app_commands.Group(name="statahoy", description="Statahoy analytics for this server.")
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    # -- /stats -------------------------------------------------------
-    @stats.command(name="server", description="Server-wide message & voice overview.")
+    # -- overview -------------------------------------------------------
+    @statahoy.command(name="server", description="Server-wide message & voice overview.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def stats_server(
+    async def server(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
@@ -77,10 +80,11 @@ class Statahoy(commands.Cog):
         embed.set_footer(text="Statahoy ⚓ · view charts on the dashboard")
         await interaction.followup.send(embed=embed)
 
-    @stats.command(name="message", description="Message activity for this server.")
+    # -- messages ---------------------------------------------------------
+    @statahoy.command(name="message", description="Message activity for this server.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def stats_message(
+    async def message(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
@@ -104,10 +108,11 @@ class Statahoy(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
-    @stats.command(name="voice", description="Voice activity for this server.")
+    # -- voice --------------------------------------------------------------
+    @statahoy.command(name="voice", description="Voice activity for this server.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def stats_voice(
+    async def voice(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
@@ -130,10 +135,11 @@ class Statahoy(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
-    @stats.command(name="user", description="Statistics for a member.")
+    # -- member -----------------------------------------------------------
+    @statahoy.command(name="user", description="Statistics for a member.")
     @app_commands.describe(member="Who to look up (defaults to you)", days="Lookback window in days")
     @app_commands.guild_only()
-    async def stats_user(
+    async def user(
         self,
         interaction: discord.Interaction,
         member: discord.Member | None = None,
@@ -159,10 +165,11 @@ class Statahoy(commands.Cog):
         embed.add_field(name="Voice sessions", value=f"{int(voice_stats.get('sessions', 0) or 0):,}")
         await interaction.followup.send(embed=embed)
 
-    @stats.command(name="channel", description="Statistics for a channel.")
+    # -- channel ------------------------------------------------------------
+    @statahoy.command(name="channel", description="Statistics for a channel.")
     @app_commands.describe(channel="Which channel (defaults to this one)", days="Lookback window in days")
     @app_commands.guild_only()
-    async def stats_channel(
+    async def channel(
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel | None = None,
@@ -181,11 +188,11 @@ class Statahoy(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
-    # -- /top -----------------------------------------------------------
-    @top.command(name="messages", description="Top message senders.")
+    # -- leaderboards ---------------------------------------------------
+    @statahoy.command(name="topmessages", description="Top message senders.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def top_messages(
+    async def topmessages(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
@@ -198,10 +205,10 @@ class Statahoy(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
-    @top.command(name="voice", description="Top voice members.")
+    @statahoy.command(name="topvoice", description="Top voice members.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def top_voice(
+    async def topvoice(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
@@ -214,10 +221,10 @@ class Statahoy(commands.Cog):
         )
         await interaction.followup.send(embed=embed)
 
-    @top.command(name="channels", description="Top channels by messages.")
+    @statahoy.command(name="topchannels", description="Top channels by messages.")
     @app_commands.describe(days="Lookback window in days (default 14)")
     @app_commands.guild_only()
-    async def top_channels(
+    async def topchannels(
         self, interaction: discord.Interaction, days: app_commands.Range[int, 1, 90] = DEFAULT_DAYS
     ) -> None:
         guild = ensure_guild(interaction)
