@@ -137,15 +137,6 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ["calendar", guildId] });
 
-  const channels: Option[] = config.structure.channels
-    .filter((c) => c.kind !== "category")
-    .map((c) => ({ id: c.id, name: `#${c.name}` }));
-  const mentions: Option[] = [
-    { id: "none", name: "No mention" },
-    { id: "everyone", name: "@everyone" },
-    { id: "here", name: "@here" },
-    ...config.structure.roles.map((r) => ({ id: r.id, name: `@${r.name}` })),
-  ];
 
   const add = useMutation({
     mutationFn: () =>
