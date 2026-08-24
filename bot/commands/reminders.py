@@ -67,8 +67,61 @@ class Reminders(commands.Cog):
         except Exception as exc:  # pragma: no cover
             log.exception("Reminder dispatch failed: %s", exc)
 
+    async def _calendar_embed(self, event_id: str) -> discord.Embed | None:
+        """Rebuild the same '📅 EVENT REMINDER' embed the scheduler uses,
+        computed fresh right now — so times shown are always accurate,
+        never a stale promise from when the reminder was scheduled."""
+        repo = getattr(self.bot, "repo", None)
+        if repo is None:
+            return None
+        try:
+            event = await repo.calendar_event(event_id)
+        except Exception:
+            return None
+        if not event:
+            return None
+
+        try:
+            start = datetime.fromisoformat(str(event.get("start_time")).replace("Z", "+00:00"))
+            start_ts = int(start.timestamp())
+        except (ValueError, TypeError):
+            start_ts = None
+
+        description_lines = [f"**Event Name:** {event.get('title') or 'Untitled event'}"]
+        if start_ts:
+            description_lines.append(f"**Starting In:** <t:{start_ts}:R>")
+            description_lines.append(f"**Date And Time:** <t:{start_ts}:F>")
+            description_lines.append(f">>> **Duration:** <t:{start_ts}:R> <<<")
+        if event.get("location"):
+            description_lines.append(f"📍 {event['location']}")
+        if event.get("html_link"):
+            description_lines.append(f"[Open in calendar]({event['html_link']})")
+
+        embed = discord.Embed(
+            title="📅 EVENT REMINDER",
+            description="\n".join(description_lines),
+            color=embeds.TEAL,
+            timestamp=datetime.now(timezone.utc),
+        )
+        guild_id = event.get("guild_id")
+        guild = self.bot.get_guild(int(guild_id)) if guild_id else None
+        if guild is not None and guild.icon is not None:
+            embed.set_thumbnail(url=guild.icon.url)
+        if self.bot.user is not None:
+            embed.set_footer(text=f"{embeds.BRAND} ⚓", icon_url=self.bot.user.display_avatar.url)
+        else:
+            embed.set_footer(text=f"{embeds.BRAND} ⚓")
+        return embed
+
     async def _deliver(self, row: dict) -> None:
-        embed = embeds.brand("Reminder ⚓", row.get("message", ""))
+        embed: discord.Embed | None = None
+        if row.get("event_id"):
+            embed = await self._calendar_embed(row["event_id"])
+        if embed is None:
+            # Not a calendar reminder, or the event vanished — fall back to
+            # the plain personal-reminder embed as before.
+            embed = embeds.brand("Reminder ⚓", row.get("message", ""))
+
         user = self.bot.get_user(int(row["user_id"]))
         channel = (
             self.bot.get_channel(int(row["channel_id"])) if row.get("channel_id") else None
