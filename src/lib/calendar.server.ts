@@ -1281,15 +1281,19 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
 
     try {
       const notifierId = (j["notifier_id"] as string | null) ?? null;
-      let cleanup = false;
+      // "none" | "delete_previous" | "edit_previous"
+      let cleanupMode = "none";
       let sourceName = "Calendar";
       if (notifierId) {
         const { data: notifier } = await supabaseAdmin
           .from("event_notifiers")
-          .select("cleanup_previous, name")
+          .select("cleanup_previous, cleanup_mode, name")
           .eq("id", notifierId)
           .maybeSingle();
-        cleanup = Boolean((notifier as Record<string, unknown> | null)?.["cleanup_previous"]);
+        const n = (notifier as Record<string, unknown> | null) ?? {};
+        const enabled = n["cleanup_previous"] === undefined ? false : Boolean(n["cleanup_previous"]);
+        const mode = (n["cleanup_mode"] as string | null) ?? "delete_previous";
+        cleanupMode = enabled ? (mode === "none" ? "delete_previous" : mode) : "none";
       }
       const { data: source } = await supabaseAdmin
         .from("calendar_sources")
@@ -1310,36 +1314,65 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
         sourceName,
       );
 
-      if (cleanup) {
-        const { data: previous } = await supabaseAdmin
+      // Previously sent reminders for this same event/notifier stream.
+      let previousRows: Array<Record<string, unknown>> = [];
+      if (cleanupMode !== "none") {
+        let query = supabaseAdmin
           .from("event_reminders")
-          .select("id, message_id, discord_channel_id")
+          .select("id, message_id, discord_channel_id, sent_at")
           .eq("event_id", event["id"] as string)
-          .eq("notifier_id", notifierId as string)
           .eq("status", "sent")
-          .not("message_id", "is", null);
-        for (const row of previous ?? []) {
-          const p = row as Record<string, unknown>;
-          await deleteDiscordMessage(
-            p["discord_channel_id"] as string,
-            p["message_id"] as string,
+          .not("message_id", "is", null)
+          .order("sent_at", { ascending: false });
+        query = notifierId
+          ? query.eq("notifier_id", notifierId)
+          : query.is("notifier_id", null);
+        const { data: previous } = await query;
+        previousRows = (previous ?? []) as Array<Record<string, unknown>>;
+      }
+
+      let messageId: string | null = null;
+      const channelId = j["discord_channel_id"] as string;
+      const components = rsvpComponents(event["id"] as string);
+
+      if (cleanupMode === "edit_previous") {
+        // Reuse the most recent message in the same channel when possible.
+        const reusable = previousRows.find((p) => p["discord_channel_id"] === channelId);
+        if (reusable) {
+          const edited = await editDiscordMessage(
+            channelId,
+            reusable["message_id"] as string,
+            message.embed,
+            { content: message.content, components },
           );
-          await supabaseAdmin
-            .from("event_reminders")
-            .update({ message_id: null })
-            .eq("id", p["id"] as string);
+          if (edited) {
+            messageId = reusable["message_id"] as string;
+            // The edited message now belongs to this job.
+            await supabaseAdmin
+              .from("event_reminders")
+              .update({ message_id: null })
+              .eq("id", reusable["id"] as string);
+            previousRows = previousRows.filter((p) => p !== reusable);
+          }
         }
       }
 
-      const messageId = await postToDiscord(
-        j["discord_channel_id"] as string,
-        message.embed,
-        null,
-        {
+      // Anything left over is removed for both cleanup modes.
+      for (const p of cleanupMode === "none" ? [] : previousRows) {
+        await deleteDiscordMessage(p["discord_channel_id"] as string, p["message_id"] as string);
+        await supabaseAdmin
+          .from("event_reminders")
+          .update({ message_id: null })
+          .eq("id", p["id"] as string);
+      }
+
+      if (!messageId) {
+        messageId = await postToDiscord(channelId, message.embed, null, {
           content: message.content,
-          components: rsvpComponents(event["id"] as string),
-        },
-      );
+          components,
+        });
+      }
+
 
       await supabaseAdmin
         .from("event_reminders")
