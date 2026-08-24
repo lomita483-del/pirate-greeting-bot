@@ -1,19 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
-import {
-  AlertTriangle,
-  ChevronDown,
-  Link2,
-  Loader2,
-  RefreshCw,
-  Settings2,
-  Trash2,
-  X,
-} from "lucide-react";
+import { AlertTriangle, Link2, Loader2, RefreshCw, Settings2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -25,12 +15,12 @@ import {
   getCalendar,
   listGoogleAccounts,
   listGoogleCalendarsForAccount,
-  saveReminderDefaults,
   syncCalendarNow,
 } from "@/lib/calendar.functions";
 
-import { Field, PickerSelect, SectionHeader, ToggleRow, type Option } from "./fields";
+import { SectionHeader } from "./fields";
 import type { PanelProps } from "./types";
+
 
 export const OFFSET_PRESETS: Array<{ minutes: number; label: string }> = [
   { minutes: 1440, label: "24 hours before" },
