@@ -1193,5 +1193,221 @@ class Repository:
             .execute()
         )
 
+    # -- statahoy: message / voice / member growth tracking ---------------
+    async def bump_message_activity(
+        self, guild_id: str, user_id: str, channel_id: str, day_iso: str
+    ) -> None:
+        """Increment today's message counter for one member in one channel."""
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("count")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .eq("channel_id", channel_id)
+            .eq("day", day_iso)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        current = int(data[0]["count"]) if data else 0
+        await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .upsert(
+                {
+                    "guild_id": guild_id,
+                    "user_id": user_id,
+                    "channel_id": channel_id,
+                    "day": day_iso,
+                    "count": current + 1,
+                    "updated_at": _now(),
+                },
+                on_conflict="guild_id,user_id,channel_id,day",
+            )
+            .execute()
+        )
+
+    async def bump_voice_activity(
+        self, guild_id: str, user_id: str, channel_id: str, day_iso: str, seconds: int
+    ) -> None:
+        """Add `seconds` of voice time to one member/channel/day bucket."""
+        if seconds <= 0:
+            return
+        rows = await self.db.try_run(
+            lambda c: c.table("voice_activity")
+            .select("seconds")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .eq("channel_id", channel_id)
+            .eq("day", day_iso)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        current = int(data[0]["seconds"]) if data else 0
+        await self.db.try_run(
+            lambda c: c.table("voice_activity")
+            .upsert(
+                {
+                    "guild_id": guild_id,
+                    "user_id": user_id,
+                    "channel_id": channel_id,
+                    "day": day_iso,
+                    "seconds": current + seconds,
+                    "updated_at": _now(),
+                },
+                on_conflict="guild_id,user_id,channel_id,day",
+            )
+            .execute()
+        )
+
+    async def record_member_count(self, guild_id: str, day_iso: str, count: int) -> None:
+        await self.db.try_run(
+            lambda c: c.table("member_count_daily")
+            .upsert(
+                {
+                    "guild_id": guild_id,
+                    "day": day_iso,
+                    "member_count": count,
+                    "updated_at": _now(),
+                },
+                on_conflict="guild_id,day",
+            )
+            .execute()
+        )
+
+    async def message_totals_since(self, guild_id: str, since_day_iso: str) -> int:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("count")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        return sum(int(r.get("count", 0) or 0) for r in (getattr(rows, "data", None) or []))
+
+    async def user_message_total(self, guild_id: str, user_id: str, since_day_iso: str) -> int:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("count")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        return sum(int(r.get("count", 0) or 0) for r in (getattr(rows, "data", None) or []))
+
+    async def channel_message_total(
+        self, guild_id: str, channel_id: str, since_day_iso: str
+    ) -> int:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("count")
+            .eq("guild_id", guild_id)
+            .eq("channel_id", channel_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        return sum(int(r.get("count", 0) or 0) for r in (getattr(rows, "data", None) or []))
+
+    async def message_leaderboard(
+        self, guild_id: str, since_day_iso: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("user_id, count")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        totals: dict[str, int] = {}
+        for row in getattr(rows, "data", None) or []:
+            totals[row["user_id"]] = totals.get(row["user_id"], 0) + int(row.get("count", 0) or 0)
+        ranked = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+        return [{"user_id": uid, "messages": total} for uid, total in ranked]
+
+    async def channel_leaderboard(
+        self, guild_id: str, since_day_iso: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("channel_id, count")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        totals: dict[str, int] = {}
+        for row in getattr(rows, "data", None) or []:
+            totals[row["channel_id"]] = totals.get(row["channel_id"], 0) + int(
+                row.get("count", 0) or 0
+            )
+        ranked = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+        return [{"channel_id": cid, "messages": total} for cid, total in ranked]
+
+    async def voice_user_leaderboard(
+        self, guild_id: str, since_day_iso: str, limit: int = 10
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("voice_activity")
+            .select("user_id, seconds")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(5000)
+            .execute()
+        )
+        totals: dict[str, int] = {}
+        for row in getattr(rows, "data", None) or []:
+            totals[row["user_id"]] = totals.get(row["user_id"], 0) + int(row.get("seconds", 0) or 0)
+        ranked = sorted(totals.items(), key=lambda kv: kv[1], reverse=True)[:limit]
+        return [{"user_id": uid, "voice_seconds": total} for uid, total in ranked]
+
+    async def message_series(self, guild_id: str, since_day_iso: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("message_activity")
+            .select("day, count")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(20000)
+            .execute()
+        )
+        by_day: dict[str, int] = {}
+        for row in getattr(rows, "data", None) or []:
+            day = str(row["day"])
+            by_day[day] = by_day.get(day, 0) + int(row.get("count", 0) or 0)
+        return [{"day": day, "messages": total} for day, total in sorted(by_day.items())]
+
+    async def voice_series(self, guild_id: str, since_day_iso: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("voice_activity")
+            .select("day, seconds")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .limit(20000)
+            .execute()
+        )
+        by_day: dict[str, int] = {}
+        for row in getattr(rows, "data", None) or []:
+            day = str(row["day"])
+            by_day[day] = by_day.get(day, 0) + int(row.get("seconds", 0) or 0)
+        return [{"day": day, "seconds": total} for day, total in sorted(by_day.items())]
+
+    async def member_growth_series(
+        self, guild_id: str, since_day_iso: str
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("member_count_daily")
+            .select("day, member_count")
+            .eq("guild_id", guild_id)
+            .gte("day", since_day_iso)
+            .order("day")
+            .limit(400)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
 
 __all__ = ["Repository", "DatabaseError"]
