@@ -157,24 +157,6 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
     ...config.structure.roles.map((r) => ({ id: r.id, name: `@${r.name}` })),
   ];
 
-  const defaults = calendar.data?.defaults;
-  const [draft, setDraft] = useState<{
-    enabled: boolean;
-    offsets: number[];
-    channelId: string | null;
-    mention: string;
-  } | null>(null);
-  const current =
-    draft ??
-    (defaults
-      ? {
-          enabled: defaults.enabled,
-          offsets: defaults.offsets,
-          channelId: defaults.channelId,
-          mention: defaults.mention,
-        }
-      : { enabled: true, offsets: [1440, 60, 10, 0], channelId: null, mention: "none" });
-
   const add = useMutation({
     mutationFn: () =>
       addCalendarSource({
@@ -217,24 +199,6 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const saveDefaults = useMutation({
-    mutationFn: () =>
-      saveReminderDefaults({
-        data: {
-          guildId,
-          enabled: current.enabled,
-          offsets: current.offsets,
-          channelId: current.channelId,
-          mention: current.mention,
-        },
-      }),
-    onSuccess: () => {
-      toast.success("Reminder automation saved.");
-      setDraft(null);
-      refresh();
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
 
   const events = calendar.data?.events ?? [];
   const upcoming = useMemo(() => events.filter((e) => e.status === "confirmed"), [events]);
