@@ -52,6 +52,7 @@ EXTENSIONS = (
     "bot.commands.polls",
     "bot.commands.profile",
     "bot.commands.stats",
+    "bot.commands.statahoy",
     "bot.commands.calendar",
     "bot.commands.send",
     "bot.commands.reports",
@@ -61,6 +62,7 @@ EXTENSIONS = (
     "bot.events.message_events",
     "bot.events.reaction_events",
     "bot.events.activity_events",
+    "bot.events.stats_events",
     "bot.events.calendar_events",
     "bot.events.scheduler",
 )
