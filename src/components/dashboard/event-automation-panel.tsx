@@ -53,14 +53,17 @@ type NotifierDraft = {
   calendarSourceId: string | null;
   offsets: number[];
   roleMentions: string[];
-  cleanupPrevious: boolean;
   templateId: string | null;
   enabled: boolean;
   timezone: string;
   linkMode: "google" | "discord" | "custom" | "none";
   detectionDays: number;
   recurringMode: "each_occurrence" | "first_only" | "skip";
-  cleanupMode: "delete_previous" | "edit_previous" | "keep_all";
+  // "keep" | "delete_previous" | "edit_previous" — the ONLY cleanup setting
+  // a notifier has. (There used to also be a separate `cleanupPrevious`
+  // boolean here that never mapped to a real database column, which is why
+  // enabling cleanup never actually did anything — removed for good.)
+  cleanupMode: "keep" | "delete_previous" | "edit_previous";
   mentionTarget: string;
   reminderChannelId: string | null;
   activityChannelId: string | null;
@@ -102,7 +105,6 @@ const EMPTY_NOTIFIER: NotifierDraft = {
   calendarSourceId: null,
   offsets: [1440, 60, 10, 0],
   roleMentions: [],
-  cleanupPrevious: false,
   templateId: null,
   enabled: true,
   timezone: "UTC",
@@ -230,7 +232,6 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
           calendarSourceId: draft.calendarSourceId,
           offsets: draft.offsets,
           roleMentions: draft.roleMentions,
-          cleanupPrevious: draft.cleanupPrevious,
           templateId: draft.templateId,
           enabled: draft.enabled,
           timezone: draft.timezone,
@@ -515,7 +516,7 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Event notifiers"
-            description="Each notifier posts its own reminder stream — its own channel, offsets, mentions and template."
+            description="Each notifier posts its own reminder stream — its own channel, offsets, mentions and template. This is the single source of truth for scheduling; upcoming events synced from your calendars flow straight into whichever notifiers match them."
             badge={`${data.notifiers.length} notifier(s)`}
           />
           <div className="grid gap-3">
@@ -535,7 +536,8 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                       <span>📢 #{channel?.name ?? n.channelId}</span>
                       <span>🔔 {n.offsets.map(offsetLabel).join(", ") || "no offsets"}</span>
                       {n.roleMentions.length ? <span>📣 {n.roleMentions.length} mention(s)</span> : null}
-                      {n.cleanupPrevious ? <span>🧹 cleans up previous</span> : null}
+                      {n.cleanupMode === "delete_previous" ? <span>🧹 deletes previous</span> : null}
+                      {n.cleanupMode === "edit_previous" ? <span>✏️ edits previous</span> : null}
                       <span>🕒 {n.timezone}</span>
                       <span>🔭 {n.detectionDays}d horizon</span>
                       {n.healthStatus !== "healthy" ? (
@@ -556,7 +558,6 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                           calendarSourceId: n.calendarSourceId,
                           offsets: n.offsets,
                           roleMentions: n.roleMentions,
-                          cleanupPrevious: n.cleanupPrevious,
                           templateId: n.templateId,
                           enabled: n.enabled,
                           timezone: n.timezone,
@@ -619,7 +620,7 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                     emptyLabel="Any category"
                   />
                 </Field>
-                <Field label="Calendar feed" hint="Leave empty to cover every connected calendar.">
+                <Field label="Calendar feed" hint="Leave empty to cover every connected calendar — including newly imported upcoming events.">
                   <PickerSelect
                     value={notifier.calendarSourceId}
                     options={sourceOptions}
@@ -758,13 +759,16 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                     emptyLabel="Announce every occurrence"
                   />
                 </Field>
-                <Field label="Cleanup mode">
+                <Field
+                  label="Cleanup mode"
+                  hint="What happens to this notifier's earlier reminder message for the same event when a new one is due."
+                >
                   <PickerSelect
                     value={notifier.cleanupMode}
                     options={[
                       { id: "delete_previous", name: "Delete previous message" },
                       { id: "edit_previous", name: "Edit previous message" },
-                      { id: "keep_all", name: "Keep every message" },
+                      { id: "keep", name: "Keep every message" },
                     ]}
                     onChange={(v) =>
                       setNotifier({
@@ -861,12 +865,6 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                 />
               </div>
 
-              <ToggleRow
-                label="Clean up previous reminders"
-                description="Delete this notifier's earlier reminder messages for the same event."
-                checked={notifier.cleanupPrevious}
-                onChange={(v) => setNotifier({ ...notifier, cleanupPrevious: v })}
-              />
               <ToggleRow
                 label="Notifier enabled"
                 checked={notifier.enabled}
