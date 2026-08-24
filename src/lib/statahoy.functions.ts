@@ -85,47 +85,52 @@ export const getStatahoyOverview = createServerFn({ method: "GET" })
   .handler(async ({ data }) => {
     const { guild, supabaseAdmin } = await authorize(data.guildId);
     const sinceDay = since(data.days);
+    // Activity tables are written by the Python bot and are not present in the
+    // generated Data API types, so they are queried through an untyped handle.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabaseAdmin as any;
 
     const [server, messages, voice, members, topUsers, topVoice, topChannels] = await Promise.all([
       supabaseAdmin.from("servers").select("*").eq("guild_id", data.guildId).maybeSingle(),
-      supabaseAdmin
+      db
         .from("message_activity")
         .select("day, count")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .limit(20000),
-      supabaseAdmin
+      db
         .from("voice_activity")
         .select("day, seconds")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .limit(20000),
-      supabaseAdmin
+      db
         .from("member_count_daily")
         .select("day, member_count")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .order("day", { ascending: true })
         .limit(400),
-      supabaseAdmin
+      db
         .from("message_activity")
         .select("user_id, count")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .limit(20000),
-      supabaseAdmin
+      db
         .from("voice_activity")
         .select("user_id, seconds")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .limit(20000),
-      supabaseAdmin
+      db
         .from("message_activity")
         .select("channel_id, count")
         .eq("guild_id", data.guildId)
         .gte("day", sinceDay)
         .limit(20000),
     ]);
+
 
     const byDay = (rows: Array<{ day: string }> | null, field: string) => {
       const totals = new Map<string, number>();
