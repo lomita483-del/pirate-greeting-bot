@@ -14,6 +14,10 @@ from ..utils.parsing import clean_text
 log = get_logger("activity-events")
 
 
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
 def _jump(message: discord.Message) -> str:
     try:
         return message.jump_url
@@ -253,11 +257,13 @@ class ActivityEvents(commands.Cog):
             if repo is not None:
                 stats = await repo.get_voice_stats(guild_id, str(member.id))
                 seconds = int(stats.get("voice_seconds", 0) or 0)
+                session_seconds = 0
                 joined = stats.get("last_joined_at")
                 if joined:
                     try:
                         started = datetime.fromisoformat(str(joined).replace("Z", "+00:00"))
-                        seconds += max(0, int((now - started).total_seconds()))
+                        session_seconds = max(0, int((now - started).total_seconds()))
+                        seconds += session_seconds
                     except ValueError:
                         pass
                 await repo.save_voice_stats(
@@ -271,6 +277,19 @@ class ActivityEvents(commands.Cog):
                         "last_left_at": now.isoformat(),
                     }
                 )
+                # Statahoy: also bucket this session's seconds into today's
+                # per-channel daily counter, for the voice activity chart.
+                if session_seconds > 0:
+                    try:
+                        await repo.bump_voice_activity(
+                            guild_id,
+                            str(member.id),
+                            str(before.channel.id),
+                            _today(),
+                            session_seconds,
+                        )
+                    except Exception as exc:
+                        log.warning("Voice activity bucket failed: %s", exc)
             return
 
         if before.channel is not None and after.channel is not None:
