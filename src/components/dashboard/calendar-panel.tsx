@@ -55,10 +55,8 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
-  const [customValue, setCustomValue] = useState("");
-  const [customUnit, setCustomUnit] = useState("minutes");
-  const [automationOpen, setAutomationOpen] = useState(false);
-  const automationRef = useRef<HTMLDivElement>(null);
+
+
 
   const [configureMode, setConfigureMode] = useState<"closed" | "choosing" | "specific">("closed");
   const [chosenEventId, setChosenEventId] = useState("");
