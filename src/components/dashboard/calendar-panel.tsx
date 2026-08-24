@@ -50,7 +50,7 @@ function relative(iso: string | null): string {
   return `${Math.round(hours / 24)} day(s) ago`;
 }
 
-export function CalendarPanel({ guildId, config }: PanelProps) {
+export function CalendarPanel({ guildId }: PanelProps) {
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [name, setName] = useState("");
