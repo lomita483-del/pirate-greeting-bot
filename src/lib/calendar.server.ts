@@ -517,7 +517,6 @@ export type NotifierRow = {
   calendar_source_id: string | null;
   reminder_offsets: number[];
   role_mentions: string[];
-  cleanup_previous: boolean;
   template_id: string | null;
   enabled: boolean;
   timezone?: string;
@@ -527,6 +526,7 @@ export type NotifierRow = {
   detection_days?: number;
   use_calendar_reminders?: boolean;
   recurring_mode?: string;
+  /** "keep" | "delete_previous" | "edit_previous" — the single source of truth for cleanup behaviour. */
   cleanup_mode?: string;
   mention_target?: string;
   reminder_channel_id?: string | null;
@@ -1182,6 +1182,40 @@ async function deleteDiscordMessage(channelId: string, messageId: string) {
   }).catch(() => undefined);
 }
 
+/**
+ * Edit an existing Discord message in place (used by "edit_previous" cleanup
+ * mode, so the reminder stays as a single running message per event instead
+ * of a new one every offset). Returns false on any failure so the caller can
+ * fall back to posting a fresh message.
+ */
+async function editDiscordMessage(
+  channelId: string,
+  messageId: string,
+  embed: Record<string, unknown>,
+  extra: { content?: string | null; components?: unknown[] } = {},
+): Promise<boolean> {
+  const token = process.env["DISCORD_TOKEN"];
+  if (!token) return false;
+  try {
+    const response = await fetch(
+      `https://discord.com/api/v10/channels/${channelId}/messages/${messageId}`,
+      {
+        method: "PATCH",
+        headers: { authorization: `Bot ${token}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          content: extra.content?.trim() || "",
+          embeds: [embed],
+          components: extra.components ?? [],
+        }),
+      },
+    );
+    return response.ok;
+  } catch (error) {
+    console.error("editDiscordMessage failed", error);
+    return false;
+  }
+}
+
 async function rsvpSummary(supabaseAdmin: Admin, eventId: string): Promise<string> {
   const { data } = await supabaseAdmin
     .from("event_rsvps")
@@ -1281,19 +1315,23 @@ export async function dispatchDueReminders(supabaseAdmin: Admin) {
 
     try {
       const notifierId = (j["notifier_id"] as string | null) ?? null;
-      // "none" | "delete_previous" | "edit_previous"
+      // "none" | "delete_previous" | "edit_previous" — resolved straight from
+      // the notifier's single `cleanup_mode` column (default "keep" = none).
+      // There used to be a second `cleanup_previous` boolean gating this,
+      // but that column was never added to the database, so it always read
+      // as undefined/false and cleanup silently never ran. Fixed: cleanup_mode
+      // is the only source of truth now.
       let cleanupMode = "none";
       let sourceName = "Calendar";
       if (notifierId) {
         const { data: notifier } = await supabaseAdmin
           .from("event_notifiers")
-          .select("cleanup_previous, cleanup_mode, name")
+          .select("cleanup_mode, name")
           .eq("id", notifierId)
           .maybeSingle();
         const n = (notifier as Record<string, unknown> | null) ?? {};
-        const enabled = n["cleanup_previous"] === undefined ? false : Boolean(n["cleanup_previous"]);
-        const mode = (n["cleanup_mode"] as string | null) ?? "delete_previous";
-        cleanupMode = enabled ? (mode === "none" ? "delete_previous" : mode) : "none";
+        const mode = (n["cleanup_mode"] as string | null) ?? "keep";
+        cleanupMode = mode === "keep" ? "none" : mode;
       }
       const { data: source } = await supabaseAdmin
         .from("calendar_sources")
