@@ -462,16 +462,17 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
             <div className="flex items-center gap-2">
               <span
                 className={`inline-block h-2.5 w-2.5 rounded-full ${
-                  current.enabled && upcoming.length > 0 ? "bg-emerald-400" : "bg-muted-foreground/40"
+                  upcoming.length > 0 ? "bg-emerald-400" : "bg-muted-foreground/40"
                 }`}
               />
               <div>
                 <p className="text-sm font-semibold">Upcoming events</p>
                 <p className="text-xs text-muted-foreground">
-                  {current.enabled ? "Active" : "Paused"} · {upcoming.length} event(s) imported
+                  {upcoming.length} event(s) imported · used by your event notifiers
                 </p>
               </div>
             </div>
+
             <Button
               size="sm"
               variant="secondary"
