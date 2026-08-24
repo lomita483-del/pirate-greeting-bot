@@ -14,6 +14,8 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppealGuildIdRouteImport } from './routes/appeal/$guildId'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
+import { Route as StatahoyIndexRouteImport } from './routes/statahoy/index'
+import { Route as StatahoyGuildIdRouteImport } from './routes/statahoy/$guildId'
 import { Route as ApiPublicInviteRouteImport } from './routes/api/public/invite'
 import { Route as DashboardGuildIdIndexRouteImport } from './routes/dashboard/$guildId.index'
 import { Route as DashboardGuildIdActivityRouteImport } from './routes/dashboard/$guildId.activity'
@@ -64,6 +66,16 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
 const DashboardGuildIdRoute = DashboardGuildIdRouteImport.update({
   id: '/dashboard/$guildId',
   path: '/dashboard/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatahoyIndexRoute = StatahoyIndexRouteImport.update({
+  id: '/statahoy/',
+  path: '/statahoy/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const StatahoyGuildIdRoute = StatahoyGuildIdRouteImport.update({
+  id: '/statahoy/$guildId',
+  path: '/statahoy/$guildId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicInviteRoute = ApiPublicInviteRouteImport.update({
@@ -217,7 +229,9 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
+  '/statahoy/$guildId': typeof StatahoyGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
@@ -249,7 +263,9 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
+  '/statahoy/$guildId': typeof StatahoyGuildIdRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/statahoy': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
@@ -283,7 +299,9 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
+  '/statahoy/$guildId': typeof StatahoyGuildIdRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
   '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
@@ -318,7 +336,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/appeal/$guildId'
     | '/dashboard/$guildId'
+    | '/statahoy/$guildId'
     | '/dashboard/'
+    | '/statahoy/'
     | '/api/public/invite'
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
@@ -350,7 +370,9 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/appeal/$guildId'
+    | '/statahoy/$guildId'
     | '/dashboard'
+    | '/statahoy'
     | '/api/public/invite'
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
@@ -383,7 +405,9 @@ export interface FileRouteTypes {
     | '/admin'
     | '/appeal/$guildId'
     | '/dashboard/$guildId'
+    | '/statahoy/$guildId'
     | '/dashboard/'
+    | '/statahoy/'
     | '/api/public/invite'
     | '/dashboard/$guildId/activity'
     | '/dashboard/$guildId/automation'
@@ -417,7 +441,9 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   AppealGuildIdRoute: typeof AppealGuildIdRoute
   DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
+  StatahoyGuildIdRoute: typeof StatahoyGuildIdRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
+  StatahoyIndexRoute: typeof StatahoyIndexRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
   ApiPublicHooksCalendarSyncRoute: typeof ApiPublicHooksCalendarSyncRoute
   ApiPublicMediaFileNameRoute: typeof ApiPublicMediaFileNameRoute
@@ -463,6 +489,20 @@ declare module '@tanstack/react-router' {
       path: '/dashboard/$guildId'
       fullPath: '/dashboard/$guildId'
       preLoaderRoute: typeof DashboardGuildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statahoy/': {
+      id: '/statahoy/'
+      path: '/statahoy'
+      fullPath: '/statahoy/'
+      preLoaderRoute: typeof StatahoyIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/statahoy/$guildId': {
+      id: '/statahoy/$guildId'
+      path: '/statahoy/$guildId'
+      fullPath: '/statahoy/$guildId'
+      preLoaderRoute: typeof StatahoyGuildIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/invite': {
@@ -700,7 +740,9 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   AppealGuildIdRoute: AppealGuildIdRoute,
   DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
+  StatahoyGuildIdRoute: StatahoyGuildIdRoute,
   DashboardIndexRoute: DashboardIndexRoute,
+  StatahoyIndexRoute: StatahoyIndexRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
   ApiPublicHooksCalendarSyncRoute: ApiPublicHooksCalendarSyncRoute,
   ApiPublicMediaFileNameRoute: ApiPublicMediaFileNameRoute,

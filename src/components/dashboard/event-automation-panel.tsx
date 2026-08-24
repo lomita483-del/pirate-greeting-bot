@@ -510,7 +510,8 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
       </Card>
 
       {/* Notifiers --------------------------------------------------------- */}
-      <Card className="glass border-0">
+      <Card id="event-notifiers" className="glass border-0">
+
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Event notifiers"
