@@ -239,22 +239,15 @@ export function CalendarPanel({ guildId, config }: PanelProps) {
   const events = calendar.data?.events ?? [];
   const upcoming = useMemo(() => events.filter((e) => e.status === "confirmed"), [events]);
 
-  const toggleOffset = (minutes: number) =>
-    setDraft({
-      ...current,
-      offsets: current.offsets.includes(minutes)
-        ? current.offsets.filter((m) => m !== minutes)
-        : [...current.offsets, minutes],
-    });
-
-  const removeOffset = (minutes: number) =>
-    setDraft({ ...current, offsets: current.offsets.filter((m) => m !== minutes) });
-
   function openAllAtOnce() {
     setConfigureMode("closed");
-    setAutomationOpen(true);
-    requestAnimationFrame(() => automationRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    requestAnimationFrame(() =>
+      document
+        .getElementById("event-notifiers")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+    );
   }
+
 
   function goToSpecificEvent() {
     if (!chosenEventId) return;
