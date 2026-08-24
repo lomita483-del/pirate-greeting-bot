@@ -66,10 +66,15 @@ class CalendarEvents(commands.Cog):
                 start = datetime.fromisoformat(start_raw.replace("Z", "+00:00"))
             except ValueError:
                 start = datetime.now(timezone.utc) + timedelta(minutes=15)
-            remind_at = max(
-                start - timedelta(minutes=15),
-                datetime.now(timezone.utc) + timedelta(seconds=30),
-            )
+
+            now = datetime.now(timezone.utc)
+            target = start - timedelta(minutes=15)
+            # If "15 minutes before" has already passed (e.g. this button was
+            # clicked from a reminder that itself fired inside that window),
+            # don't silently reschedule further out than promised — fire as
+            # soon as sensibly possible instead, and be honest about it below.
+            remind_at = target if target > now + timedelta(seconds=20) else now + timedelta(seconds=20)
+
             await repo.add_reminder(
                 {
                     "guild_id": guild_id,
@@ -80,12 +85,16 @@ class CalendarEvents(commands.Cog):
                     "channel_id": None,
                     "user_id": str(interaction.user.id),
                     "message": f"Event starting soon: {title}",
+                    "event_id": event_id,
                     "remind_at": remind_at.isoformat(),
                     "delivered": False,
                 }
             )
+            # A live Discord timestamp instead of a hardcoded "15 minutes" —
+            # this is always accurate even when remind_at got clamped above.
+            when = f"<t:{int(remind_at.timestamp())}:R>"
             await interaction.response.send_message(
-                f"⏰ I'll DM you 15 minutes before **{title}**.", ephemeral=True
+                f"⏰ I'll DM you {when}, before **{title}**.", ephemeral=True
             )
             return
 
