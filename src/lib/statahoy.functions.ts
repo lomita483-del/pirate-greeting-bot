@@ -190,7 +190,11 @@ export const getStatahoyOverview = createServerFn({ method: "GET" })
       totalVoiceSeconds: voiceSeries.reduce((sum, r) => sum + r.value, 0),
       messageSeries,
       voiceSeries,
-      memberSeries: (members.data ?? []).map((r) => ({ day: r.day, value: r.member_count })),
+      memberSeries: ((members.data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+        day: String(r["day"]),
+        value: Number(r["member_count"] ?? 0),
+      })),
+
       topUsers: rankedUsers.map((r) => ({ ...r, name: names.get(r.id) ?? r.id })),
       topVoiceUsers: rankedVoice.map((r) => ({ ...r, name: names.get(r.id) ?? r.id })),
       topChannels: rankedChannels,
