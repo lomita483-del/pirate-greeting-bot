@@ -36,6 +36,7 @@ import { Route as DashboardGuildIdStatsRouteImport } from './routes/dashboard/$g
 import { Route as DashboardGuildIdWelcomeRouteImport } from './routes/dashboard/$guildId.welcome'
 import { Route as ApiPublicHooksCalendarSyncRouteImport } from './routes/api/public/hooks/calendar-sync'
 import { Route as ApiPublicMediaFileNameRouteImport } from './routes/api/public/media/$fileName'
+import { Route as ApiPublicMediaUploadRouteImport } from './routes/api/public/media/upload'
 import { Route as DashboardGuildIdEventEventIdRouteImport } from './routes/dashboard/$guildId.event.$eventId'
 import { Route as ApiPublicAuthDiscordCallbackRouteImport } from './routes/api/public/auth/discord/callback'
 import { Route as ApiPublicAuthDiscordLogoutRouteImport } from './routes/api/public/auth/discord/logout'
@@ -187,6 +188,11 @@ const ApiPublicMediaFileNameRoute = ApiPublicMediaFileNameRouteImport.update({
   path: '/api/public/media/$fileName',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMediaUploadRoute = ApiPublicMediaUploadRouteImport.update({
+  id: '/api/public/media/upload',
+  path: '/api/public/media/upload',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardGuildIdEventEventIdRoute =
   DashboardGuildIdEventEventIdRouteImport.update({
     id: '/event/$eventId',
@@ -252,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
   '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/media/$fileName': typeof ApiPublicMediaFileNameRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/dashboard/$guildId/event/$eventId': typeof DashboardGuildIdEventEventIdRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -286,6 +293,7 @@ export interface FileRoutesByTo {
   '/dashboard/$guildId': typeof DashboardGuildIdIndexRoute
   '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/media/$fileName': typeof ApiPublicMediaFileNameRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/dashboard/$guildId/event/$eventId': typeof DashboardGuildIdEventEventIdRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -322,6 +330,7 @@ export interface FileRoutesById {
   '/dashboard/$guildId/': typeof DashboardGuildIdIndexRoute
   '/api/public/hooks/calendar-sync': typeof ApiPublicHooksCalendarSyncRoute
   '/api/public/media/$fileName': typeof ApiPublicMediaFileNameRoute
+  '/api/public/media/upload': typeof ApiPublicMediaUploadRoute
   '/dashboard/$guildId/event/$eventId': typeof DashboardGuildIdEventEventIdRoute
   '/api/public/auth/discord/callback': typeof ApiPublicAuthDiscordCallbackRoute
   '/api/public/auth/discord/logout': typeof ApiPublicAuthDiscordLogoutRoute
@@ -359,6 +368,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/'
     | '/api/public/hooks/calendar-sync'
     | '/api/public/media/$fileName'
+    | '/api/public/media/upload'
     | '/dashboard/$guildId/event/$eventId'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -393,6 +403,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId'
     | '/api/public/hooks/calendar-sync'
     | '/api/public/media/$fileName'
+    | '/api/public/media/upload'
     | '/dashboard/$guildId/event/$eventId'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/'
     | '/api/public/hooks/calendar-sync'
     | '/api/public/media/$fileName'
+    | '/api/public/media/upload'
     | '/dashboard/$guildId/event/$eventId'
     | '/api/public/auth/discord/callback'
     | '/api/public/auth/discord/logout'
@@ -447,6 +459,7 @@ export interface RootRouteChildren {
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
   ApiPublicHooksCalendarSyncRoute: typeof ApiPublicHooksCalendarSyncRoute
   ApiPublicMediaFileNameRoute: typeof ApiPublicMediaFileNameRoute
+  ApiPublicMediaUploadRoute: typeof ApiPublicMediaUploadRoute
   ApiPublicAuthDiscordCallbackRoute: typeof ApiPublicAuthDiscordCallbackRoute
   ApiPublicAuthDiscordLogoutRoute: typeof ApiPublicAuthDiscordLogoutRoute
   ApiPublicAuthDiscordStartRoute: typeof ApiPublicAuthDiscordStartRoute
@@ -645,6 +658,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicMediaFileNameRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/media/upload': {
+      id: '/api/public/media/upload'
+      path: '/api/public/media/upload'
+      fullPath: '/api/public/media/upload'
+      preLoaderRoute: typeof ApiPublicMediaUploadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/$guildId/event/$eventId': {
       id: '/dashboard/$guildId/event/$eventId'
       path: '/event/$eventId'
@@ -746,6 +766,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicInviteRoute: ApiPublicInviteRoute,
   ApiPublicHooksCalendarSyncRoute: ApiPublicHooksCalendarSyncRoute,
   ApiPublicMediaFileNameRoute: ApiPublicMediaFileNameRoute,
+  ApiPublicMediaUploadRoute: ApiPublicMediaUploadRoute,
   ApiPublicAuthDiscordCallbackRoute: ApiPublicAuthDiscordCallbackRoute,
   ApiPublicAuthDiscordLogoutRoute: ApiPublicAuthDiscordLogoutRoute,
   ApiPublicAuthDiscordStartRoute: ApiPublicAuthDiscordStartRoute,
