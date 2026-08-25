@@ -1,6 +1,5 @@
 import { useRef, useState, type ReactNode } from "react";
 import { ImageUp, Loader2 } from "lucide-react";
-import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +14,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { uploadDashboardImage } from "@/lib/image-upload.functions";
+
 
 export type Option = { id: string; name: string };
 
