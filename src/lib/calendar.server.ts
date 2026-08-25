@@ -1271,7 +1271,13 @@ export async function buildReminderMessage(
       rsvp: await rsvpSummary(supabaseAdmin, event["id"] as string),
     },
   );
-  return renderTemplate(structure, ctx);
+  const rendered = renderTemplate(structure, ctx);
+  return {
+    ...rendered,
+    embed: decorateEmbed(rendered.embed as Record<string, unknown>, {
+      guildIcon: await guildIconUrl(supabaseAdmin, event["guild_id"] as string),
+    }),
+  };
 }
 
 /** Deliver every reminder that is due. Idempotent and retry-safe. */
