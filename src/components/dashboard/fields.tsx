@@ -31,7 +31,6 @@ export function ImageUrlField({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const upload = useServerFn(uploadDashboardImage);
 
   async function uploadFile(file: File | undefined) {
     if (!file) return;
@@ -40,9 +39,18 @@ export function ImageUrlField({
       const form = new FormData();
       form.set("guildId", guildId);
       form.set("file", file);
-      const result = await upload({ data: form });
+      const response = await fetch("/api/public/media/upload", {
+        method: "POST",
+        body: form,
+        credentials: "include",
+      });
+      const result = (await response.json()) as { url?: string; error?: string };
+      if (!response.ok || !result.url) {
+        throw new Error(result.error ?? "Could not upload that image.");
+      }
       onChange(result.url);
       toast.success("Image uploaded");
+
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not upload that image.");
     } finally {
