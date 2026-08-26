@@ -490,7 +490,11 @@ export async function loadDefaults(
   supabaseAdmin: Admin,
   guildId: string,
 ): Promise<ReminderDefaults> {
-  const { data } = await supabaseAdmin
+  // `event_reminder_defaults` is a legacy table that is not part of the
+  // generated Supabase types, so this read goes through an untyped handle and
+  // falls back to sane defaults when the table is absent.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await (supabaseAdmin as any)
     .from("event_reminder_defaults")
     .select("*")
     .eq("guild_id", guildId)
