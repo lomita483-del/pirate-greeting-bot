@@ -65,7 +65,9 @@ export const getCalendar = createServerFn({ method: "GET" })
         .select("*")
         .eq("guild_id", data.guildId)
         .order("created_at", { ascending: true }),
-      supabaseAdmin
+      // Legacy table, absent from the generated types — untyped handle.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabaseAdmin as any)
         .from("event_reminder_defaults")
         .select("*")
         .eq("guild_id", data.guildId)
@@ -374,7 +376,8 @@ export const saveReminderDefaults = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    const { error } = await supabaseAdmin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabaseAdmin as any)
       .from("event_reminder_defaults")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       .upsert(
