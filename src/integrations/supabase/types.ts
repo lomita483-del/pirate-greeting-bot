@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -623,6 +623,56 @@ export type Database = {
           },
         ]
       }
+      case_appeals: {
+        Row: {
+          case_id: string | null
+          case_number: number | null
+          created_at: string
+          guild_id: string
+          id: string
+          message: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          case_id?: string | null
+          case_number?: number | null
+          created_at?: string
+          guild_id: string
+          id?: string
+          message: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          case_id?: string | null
+          case_number?: number | null
+          created_at?: string
+          guild_id?: string
+          id?: string
+          message?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "case_appeals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "moderation_cases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       command_cooldowns: {
         Row: {
           command: string
@@ -909,7 +959,6 @@ export type Database = {
           category_id: string | null
           channel_id: string
           cleanup_mode: string
-          cleanup_previous: boolean
           created_at: string
           created_by: string | null
           custom_link: string | null
@@ -948,7 +997,6 @@ export type Database = {
           category_id?: string | null
           channel_id: string
           cleanup_mode?: string
-          cleanup_previous?: boolean
           created_at?: string
           created_by?: string | null
           custom_link?: string | null
@@ -987,7 +1035,6 @@ export type Database = {
           category_id?: string | null
           channel_id?: string
           cleanup_mode?: string
-          cleanup_previous?: boolean
           created_at?: string
           created_by?: string | null
           custom_link?: string | null
@@ -1036,47 +1083,6 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "message_templates"
             referencedColumns: ["id"]
-          },
-        ]
-      }
-      event_reminder_defaults: {
-        Row: {
-          created_at: string
-          discord_channel_id: string | null
-          enabled: boolean
-          guild_id: string
-          mention: string
-          offsets: number[]
-          timezone: string
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          discord_channel_id?: string | null
-          enabled?: boolean
-          guild_id: string
-          mention?: string
-          offsets?: number[]
-          timezone?: string
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          discord_channel_id?: string | null
-          enabled?: boolean
-          guild_id?: string
-          mention?: string
-          offsets?: number[]
-          timezone?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "event_reminder_defaults_guild_id_fkey"
-            columns: ["guild_id"]
-            isOneToOne: true
-            referencedRelation: "servers"
-            referencedColumns: ["guild_id"]
           },
         ]
       }
@@ -1487,6 +1493,7 @@ export type Database = {
       logging_settings: {
         Row: {
           channel_changes: boolean
+          channel_overrides: Json
           created_at: string
           enabled: boolean
           guild_id: string
@@ -1503,6 +1510,7 @@ export type Database = {
         }
         Insert: {
           channel_changes?: boolean
+          channel_overrides?: Json
           created_at?: string
           enabled?: boolean
           guild_id: string
@@ -1519,6 +1527,7 @@ export type Database = {
         }
         Update: {
           channel_changes?: boolean
+          channel_overrides?: Json
           created_at?: string
           enabled?: boolean
           guild_id?: string
@@ -1542,6 +1551,27 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      member_count_daily: {
+        Row: {
+          day: string
+          guild_id: string
+          member_count: number
+          updated_at: string
+        }
+        Insert: {
+          day: string
+          guild_id: string
+          member_count?: number
+          updated_at?: string
+        }
+        Update: {
+          day?: string
+          guild_id?: string
+          member_count?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       members: {
         Row: {
@@ -1592,6 +1622,33 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      message_activity: {
+        Row: {
+          channel_id: string
+          count: number
+          day: string
+          guild_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          count?: number
+          day: string
+          guild_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          count?: number
+          day?: string
+          guild_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       message_templates: {
         Row: {
@@ -1877,6 +1934,7 @@ export type Database = {
           max_servers: number | null
           notes: string | null
           plan: string
+          premium: boolean
           updated_at: string
           username: string | null
         }
@@ -1899,6 +1957,7 @@ export type Database = {
           max_servers?: number | null
           notes?: string | null
           plan?: string
+          premium?: boolean
           updated_at?: string
           username?: string | null
         }
@@ -1921,6 +1980,7 @@ export type Database = {
           max_servers?: number | null
           notes?: string | null
           plan?: string
+          premium?: boolean
           updated_at?: string
           username?: string | null
         }
@@ -2037,6 +2097,7 @@ export type Database = {
           channel_id: string | null
           created_at: string
           delivered: boolean
+          event_id: string | null
           guild_id: string | null
           id: string
           message: string
@@ -2047,6 +2108,7 @@ export type Database = {
           channel_id?: string | null
           created_at?: string
           delivered?: boolean
+          event_id?: string | null
           guild_id?: string | null
           id?: string
           message: string
@@ -2057,13 +2119,22 @@ export type Database = {
           channel_id?: string | null
           created_at?: string
           delivered?: boolean
+          event_id?: string | null
           guild_id?: string | null
           id?: string
           message?: string
           remind_at?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reminders_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_settings: {
         Row: {
@@ -2582,6 +2653,81 @@ export type Database = {
           },
         ]
       }
+      user_reports: {
+        Row: {
+          channel_id: string | null
+          created_at: string
+          guild_id: string
+          id: string
+          message_id: string | null
+          reason: string
+          reported_user_id: string
+          reported_user_name: string | null
+          reporter_id: string
+          reporter_name: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+        }
+        Insert: {
+          channel_id?: string | null
+          created_at?: string
+          guild_id: string
+          id?: string
+          message_id?: string | null
+          reason: string
+          reported_user_id: string
+          reported_user_name?: string | null
+          reporter_id: string
+          reporter_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Update: {
+          channel_id?: string | null
+          created_at?: string
+          guild_id?: string
+          id?: string
+          message_id?: string | null
+          reason?: string
+          reported_user_id?: string
+          reported_user_name?: string | null
+          reporter_id?: string
+          reporter_name?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
+      voice_activity: {
+        Row: {
+          channel_id: string
+          day: string
+          guild_id: string
+          seconds: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          channel_id: string
+          day: string
+          guild_id: string
+          seconds?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          channel_id?: string
+          day?: string
+          guild_id?: string
+          seconds?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       voice_stats: {
         Row: {
           created_at: string
@@ -2673,10 +2819,71 @@ export type Database = {
           },
         ]
       }
+      welcome_messages: {
+        Row: {
+          attach_dynamic_image: boolean
+          auto_role_id: string | null
+          channel_id: string | null
+          content: string | null
+          created_at: string
+          dynamic_image_background_url: string | null
+          dynamic_image_enabled: boolean
+          dynamic_image_subtitle: string | null
+          dynamic_image_title: string | null
+          embed: Json | null
+          enabled: boolean
+          guild_id: string
+          id: string
+          position: number
+          updated_at: string
+          use_embed: boolean
+        }
+        Insert: {
+          attach_dynamic_image?: boolean
+          auto_role_id?: string | null
+          channel_id?: string | null
+          content?: string | null
+          created_at?: string
+          dynamic_image_background_url?: string | null
+          dynamic_image_enabled?: boolean
+          dynamic_image_subtitle?: string | null
+          dynamic_image_title?: string | null
+          embed?: Json | null
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          position?: number
+          updated_at?: string
+          use_embed?: boolean
+        }
+        Update: {
+          attach_dynamic_image?: boolean
+          auto_role_id?: string | null
+          channel_id?: string | null
+          content?: string | null
+          created_at?: string
+          dynamic_image_background_url?: string | null
+          dynamic_image_enabled?: boolean
+          dynamic_image_subtitle?: string | null
+          dynamic_image_title?: string | null
+          embed?: Json | null
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          position?: number
+          updated_at?: string
+          use_embed?: boolean
+        }
+        Relationships: []
+      }
       welcome_settings: {
         Row: {
           auto_role_id: string | null
           created_at: string
+          dynamic_image_background_url: string | null
+          dynamic_image_enabled: boolean
+          dynamic_image_subtitle: string | null
+          dynamic_image_title: string | null
           embed_color: string
           embed_image_url: string | null
           embed_title: string
@@ -2693,6 +2900,10 @@ export type Database = {
         Insert: {
           auto_role_id?: string | null
           created_at?: string
+          dynamic_image_background_url?: string | null
+          dynamic_image_enabled?: boolean
+          dynamic_image_subtitle?: string | null
+          dynamic_image_title?: string | null
           embed_color?: string
           embed_image_url?: string | null
           embed_title?: string
@@ -2709,6 +2920,10 @@ export type Database = {
         Update: {
           auto_role_id?: string | null
           created_at?: string
+          dynamic_image_background_url?: string | null
+          dynamic_image_enabled?: boolean
+          dynamic_image_subtitle?: string | null
+          dynamic_image_title?: string | null
           embed_color?: string
           embed_image_url?: string | null
           embed_title?: string
