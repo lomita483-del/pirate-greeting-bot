@@ -1493,7 +1493,7 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
     z
       .object({
         guildId: z.string().regex(/^\d{5,25}$/),
-        commands: z.array(z.string().min(1).max(120)).min(1).max(400),
+        commands: z.array(z.string().min(1).max(120)).min(1).max(2000),
         patch: commandConfigInput.omit({ guildId: true, command: true }),
       })
       .parse(data),
