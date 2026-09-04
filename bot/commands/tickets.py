@@ -223,6 +223,21 @@ class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        """Handle dashboard-authored ticket panel buttons (any number of them)."""
+        data = interaction.data or {}
+        custom_id = str(data.get("custom_id") or "")
+        if not custom_id.startswith("ahoy:ticket:open:"):
+            return
+        guild = ensure_guild(interaction)
+        settings = await self.bot.repo.get_settings(str(guild.id))  # type: ignore[attr-defined]
+        if not settings.get("tickets_enabled"):
+            raise ActionRefused("Tickets are disabled in this server.")
+        category = custom_id.split(":")[-1] or "support"
+        await self.open_ticket(interaction, category)
+
+
     @app_commands.command(name="ticket", description="Open a private support ticket.")
     @app_commands.guild_only()
     async def ticket(self, interaction: discord.Interaction) -> None:
