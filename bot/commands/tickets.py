@@ -130,24 +130,71 @@ class TicketPanel(discord.ui.View):
         )
 
 
+BUTTON_STYLES = {
+    "primary": discord.ButtonStyle.primary,
+    "secondary": discord.ButtonStyle.secondary,
+    "success": discord.ButtonStyle.success,
+    "danger": discord.ButtonStyle.danger,
+}
+
+
+def _slugify(value: str) -> str:
+    slug = "".join(ch.lower() if ch.isalnum() else "-" for ch in value).strip("-")
+    return (slug or "support")[:40]
+
+
+class MultiTicketPanel(discord.ui.View):
+    """Panel with one button per ticket topic — persistent via custom_id prefix."""
+
+    def __init__(self, buttons: list[dict]) -> None:
+        super().__init__(timeout=None)
+        for index, spec in enumerate(buttons[:20]):
+            label = str(spec.get("label") or "Create a ticket")[:80]
+            category = _slugify(str(spec.get("category") or label))
+            style = BUTTON_STYLES.get(str(spec.get("style") or "primary"), discord.ButtonStyle.primary)
+            emoji = spec.get("emoji") or None
+            self.add_item(
+                discord.ui.Button(
+                    label=label,
+                    style=style,
+                    emoji=emoji,
+                    custom_id=f"ahoy:ticket:open:{index}:{category}",
+                )
+            )
+
+
 async def post_ticket_panel(
     bot: commands.Bot,
     channel: discord.TextChannel,
     title: str | None,
     description: str | None,
     button_label: str | None,
+    buttons: list[dict] | None = None,
 ) -> discord.Message:
     """Post the public ticket panel — used by the dashboard action queue."""
-    view = TicketPanel(bot.get_cog("Tickets"))  # type: ignore[arg-type]
-    if button_label:
-        view.children[0].label = button_label[:80]  # type: ignore[attr-defined]
+    specs = [b for b in (buttons or []) if isinstance(b, dict) and b.get("label")]
+
     embed = embeds.brand(
         title or "Need a hand?",
         description
-        or "Click the button below to open a private ticket with the crew. "
-        "Only you and our staff will be able to see it.",
+        or "Pick the option that matches your request. A private channel will be "
+        "created for you and the crew only.",
     )
-    return await channel.send(embed=embed, view=view)
+
+    if not specs:
+        view: discord.ui.View = TicketPanel(bot.get_cog("Tickets"))  # type: ignore[arg-type]
+        if button_label:
+            view.children[0].label = button_label[:80]  # type: ignore[attr-defined]
+        return await channel.send(embed=embed, view=view)
+
+    for spec in specs[:20]:
+        if spec.get("description"):
+            embed.add_field(
+                name=f"{spec.get('emoji') or '🎫'} {str(spec['label'])[:80]}",
+                value=str(spec["description"])[:1024],
+                inline=False,
+            )
+    return await channel.send(embed=embed, view=MultiTicketPanel(specs))
 
 
 class TicketOpener(discord.ui.View):
@@ -175,6 +222,21 @@ class TicketCategorySelect(discord.ui.Select):
 class Tickets(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+
+    @commands.Cog.listener()
+    async def on_interaction(self, interaction: discord.Interaction) -> None:
+        """Handle dashboard-authored ticket panel buttons (any number of them)."""
+        data = interaction.data or {}
+        custom_id = str(data.get("custom_id") or "")
+        if not custom_id.startswith("ahoy:ticket:open:"):
+            return
+        guild = ensure_guild(interaction)
+        settings = await self.bot.repo.get_settings(str(guild.id))  # type: ignore[attr-defined]
+        if not settings.get("tickets_enabled"):
+            raise ActionRefused("Tickets are disabled in this server.")
+        category = custom_id.split(":")[-1] or "support"
+        await self.open_ticket(interaction, category)
+
 
     @app_commands.command(name="ticket", description="Open a private support ticket.")
     @app_commands.guild_only()
@@ -245,7 +307,10 @@ class Tickets(commands.Cog):
             }
         )
 
-        label = next((lbl for val, lbl, _ in CATEGORIES if val == category), "Support")
+        label = next(
+            (lbl for val, lbl, _ in CATEGORIES if val == category),
+            category.replace("-", " ").title(),
+        )
         embed = embeds.brand(
             f"Ticket #{number:04d} · {label}",
             settings.get("ticket_welcome_message")

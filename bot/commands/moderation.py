@@ -104,29 +104,71 @@ class Moderation(commands.Cog):
         await interaction.followup.send(embed=embed, ephemeral=True)
 
     # -- messages -----------------------------------------------------
-    @app_commands.command(name="clear", description="Bulk delete recent messages.")
-    @app_commands.describe(amount="How many messages to delete (1-100)")
+    @app_commands.command(name="clear", description="Bulk delete messages in a channel.")
+    @app_commands.describe(
+        channel="Channel to clean (defaults to the current channel)",
+        amount="How many messages to delete (1-1000)",
+        user="Only delete messages from this member",
+    )
     @app_commands.guild_only()
-    async def clear(self, interaction: discord.Interaction, amount: int) -> None:
+    async def clear(
+        self,
+        interaction: discord.Interaction,
+        amount: int,
+        channel: discord.TextChannel | None = None,
+        user: discord.Member | None = None,
+    ) -> None:
         guild = ensure_guild(interaction)
         ensure_permission(interaction, "manage_messages")
         ensure_bot_permission(guild, "manage_messages")
-        if not 1 <= amount <= 100:
-            raise ActionRefused("Choose an amount between 1 and 100.")
-        if not isinstance(interaction.channel, discord.TextChannel):
+        if not 1 <= amount <= 1000:
+            raise ActionRefused("Choose an amount between 1 and 1000.")
+
+        target_channel = channel or interaction.channel
+        if not isinstance(target_channel, discord.TextChannel):
             raise ActionRefused("This command only works in text channels.")
 
         await interaction.response.defer(ephemeral=True)
-        deleted = await interaction.channel.purge(limit=amount)
+
+        check = (lambda m: m.author.id == user.id) if user else None
+        # Discord caps a single purge at 100 messages, so batch the request.
+        deleted_total = 0
+        remaining = amount
+        while remaining > 0:
+            batch = min(100, remaining)
+            try:
+                deleted = await target_channel.purge(
+                    limit=batch if check is None else max(batch, 100),
+                    check=check,
+                    reason=f"/clear by {interaction.user}",
+                )
+            except discord.HTTPException as exc:
+                if deleted_total == 0:
+                    raise ActionRefused(f"Discord refused the purge: {exc}") from exc
+                break
+            if not deleted:
+                break
+            deleted_total += len(deleted)
+            remaining -= len(deleted) if check is None else len(deleted)
+
+        scope = f" from {user.mention}" if user else ""
         await self.mod.record(
             guild,
             "clear",
+            target=user,
             moderator=interaction.user,
-            reason=f"Cleared {len(deleted)} messages in #{interaction.channel.name}",
-            metadata={"channel_id": str(interaction.channel.id), "count": len(deleted)},
+            reason=f"Cleared {deleted_total} messages in #{target_channel.name}",
+            metadata={
+                "channel_id": str(target_channel.id),
+                "count": deleted_total,
+                "user_id": str(user.id) if user else None,
+            },
         )
         await interaction.followup.send(
-            embed=embeds.success("Messages cleared", f"Removed **{len(deleted)}** message(s)."),
+            embed=embeds.success(
+                "Messages cleared",
+                f"Removed **{deleted_total}** message(s) in {target_channel.mention}{scope}.",
+            ),
             ephemeral=True,
         )
 

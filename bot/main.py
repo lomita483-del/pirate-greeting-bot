@@ -79,7 +79,7 @@ class AhoyBot(commands.Bot):
         intents.reactions = True
 
         super().__init__(
-            command_prefix=commands.when_mentioned,
+            command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "),
             intents=intents,
             help_command=None,
             activity=discord.Activity(
