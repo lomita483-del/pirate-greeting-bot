@@ -67,9 +67,7 @@ class Levels(commands.Cog):
         repo = self.bot.repo  # type: ignore[attr-defined]
         await interaction.response.defer(ephemeral=True)
 
-        config = await repo.get_settings(str(guild.id), "role_settings") if hasattr(
-            repo, "get_settings"
-        ) else {}
+        config = await repo.get_settings(str(guild.id), "role_settings")
         rules = (config or {}).get("level_roles") or []
         rows = []
         for rule in sorted(
