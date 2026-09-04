@@ -307,7 +307,10 @@ class Tickets(commands.Cog):
             }
         )
 
-        label = next((lbl for val, lbl, _ in CATEGORIES if val == category), "Support")
+        label = next(
+            (lbl for val, lbl, _ in CATEGORIES if val == category),
+            category.replace("-", " ").title(),
+        )
         embed = embeds.brand(
             f"Ticket #{number:04d} · {label}",
             settings.get("ticket_welcome_message")
