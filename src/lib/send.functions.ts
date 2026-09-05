@@ -124,6 +124,18 @@ export const postTicketPanel = createServerFn({ method: "POST" })
         title: z.string().max(256).optional(),
         description: z.string().max(2000).optional(),
         buttonLabel: z.string().max(80).optional(),
+        buttons: z
+          .array(
+            z.object({
+              label: z.string().min(1).max(80),
+              description: z.string().max(200).optional(),
+              emoji: z.string().max(8).optional(),
+              style: z.enum(["primary", "secondary", "success", "danger"]).optional(),
+              category: z.string().max(40).optional(),
+            }),
+          )
+          .max(20)
+          .optional(),
       })
       .parse(data),
   )
@@ -137,6 +149,7 @@ export const postTicketPanel = createServerFn({ method: "POST" })
         title: data.title ?? null,
         description: data.description ?? null,
         button_label: data.buttonLabel ?? null,
+        buttons: data.buttons ?? [],
       },
       requested_by: session.userId,
       status: "pending",
