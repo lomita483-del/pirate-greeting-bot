@@ -328,6 +328,7 @@ class Scheduler(commands.Cog):
                 payload.get("title"),
                 payload.get("description"),
                 payload.get("button_label"),
+                payload.get("buttons") or [],
             )
             return
         else:
