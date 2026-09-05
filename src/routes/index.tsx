@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Anchor,
   BarChart3,
+  CalendarDays,
   Coins,
   LifeBuoy,
   MessageSquareCode,
@@ -121,7 +122,7 @@ function LandingPage() {
 
         {/* Two-section chooser: same bot, two entry points. */}
         <section className="mx-auto max-w-6xl px-6 pb-16">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="glass flex flex-col justify-between rounded-2xl p-8">
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
@@ -145,6 +146,25 @@ function LandingPage() {
                     <Link to="/dashboard">Open dashboard</Link>
                   </Button>
                 )}
+              </div>
+            </div>
+
+            <div className="glass flex flex-col justify-between rounded-2xl p-8">
+              <div>
+                <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
+                  <CalendarDays className="h-4 w-4 text-primary" />
+                  Ahoy Calendar
+                </div>
+                <h2 className="mt-4 text-2xl font-semibold">Events & reminders</h2>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                  Sync Google Calendar or iCalendar feeds, then let AHOY announce every event with
+                  countdown reminders, RSVPs and daily summaries in your channels.
+                </p>
+              </div>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button asChild size="lg">
+                  <Link to="/calendar">Open Ahoy Calendar</Link>
+                </Button>
               </div>
             </div>
 
