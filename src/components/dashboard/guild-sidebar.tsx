@@ -43,7 +43,7 @@ export const MODULE_LINKS: ModuleLink[] = [
   { label: "Community", to: "/dashboard/$guildId/community", icon: Sparkles },
   { label: "Send", to: "/dashboard/$guildId/send", icon: Send },
   { label: "Automation", to: "/dashboard/$guildId/automation", icon: CalendarClock },
-  { label: "Calendar", to: "/dashboard/$guildId/calendar", icon: CalendarDays },
+  { label: "AHOY Calendar", to: "/calendar/$guildId", icon: CalendarDays },
   { label: "Engagement", to: "/dashboard/$guildId/engagement", icon: Trophy },
   { label: "Stats", to: "/dashboard/$guildId/stats", icon: BarChart3 },
   { label: "Logging", to: "/dashboard/$guildId/logging", icon: ScrollText },
