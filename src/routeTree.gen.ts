@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as AppealGuildIdRouteImport } from './routes/appeal/$guildId'
+import { Route as CalendarIndexRouteImport } from './routes/calendar/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as DashboardGuildIdRouteImport } from './routes/dashboard/$guildId'
 import { Route as StatahoyIndexRouteImport } from './routes/statahoy/index'
@@ -57,6 +58,11 @@ const AdminRoute = AdminRouteImport.update({
 const AppealGuildIdRoute = AppealGuildIdRouteImport.update({
   id: '/appeal/$guildId',
   path: '/appeal/$guildId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CalendarIndexRoute = CalendarIndexRouteImport.update({
+  id: '/calendar/',
+  path: '/calendar/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
@@ -236,6 +242,7 @@ export interface FileRoutesByFullPath {
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/statahoy/$guildId': typeof StatahoyGuildIdRoute
+  '/calendar/': typeof CalendarIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
@@ -271,6 +278,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/statahoy/$guildId': typeof StatahoyGuildIdRoute
+  '/calendar': typeof CalendarIndexRoute
   '/dashboard': typeof DashboardIndexRoute
   '/statahoy': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
@@ -308,6 +316,7 @@ export interface FileRoutesById {
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
   '/statahoy/$guildId': typeof StatahoyGuildIdRoute
+  '/calendar/': typeof CalendarIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
   '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
@@ -346,6 +355,7 @@ export interface FileRouteTypes {
     | '/appeal/$guildId'
     | '/dashboard/$guildId'
     | '/statahoy/$guildId'
+    | '/calendar/'
     | '/dashboard/'
     | '/statahoy/'
     | '/api/public/invite'
@@ -381,6 +391,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/appeal/$guildId'
     | '/statahoy/$guildId'
+    | '/calendar'
     | '/dashboard'
     | '/statahoy'
     | '/api/public/invite'
@@ -417,6 +428,7 @@ export interface FileRouteTypes {
     | '/appeal/$guildId'
     | '/dashboard/$guildId'
     | '/statahoy/$guildId'
+    | '/calendar/'
     | '/dashboard/'
     | '/statahoy/'
     | '/api/public/invite'
@@ -454,6 +466,7 @@ export interface RootRouteChildren {
   AppealGuildIdRoute: typeof AppealGuildIdRoute
   DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
   StatahoyGuildIdRoute: typeof StatahoyGuildIdRoute
+  CalendarIndexRoute: typeof CalendarIndexRoute
   DashboardIndexRoute: typeof DashboardIndexRoute
   StatahoyIndexRoute: typeof StatahoyIndexRoute
   ApiPublicInviteRoute: typeof ApiPublicInviteRoute
@@ -488,6 +501,13 @@ declare module '@tanstack/react-router' {
       path: '/appeal/$guildId'
       fullPath: '/appeal/$guildId'
       preLoaderRoute: typeof AppealGuildIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/calendar/': {
+      id: '/calendar/'
+      path: '/calendar'
+      fullPath: '/calendar/'
+      preLoaderRoute: typeof CalendarIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/dashboard/': {
@@ -761,6 +781,7 @@ const rootRouteChildren: RootRouteChildren = {
   AppealGuildIdRoute: AppealGuildIdRoute,
   DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
   StatahoyGuildIdRoute: StatahoyGuildIdRoute,
+  CalendarIndexRoute: CalendarIndexRoute,
   DashboardIndexRoute: DashboardIndexRoute,
   StatahoyIndexRoute: StatahoyIndexRoute,
   ApiPublicInviteRoute: ApiPublicInviteRoute,
