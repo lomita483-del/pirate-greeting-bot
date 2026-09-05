@@ -87,7 +87,7 @@ export function TicketPanelPublisher({
           channelId,
           title: title || undefined,
           description: description || undefined,
-          buttonLabel: clean[0].label,
+          buttonLabel: clean[0]!.label,
           buttons: clean.map((b) => ({
             label: b.label.trim(),
             description: b.description.trim() || undefined,
