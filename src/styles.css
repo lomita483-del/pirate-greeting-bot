@@ -152,6 +152,8 @@
   --color-gold-foreground: var(--gold-foreground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-tideline: var(--tideline);
+  --color-brass: var(--brass);
   --font-display: "Sora", ui-sans-serif, system-ui, sans-serif;
   --font-sans: "Manrope", ui-sans-serif, system-ui, sans-serif;
 }
@@ -159,50 +161,56 @@
 :root,
 .dark {
   --radius: 0.9rem;
-  --background: oklch(0.145 0.028 258);
-  --foreground: oklch(0.965 0.014 92);
-  --surface: oklch(0.195 0.03 258);
-  --surface-2: oklch(0.235 0.032 258);
-  --card: oklch(0.195 0.03 258);
-  --card-foreground: oklch(0.965 0.014 92);
-  --popover: oklch(0.195 0.03 258);
-  --popover-foreground: oklch(0.965 0.014 92);
-  --primary: oklch(0.82 0.13 85);
-  --primary-foreground: oklch(0.17 0.03 258);
-  --secondary: oklch(0.26 0.03 258);
-  --secondary-foreground: oklch(0.95 0.012 92);
-  --muted: oklch(0.25 0.026 258);
-  --muted-foreground: oklch(0.74 0.03 88);
-  --accent: oklch(0.3 0.045 90);
-  --accent-foreground: oklch(0.97 0.012 92);
-  --gold: oklch(0.86 0.14 88);
-  --gold-foreground: oklch(0.19 0.04 60);
-  --destructive: oklch(0.62 0.207 22);
-  --destructive-foreground: oklch(0.98 0.008 92);
-  --border: oklch(0.86 0.12 88 / 16%);
-  --input: oklch(0.86 0.12 88 / 20%);
-  --ring: oklch(0.82 0.13 85 / 60%);
-  --chart-1: oklch(0.82 0.13 85);
-  --chart-2: oklch(0.72 0.09 200);
-  --chart-3: oklch(0.65 0.13 250);
-  --chart-4: oklch(0.7 0.12 150);
-  --chart-5: oklch(0.68 0.16 20);
-  --sidebar: oklch(0.17 0.028 258);
-  --sidebar-foreground: oklch(0.95 0.013 92);
-  --sidebar-primary: oklch(0.82 0.13 85);
-  --sidebar-primary-foreground: oklch(0.17 0.03 258);
-  --sidebar-accent: oklch(0.25 0.03 258);
-  --sidebar-accent-foreground: oklch(0.96 0.012 92);
-  --sidebar-border: oklch(0.86 0.12 88 / 16%);
-  --sidebar-ring: oklch(0.82 0.13 85 / 60%);
+  /* Deep ocean night: richer, more saturated navy with real depth. */
+  --background: oklch(0.132 0.038 254);
+  --foreground: oklch(0.968 0.016 92);
+  --surface: oklch(0.196 0.042 254);
+  --surface-2: oklch(0.245 0.048 252);
+  --card: oklch(0.198 0.042 254);
+  --card-foreground: oklch(0.968 0.016 92);
+  --popover: oklch(0.186 0.042 254);
+  --popover-foreground: oklch(0.968 0.016 92);
+  /* Warm burnished gold */
+  --primary: oklch(0.815 0.152 82);
+  --primary-foreground: oklch(0.16 0.04 254);
+  --secondary: oklch(0.268 0.045 252);
+  --secondary-foreground: oklch(0.955 0.014 92);
+  --muted: oklch(0.252 0.038 253);
+  --muted-foreground: oklch(0.755 0.038 86);
+  --accent: oklch(0.33 0.062 88);
+  --accent-foreground: oklch(0.975 0.014 92);
+  --gold: oklch(0.865 0.158 86);
+  --gold-foreground: oklch(0.185 0.045 58);
+  --brass: oklch(0.69 0.12 68);
+  --tideline: oklch(0.7 0.115 205);
+  --destructive: oklch(0.615 0.215 24);
+  --destructive-foreground: oklch(0.98 0.01 92);
+  --border: oklch(0.865 0.14 86 / 18%);
+  --input: oklch(0.865 0.14 86 / 22%);
+  --ring: oklch(0.815 0.152 82 / 65%);
+  --chart-1: oklch(0.83 0.15 84);
+  --chart-2: oklch(0.72 0.115 205);
+  --chart-3: oklch(0.66 0.145 252);
+  --chart-4: oklch(0.72 0.135 152);
+  --chart-5: oklch(0.68 0.175 20);
+  --sidebar: oklch(0.162 0.04 254);
+  --sidebar-foreground: oklch(0.955 0.015 92);
+  --sidebar-primary: oklch(0.815 0.152 82);
+  --sidebar-primary-foreground: oklch(0.16 0.04 254);
+  --sidebar-accent: oklch(0.252 0.045 253);
+  --sidebar-accent-foreground: oklch(0.965 0.014 92);
+  --sidebar-border: oklch(0.865 0.14 86 / 18%);
+  --sidebar-ring: oklch(0.815 0.152 82 / 65%);
 }
 
 @layer base {
   body {
     font-family: var(--font-sans);
     background-image:
-      radial-gradient(60rem 40rem at 12% -10%, oklch(0.86 0.14 88 / 12%), transparent 60%),
-      radial-gradient(50rem 34rem at 92% 0%, oklch(0.86 0.14 88 / 8%), transparent 62%);
+      radial-gradient(70rem 46rem at 8% -14%, oklch(0.865 0.158 86 / 16%), transparent 58%),
+      radial-gradient(56rem 38rem at 96% -6%, oklch(0.7 0.115 205 / 14%), transparent 60%),
+      radial-gradient(70rem 50rem at 50% 118%, oklch(0.45 0.11 250 / 22%), transparent 62%),
+      linear-gradient(180deg, oklch(0.152 0.045 254), oklch(0.118 0.034 256) 70%);
     background-attachment: fixed;
   }
 
