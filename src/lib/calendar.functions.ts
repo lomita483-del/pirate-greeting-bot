@@ -1267,8 +1267,8 @@ export const createCalendarEvent = createServerFn({ method: "POST" })
       .maybeSingle();
     if (error || !row) throw new Error("Could not create that event.");
 
-    const { scheduleRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
-    await scheduleRemindersForEvent(
+    const { rebuildRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
+    await rebuildRemindersForEvent(
       supabaseAdmin,
       row as Record<string, unknown>,
       await loadDefaults(supabaseAdmin, data.guildId),
@@ -1314,8 +1314,8 @@ export const updateCalendarEvent = createServerFn({ method: "POST" })
       .eq("event_id", data.eventId)
       .eq("status", "pending");
 
-    const { scheduleRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
-    await scheduleRemindersForEvent(
+    const { rebuildRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
+    await rebuildRemindersForEvent(
       supabaseAdmin,
       row as Record<string, unknown>,
       await loadDefaults(supabaseAdmin, data.guildId),
