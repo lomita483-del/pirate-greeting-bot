@@ -1180,3 +1180,159 @@ export const addGoogleCalendarSource = createServerFn({ method: "POST" })
     const result = await syncCalendarSource(supabaseAdmin, inserted as any);
     return { ok: true, result };
   });
+
+/* ---------------------------------------------------------------- */
+/* Manual events created straight from the control panel             */
+/* ---------------------------------------------------------------- */
+
+async function manualSourceId(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabaseAdmin: any,
+  guildIdValue: string,
+  userId: string,
+): Promise<string> {
+  const { data: existing } = await supabaseAdmin
+    .from("calendar_sources")
+    .select("id")
+    .eq("guild_id", guildIdValue)
+    .eq("source_type", "manual")
+    .maybeSingle();
+  if (existing?.id) return existing.id as string;
+
+  const { data: created, error } = await supabaseAdmin
+    .from("calendar_sources")
+    .insert({
+      guild_id: guildIdValue,
+      source_type: "manual",
+      name: "Control panel events",
+      connected_by: userId,
+      sync_enabled: false,
+      sync_status: "ok",
+    })
+    .select("id")
+    .maybeSingle();
+  if (error || !created) throw new Error("Could not prepare the manual calendar.");
+  return created.id as string;
+}
+
+const eventInput = z.object({
+  guildId,
+  title: z.string().min(1).max(200),
+  description: z.string().max(2000).nullable().optional(),
+  location: z.string().max(300).nullable().optional(),
+  start: z.string().min(1),
+  end: z.string().min(1).nullable().optional(),
+  timezone: z.string().max(64).default("UTC"),
+  isAllDay: z.boolean().default(false),
+  channelId: snowflake.nullable().optional(),
+  mention: z.string().max(40).nullable().optional(),
+  offsets: z.array(z.number().int().min(0).max(20160)).max(10).optional(),
+  remindersEnabled: z.boolean().default(true),
+});
+
+function toIso(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) throw new Error("That date and time is not valid.");
+  return date.toISOString();
+}
+
+export const createCalendarEvent = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => eventInput.parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const sourceId = await manualSourceId(supabaseAdmin, data.guildId, session.userId);
+    const start = toIso(data.start);
+    const end = data.end ? toIso(data.end) : null;
+
+    const { data: row, error } = await supabaseAdmin
+      .from("calendar_events")
+      .insert({
+        guild_id: data.guildId,
+        calendar_source_id: sourceId,
+        external_event_id: `manual-${crypto.randomUUID()}`,
+        title: data.title,
+        description: data.description ?? null,
+        location: data.location ?? null,
+        start_time: start,
+        end_time: end,
+        timezone: data.timezone,
+        is_all_day: data.isAllDay,
+        status: "confirmed",
+        discord_channel_id: data.channelId ?? null,
+        mention: data.mention ?? null,
+        reminder_offsets: data.offsets ?? null,
+        reminders_enabled: data.remindersEnabled,
+      })
+      .select("*")
+      .maybeSingle();
+    if (error || !row) throw new Error("Could not create that event.");
+
+    const { scheduleRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
+    await scheduleRemindersForEvent(
+      supabaseAdmin,
+      row as Record<string, unknown>,
+      await loadDefaults(supabaseAdmin, data.guildId),
+    );
+    return { ok: true, id: (row as Record<string, unknown>)["id"] as string };
+  });
+
+export const updateCalendarEvent = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    eventInput.extend({ eventId: z.string().uuid() }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const start = toIso(data.start);
+    const end = data.end ? toIso(data.end) : null;
+
+    const { data: row, error } = await supabaseAdmin
+      .from("calendar_events")
+      .update({
+        title: data.title,
+        description: data.description ?? null,
+        location: data.location ?? null,
+        start_time: start,
+        end_time: end,
+        timezone: data.timezone,
+        is_all_day: data.isAllDay,
+        discord_channel_id: data.channelId ?? null,
+        mention: data.mention ?? null,
+        reminder_offsets: data.offsets ?? null,
+        reminders_enabled: data.remindersEnabled,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", data.eventId)
+      .eq("guild_id", data.guildId)
+      .select("*")
+      .maybeSingle();
+    if (error || !row) throw new Error("Could not update that event.");
+
+    // Pending reminders are rebuilt against the new time.
+    await supabaseAdmin
+      .from("event_reminders")
+      .delete()
+      .eq("event_id", data.eventId)
+      .eq("status", "pending");
+
+    const { scheduleRemindersForEvent, loadDefaults } = await import("@/lib/calendar.server");
+    await scheduleRemindersForEvent(
+      supabaseAdmin,
+      row as Record<string, unknown>,
+      await loadDefaults(supabaseAdmin, data.guildId),
+    );
+    return { ok: true };
+  });
+
+export const deleteCalendarEvent = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) => z.object({ guildId, eventId: z.string().uuid() }).parse(data))
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    await supabaseAdmin.from("event_reminders").delete().eq("event_id", data.eventId);
+    const { error } = await supabaseAdmin
+      .from("calendar_events")
+      .delete()
+      .eq("id", data.eventId)
+      .eq("guild_id", data.guildId);
+    if (error) throw new Error("Could not delete that event.");
+    return { ok: true };
+  });
