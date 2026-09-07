@@ -81,8 +81,8 @@ export function CalendarPanel({ guildId }: PanelProps) {
         signed_out: "Your Discord session expired. Sign in again, then reconnect Google.",
         no_access: "You no longer have permission to manage this server.",
         no_refresh_token:
-          "Google did not provide offline access. Remove AHOY from your Google account permissions and reconnect.",
-        storage_failed: "Google connected, but AHOY could not save the account. Please try again.",
+          "Google did not provide offline access. Remove !PIRATE from your Google account permissions and reconnect.",
+        storage_failed: "Google connected, but !PIRATE could not save the account. Please try again.",
         signin_failed: "Google sign-in could not be completed. Please try again.",
         invalid_state: "The Google sign-in request expired. Please start again.",
       };
@@ -205,7 +205,7 @@ export function CalendarPanel({ guildId }: PanelProps) {
         <CardContent className="space-y-4 pt-6">
           <SectionHeader
             title="Google Calendar"
-            description="Sign in with Google and pick a calendar — no copying links, and AHOY refreshes it automatically."
+            description="Sign in with Google and pick a calendar — no copying links, and !PIRATE refreshes it automatically."
           />
 
           {accountsQuery.data?.accounts.length ? (
@@ -292,7 +292,7 @@ export function CalendarPanel({ guildId }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Calendar sources"
-            description="Connect an iCalendar (.ics) feed — including Google Calendar's secret iCal address — and AHOY keeps its events in sync every 5 minutes."
+            description="Connect an iCalendar (.ics) feed — including Google Calendar's secret iCal address — and !PIRATE keeps its events in sync every 5 minutes."
             badge={`${calendar.data?.sources.length ?? 0} connected`}
           />
 

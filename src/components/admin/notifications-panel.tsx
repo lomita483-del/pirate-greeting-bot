@@ -153,7 +153,7 @@ export function NotificationsPanel() {
             <Switch checked={viaInbox} onCheckedChange={setViaInbox} />
           </label>
           <label className="hairline flex items-center justify-between rounded-lg px-3 py-2 text-sm">
-            <span>Discord DM from AHOY</span>
+            <span>Discord DM from !PIRATE</span>
             <Switch checked={viaDm} onCheckedChange={setViaDm} />
           </label>
           <label className="hairline flex items-center justify-between rounded-lg px-3 py-2 text-sm">

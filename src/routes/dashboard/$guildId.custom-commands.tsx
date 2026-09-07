@@ -7,10 +7,10 @@ import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/custom-commands")({
   head: () => ({
     meta: [
-      { title: "Custom commands — AHOY Control Center" },
-      { name: "description", content: "Create and manage your own AHOY commands with custom responses." },
-      { property: "og:title", content: "Custom commands — AHOY Control Center" },
-      { property: "og:description", content: "Create and manage your own AHOY commands." },
+      { title: "Custom commands — !PIRATE Control Center" },
+      { name: "description", content: "Create and manage your own !PIRATE commands with custom responses." },
+      { property: "og:title", content: "Custom commands — !PIRATE Control Center" },
+      { property: "og:description", content: "Create and manage your own !PIRATE commands." },
     ],
   }),
   component: () => (

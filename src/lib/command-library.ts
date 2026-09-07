@@ -1,5 +1,5 @@
-// Generated AHOY command library — 900+ commands grouped by category.
-// Source: AHOY Master Discord Command Library. Do not hand-edit; regenerate instead.
+// Generated !PIRATE command library — 900+ commands grouped by category.
+// Source: !PIRATE Master Discord Command Library. Do not hand-edit; regenerate instead.
 
 export type CommandEntry = {
   name: string;
@@ -6530,119 +6530,119 @@ export const COMMAND_CATEGORIES: CommandCategory[] = [
   },
   {
     "slug": "panel",
-    "title": "AHOY Dashboard",
+    "title": "!PIRATE Dashboard",
     "commands": [
       {
         "name": "dashboard",
         "sub": "dashboard",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard \u2014 AHOY Dashboard."
+        "desc": "Dashboard \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-stats",
         "sub": "dashboard-stats",
         "dedicated": false,
         "kind": "stats",
-        "desc": "Statistics for dashboard stats \u2014 AHOY Dashboard."
+        "desc": "Statistics for dashboard stats \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-cases",
         "sub": "dashboard-cases",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard cases \u2014 AHOY Dashboard."
+        "desc": "Dashboard cases \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-reports",
         "sub": "dashboard-reports",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard reports \u2014 AHOY Dashboard."
+        "desc": "Dashboard reports \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-members",
         "sub": "dashboard-members",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard members \u2014 AHOY Dashboard."
+        "desc": "Dashboard members \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-moderators",
         "sub": "dashboard-moderators",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard moderators \u2014 AHOY Dashboard."
+        "desc": "Dashboard moderators \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-security",
         "sub": "dashboard-security",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard security \u2014 AHOY Dashboard."
+        "desc": "Dashboard security \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-automod",
         "sub": "dashboard-automod",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard automod \u2014 AHOY Dashboard."
+        "desc": "Dashboard automod \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-analytics",
         "sub": "dashboard-analytics",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard analytics \u2014 AHOY Dashboard."
+        "desc": "Dashboard analytics \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-logs",
         "sub": "dashboard-logs",
         "dedicated": false,
         "kind": "logs",
-        "desc": "Logs for dashboard logs \u2014 AHOY Dashboard."
+        "desc": "Logs for dashboard logs \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-settings",
         "sub": "dashboard-settings",
         "dedicated": false,
         "kind": "config",
-        "desc": "Configure dashboard settings \u2014 AHOY Dashboard."
+        "desc": "Configure dashboard settings \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-incidents",
         "sub": "dashboard-incidents",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard incidents \u2014 AHOY Dashboard."
+        "desc": "Dashboard incidents \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-appeals",
         "sub": "dashboard-appeals",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard appeals \u2014 AHOY Dashboard."
+        "desc": "Dashboard appeals \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-tickets",
         "sub": "dashboard-tickets",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard tickets \u2014 AHOY Dashboard."
+        "desc": "Dashboard tickets \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-live",
         "sub": "dashboard-live",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard live \u2014 AHOY Dashboard."
+        "desc": "Dashboard live \u2014 !PIRATE Dashboard."
       },
       {
         "name": "dashboard-open",
         "sub": "dashboard-open",
         "dedicated": false,
         "kind": "action",
-        "desc": "Dashboard open \u2014 AHOY Dashboard."
+        "desc": "Dashboard open \u2014 !PIRATE Dashboard."
       }
     ]
   },

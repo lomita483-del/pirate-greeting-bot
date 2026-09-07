@@ -20,17 +20,17 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AHOY — Discord Bot & Server Dashboard" },
+      { title: "!PIRATE — Discord Bot & Server Dashboard" },
       {
         name: "description",
         content:
-          "AHOY is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
+          "!PIRATE is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
       },
-      { property: "og:title", content: "AHOY — Discord Bot & Server Dashboard" },
+      { property: "og:title", content: "!PIRATE — Discord Bot & Server Dashboard" },
       {
         property: "og:description",
         content:
-          "AHOY is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
+          "!PIRATE is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
       },
     ],
   }),
@@ -90,7 +90,7 @@ function LandingPage() {
         <AhoyWordmark subtitle="Control Center" />
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
-            <a href="/api/public/invite">Invite AHOY</a>
+            <a href="/api/public/invite">Invite !PIRATE</a>
           </Button>
           {signedIn ? (
             <Button asChild size="sm">
@@ -115,7 +115,7 @@ function LandingPage() {
             Command your Discord server from <span className="text-tide">one helm</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
-            One bot, two decks: run moderation, AutoMod, levels, economy and tickets from AHOY's
+            One bot, two decks: run moderation, AutoMod, levels, economy and tickets from !PIRATE's
             control center, or dive into Statahoy for live message, voice and member analytics.
           </p>
         </section>
@@ -126,13 +126,11 @@ function LandingPage() {
             <div className="glass flex flex-col justify-between rounded-2xl p-8">
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  <Anchor className="h-4 w-4 text-primary" />
-                  Ahoy
-                </div>
+                  <Anchor className="h-4 w-4 text-primary" />!PIRATE</div>
                 <h2 className="mt-4 text-2xl font-semibold">Server control center</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Moderation, AutoMod, welcome messages, tickets, custom commands and every setting
-                  AHOY runs on — configured live, saved straight to your database.
+                  !PIRATE runs on — configured live, saved straight to your database.
                 </p>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -153,17 +151,17 @@ function LandingPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   <CalendarDays className="h-4 w-4 text-primary" />
-                  Ahoy Calendar
+                  !PIRATE Calendar
                 </div>
                 <h2 className="mt-4 text-2xl font-semibold">Events & reminders</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Sync Google Calendar or iCalendar feeds, then let AHOY announce every event with
+                  Sync Google Calendar or iCalendar feeds, then let !PIRATE announce every event with
                   countdown reminders, RSVPs and daily summaries in your channels.
                 </p>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/calendar">Open Ahoy Calendar</Link>
+                  <Link to="/calendar">Open !PIRATE Calendar</Link>
                 </Button>
               </div>
             </div>
@@ -201,7 +199,7 @@ function LandingPage() {
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" variant="secondary">
-              <a href="/api/public/invite">Add AHOY to your server</a>
+              <a href="/api/public/invite">Add !PIRATE to your server</a>
             </Button>
           </div>
           <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -214,7 +212,7 @@ function LandingPage() {
 
       <footer className="hairline border-t border-border/60">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground">
-          <span>AHOY — steady as she goes.</span>
+          <span>!PIRATE — steady as she goes.</span>
           <span>Built with discord.py + Lovable Cloud</span>
         </div>
       </footer>

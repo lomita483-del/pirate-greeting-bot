@@ -180,7 +180,7 @@ function UserEditor({
           <Sparkles className="size-4" /> Feature access
         </Label>
         <p className="text-xs text-muted-foreground">
-          Off means this user cannot use the module through AHOY, anywhere.
+          Off means this user cannot use the module through !PIRATE, anywhere.
         </p>
         <div className="grid gap-2 sm:grid-cols-2">
           {FEATURE_KEYS.map((key) => (

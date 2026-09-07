@@ -96,7 +96,7 @@ export function TicketPanelPublisher({
           })),
         },
       });
-      toast.success("Ticket panel queued — AHOY will post it within a few seconds.");
+      toast.success("Ticket panel queued — !PIRATE will post it within a few seconds.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not send the panel.");
     } finally {

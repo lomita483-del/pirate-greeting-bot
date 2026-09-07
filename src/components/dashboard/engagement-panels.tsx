@@ -143,7 +143,7 @@ export function RemindersPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-4 pt-6">
         <SectionHeader
           title="Reminders"
-          description="Everything the crew has asked AHOY to remember, newest deadline first."
+          description="Everything the crew has asked !PIRATE to remember, newest deadline first."
           badge={`${pending.length} pending`}
         />
         {engagement.isPending ? (

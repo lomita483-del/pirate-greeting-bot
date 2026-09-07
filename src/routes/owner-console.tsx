@@ -28,16 +28,16 @@ import { getAdminContext, getAdminOverview } from "@/lib/admin.functions";
 export const Route = createFileRoute("/owner-console")({
   head: () => ({
     meta: [
-      { title: "Owner console — AHOY" },
+      { title: "Owner console — !PIRATE" },
       {
         name: "description",
         content:
-          "Platform owner console for AHOY: monitor sign-ins, manage users and plans, review servers and broadcast notifications.",
+          "Platform owner console for !PIRATE: monitor sign-ins, manage users and plans, review servers and broadcast notifications.",
       },
-      { property: "og:title", content: "Owner console — AHOY" },
+      { property: "og:title", content: "Owner console — !PIRATE" },
       {
         property: "og:description",
-        content: "Monitor users, servers and notifications across every AHOY deployment.",
+        content: "Monitor users, servers and notifications across every !PIRATE deployment.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -81,7 +81,7 @@ function AdminConsole() {
     return (
       <Gate title="Owner console">
         <p className="text-sm text-muted-foreground">
-          This area is restricted to the AHOY platform owner.
+          This area is restricted to the !PIRATE platform owner.
         </p>
         <Button asChild variant="outline">
           <Link to="/dashboard">Back to your servers</Link>
@@ -136,7 +136,7 @@ function AdminConsole() {
               {context.user?.username?.toUpperCase() ?? "OWNER"}
             </p>
             <p className="mt-3 text-sm text-muted-foreground">
-              You have full control over the AHOY platform.
+              You have full control over the !PIRATE platform.
             </p>
             <p className="text-sm font-medium text-gold">Monitor. Manage. Restrict.</p>
           </div>

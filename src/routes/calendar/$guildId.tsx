@@ -14,13 +14,13 @@ import { getGuildConfig } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/calendar/$guildId")({
   head: () => ({
     meta: [
-      { title: "AHOY Calendar — event sync & reminders" },
+      { title: "!PIRATE Calendar — event sync & reminders" },
       {
         name: "description",
         content:
           "Connect Google Calendar or iCalendar feeds and schedule Discord reminders, RSVPs and daily summaries for this server.",
       },
-      { property: "og:title", content: "AHOY Calendar — event sync & reminders" },
+      { property: "og:title", content: "!PIRATE Calendar — event sync & reminders" },
       {
         property: "og:description",
         content: "Manage calendar feeds and Discord event reminders for your server.",
@@ -59,7 +59,7 @@ function CalendarWorkspace() {
             </span>
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                Ahoy Calendar
+                !PIRATE Calendar
               </p>
               <h1 className="text-lg font-semibold leading-tight">Event sync & reminders</h1>
             </div>
@@ -103,7 +103,7 @@ function CalendarWorkspace() {
             <TabsContent value="sources" className="space-y-6">
               <p className="text-sm text-muted-foreground">
                 Connect Google Calendar accounts or paste an iCalendar link, then sync to pull the
-                upcoming events AHOY will announce.
+                upcoming events !PIRATE will announce.
               </p>
               <CalendarPanel guildId={guildId} config={config.data} onSaved={refresh} />
             </TabsContent>

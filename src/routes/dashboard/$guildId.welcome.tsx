@@ -9,9 +9,9 @@ import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-pa
 export const Route = createFileRoute("/dashboard/$guildId/welcome")({
   head: () => ({
     meta: [
-      { title: "Welcome messages — AHOY Control Center" },
+      { title: "Welcome messages — !PIRATE Control Center" },
       { name: "description", content: "Greet joining members and announce leaves in the channels you choose." },
-      { property: "og:title", content: "Welcome messages — AHOY Control Center" },
+      { property: "og:title", content: "Welcome messages — !PIRATE Control Center" },
       { property: "og:description", content: "Custom welcome and leave messages for new members." },
     ],
   }),

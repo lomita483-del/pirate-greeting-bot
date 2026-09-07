@@ -11,12 +11,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 export const Route = createFileRoute("/dashboard/$guildId/")({
   head: () => ({
     meta: [
-      { title: "Server overview — AHOY Control Center" },
+      { title: "Server overview — !PIRATE Control Center" },
       {
         name: "description",
         content: "Overview of members, tickets, warnings and recent moderation activity for your Discord server.",
       },
-      { property: "og:title", content: "Server overview — AHOY Control Center" },
+      { property: "og:title", content: "Server overview — !PIRATE Control Center" },
       {
         property: "og:description",
         content: "Members, tickets, warnings and recent moderation activity at a glance.",
@@ -54,7 +54,7 @@ const QUICK = [
   },
   {
     title: "Command library",
-    body: "Enable, restrict and customise every AHOY command.",
+    body: "Enable, restrict and customise every !PIRATE command.",
     to: "/dashboard/$guildId/commands",
     cta: "Open commands",
     icon: FileText,
@@ -126,7 +126,7 @@ function GuildHome() {
                     {entry.action}
                   </Badge>
                   <span className="font-medium">{entry.target_name ?? "Unknown"}</span>
-                  <span className="text-muted-foreground">by {entry.moderator_name ?? "AHOY"}</span>
+                  <span className="text-muted-foreground">by {entry.moderator_name ?? "!PIRATE"}</span>
                   <span className="ml-auto text-xs text-muted-foreground">
                     {new Date(entry.created_at).toLocaleString()}
                   </span>

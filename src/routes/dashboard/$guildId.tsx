@@ -22,13 +22,13 @@ import { getGuildConfig, getGuildOverview, getViewer } from "@/lib/ahoy.function
 export const Route = createFileRoute("/dashboard/$guildId")({
   head: () => ({
     meta: [
-      { title: "Server control center — AHOY" },
+      { title: "Server control center — !PIRATE" },
       {
         name: "description",
         content:
-          "Configure AHOY's moderation, AutoMod, welcome messages, logging, levels, economy, tickets and custom commands.",
+          "Configure !PIRATE's moderation, AutoMod, welcome messages, logging, levels, economy, tickets and custom commands.",
       },
-      { property: "og:title", content: "Server control center — AHOY" },
+      { property: "og:title", content: "Server control center — !PIRATE" },
       {
         property: "og:description",
         content: "Configure moderation, AutoMod, levels, economy, tickets and custom commands.",
@@ -180,12 +180,12 @@ function GuildDashboardLayout() {
                         <AlertTriangle className="h-5 w-5 text-gold" />
                         <p className="text-sm text-muted-foreground">
                           {overview.data.botStatus === "absent"
-                            ? "AHOY is not in this server yet, so channels and roles can't be listed. Settings you save here will apply as soon as the bot joins."
-                            : "AHOY's bot token isn't configured or is invalid, so channels and roles can't be listed. Settings you save here still apply."}
+                            ? "!PIRATE is not in this server yet, so channels and roles can't be listed. Settings you save here will apply as soon as the bot joins."
+                            : "!PIRATE's bot token isn't configured or is invalid, so channels and roles can't be listed. Settings you save here still apply."}
                         </p>
                         {overview.data.botStatus === "absent" ? (
                           <Button asChild size="sm" className="ml-auto">
-                            <a href={`/api/public/invite?guild=${guildId}`}>Invite AHOY</a>
+                            <a href={`/api/public/invite?guild=${guildId}`}>Invite !PIRATE</a>
                           </Button>
                         ) : null}
                       </CardContent>

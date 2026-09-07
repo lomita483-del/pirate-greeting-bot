@@ -222,7 +222,7 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ticket_support_role_ids}
               options={config.structure.roles}
               onChange={(v) => set("ticket_support_role_ids", v)}
-              emptyLabel="Invite AHOY to this server to load roles."
+              emptyLabel="Invite !PIRATE to this server to load roles."
             />
           </Field>
           <Field label="Ticket welcome message">
@@ -771,7 +771,7 @@ export function AutoModPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ignored_role_ids}
               options={config.structure.roles}
               onChange={(v) => set("ignored_role_ids", v)}
-              emptyLabel="Invite AHOY to this server to load roles."
+              emptyLabel="Invite !PIRATE to this server to load roles."
             />
           </Field>
           <Field label="Ignored channels">
@@ -779,7 +779,7 @@ export function AutoModPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ignored_channel_ids}
               options={config.structure.channels.filter((c) => c.kind === "text")}
               onChange={(v) => set("ignored_channel_ids", v)}
-              emptyLabel="Invite AHOY to this server to load channels."
+              emptyLabel="Invite !PIRATE to this server to load channels."
             />
           </Field>
         </CardContent>

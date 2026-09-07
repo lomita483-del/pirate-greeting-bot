@@ -53,7 +53,7 @@ export function RoleManagerPanel({
         <h2 className="font-semibold">Role Manager</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Roles added here can fully manage AHOY and its features from this dashboard, in addition
+        Roles added here can fully manage !PIRATE and its features from this dashboard, in addition
         to anyone with Discord's own Manage Server or Administrator permission (those always have
         access regardless of this list).
       </p>
@@ -103,7 +103,7 @@ export function RoleManagerPanel({
       <div className="mt-5 flex items-center justify-between border-t pt-4">
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <AlertTriangle className="h-4 w-4 text-amber-400" />
-          Every error AHOY encounters is logged for review.
+          Every error !PIRATE encounters is logged for review.
         </div>
         <Link
           to="/dashboard/$guildId/errors"

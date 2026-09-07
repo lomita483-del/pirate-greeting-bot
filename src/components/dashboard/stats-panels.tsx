@@ -56,7 +56,7 @@ export function ServerStatsPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Server stats"
-          description="Live figures from Discord plus everything AHOY has tracked for this crew."
+          description="Live figures from Discord plus everything !PIRATE has tracked for this crew."
           badge={stats.hasToken ? "live" : "bot token missing"}
         />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

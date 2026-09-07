@@ -127,7 +127,7 @@ export function GiveawaysPanel({
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Giveaways"
-          description="Start giveaways in Discord with /giveaway start — AHOY draws and announces winners automatically when the timer ends."
+          description="Start giveaways in Discord with /giveaway start — !PIRATE draws and announces winners automatically when the timer ends."
           badge={`${running} running`}
         />
         {query.isPending ? (

@@ -16,7 +16,7 @@ import {
 export const Route = createFileRoute("/dashboard/$guildId/send")({
   head: () => ({
     meta: [
-      { title: "Send a message — AHOY Control Center" },
+      { title: "Send a message — !PIRATE Control Center" },
       {
         name: "description",
         content: "Compose and send messages with rich embeds to any channel.",
@@ -113,7 +113,7 @@ function SendPage({
           embed: hasEmbedContent(embed) ? embed : undefined,
         },
       }),
-    onSuccess: () => setStatus("Queued — AHOY will post it within a few seconds."),
+    onSuccess: () => setStatus("Queued — !PIRATE will post it within a few seconds."),
     onError: (e: Error) => setStatus(e.message),
   });
 
@@ -154,8 +154,8 @@ function SendPage({
           <Send className="h-5 w-5" /> Send a message
         </h1>
         <p className="text-sm text-muted-foreground">
-          Post plain text and/or a rich embed to any channel AHOY can see — same builder Discohook
-          uses, sent through AHOY.
+          Post plain text and/or a rich embed to any channel !PIRATE can see — same builder Discohook
+          uses, sent through !PIRATE.
         </p>
       </div>
 

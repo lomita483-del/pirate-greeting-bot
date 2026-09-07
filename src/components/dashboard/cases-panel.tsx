@@ -121,11 +121,11 @@ export function CasesPanel({ guildId }: { guildId: string }) {
           action: input.kind,
           target_id: input.target_id,
           caseId: input.caseId,
-          reason: "Lifted from the AHOY dashboard",
+          reason: "Lifted from the !PIRATE dashboard",
         },
       }),
     onSuccess: () => {
-      toast.success("Queued — AHOY will apply this within a minute.");
+      toast.success("Queued — !PIRATE will apply this within a minute.");
       invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
@@ -142,7 +142,7 @@ export function CasesPanel({ guildId }: { guildId: string }) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Moderation cases"
-            description="Every warn, timeout, kick and ban AHOY performs is filed as a numbered case. Edit reasons, void a case, or lift an active punishment straight from here."
+            description="Every warn, timeout, kick and ban !PIRATE performs is filed as a numbered case. Edit reasons, void a case, or lift an active punishment straight from here."
             badge={`${total} total`}
           />
 
@@ -214,7 +214,7 @@ export function CasesPanel({ guildId }: { guildId: string }) {
                     ) : null}
                     <span className="font-medium">{row.target_name ?? row.target_id}</span>
                     <span className="text-muted-foreground">
-                      by {row.moderator_name ?? "AHOY"}
+                      by {row.moderator_name ?? "!PIRATE"}
                     </span>
                     <span className="ml-auto text-xs text-muted-foreground">
                       {new Date(row.created_at).toLocaleString()}
@@ -338,7 +338,7 @@ export function CasesPanel({ guildId }: { guildId: string }) {
         <CardContent className="space-y-4 pt-6">
           <SectionHeader
             title="Add a case manually"
-            description="Log something that happened outside AHOY — it gets the next case number for this server."
+            description="Log something that happened outside !PIRATE — it gets the next case number for this server."
           />
           <div className="grid gap-4 sm:grid-cols-3">
             <Field label="Type">

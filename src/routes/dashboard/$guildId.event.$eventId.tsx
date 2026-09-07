@@ -22,13 +22,13 @@ import {
 export const Route = createFileRoute("/dashboard/$guildId/event/$eventId")({
   head: () => ({
     meta: [
-      { title: "Event automation — AHOY" },
+      { title: "Event automation — !PIRATE" },
       {
         name: "description",
         content:
           "Review a synced calendar event and configure its Discord channel, mentions and reminder schedule.",
       },
-      { property: "og:title", content: "Event automation — AHOY" },
+      { property: "og:title", content: "Event automation — !PIRATE" },
       {
         property: "og:description",
         content: "Configure Discord reminders for a synced calendar event.",
@@ -225,7 +225,7 @@ function EventDetail({ guildId, config }: { guildId: string; config: GuildConfig
 
             <div className="rounded-xl border border-border/40 bg-background/30 p-4 text-sm">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Message preview</p>
-              <p className="mt-2 font-semibold text-primary">🏴‍☠️ AHOY EVENT REMINDER</p>
+              <p className="mt-2 font-semibold text-primary">🏴‍☠️ !PIRATE EVENT REMINDER</p>
               <p className="mt-1 font-medium">{event.title}</p>
               <p className="text-muted-foreground">
                 The event starts soon.
@@ -300,7 +300,7 @@ function EventDetail({ guildId, config }: { guildId: string; config: GuildConfig
           <CardContent className="space-y-3 pt-6">
             <SectionHeader
               title="Scheduled reminders"
-              description="Reminder jobs AHOY will deliver to Discord."
+              description="Reminder jobs !PIRATE will deliver to Discord."
               badge={`${reminders.length}`}
             />
             {reminders.length === 0 ? (

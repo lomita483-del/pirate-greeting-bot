@@ -1,5 +1,5 @@
 /**
- * Server-only Discord OAuth2 + session handling for the AHOY Control Center.
+ * Server-only Discord OAuth2 + session handling for the !PIRATE Control Center.
  *
  * - The Discord bot token is NEVER used here and never leaves the bot process.
  * - The user's OAuth access token is stored in an encrypted, httpOnly cookie.

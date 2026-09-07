@@ -1,5 +1,5 @@
 /**
- * Chronicle-style message template rendering for AHOY event automation.
+ * Chronicle-style message template rendering for !PIRATE event automation.
  *
  * Pure functions only — safe to import from the browser (live preview) and
  * from server code (actual delivery).
@@ -58,7 +58,7 @@ export const DEFAULT_REMINDER_TEMPLATE: TemplateStructure = {
   title: "🏴‍☠️ {{.Title}}",
   description: "{{.Description}}",
   color: "#D4AF37",
-  footer: "AHOY Event Automation · {{.Status}}",
+  footer: "!PIRATE Event Automation · {{.Status}}",
   content: "{{.Mentions}}",
   fields: [
     {
@@ -78,7 +78,7 @@ export const DEFAULT_SUMMARY_TEMPLATE: TemplateStructure = {
   title: "🏴‍☠️ Upcoming events",
   description: "{{.Description}}",
   color: "#D4AF37",
-  footer: "AHOY Event Automation",
+  footer: "!PIRATE Event Automation",
   content: "",
   fields: [],
 };

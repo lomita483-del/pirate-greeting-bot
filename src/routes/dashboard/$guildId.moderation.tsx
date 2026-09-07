@@ -9,9 +9,9 @@ import { ModuleHeader } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/moderation")({
   head: () => ({
     meta: [
-      { title: "Moderation — AHOY Control Center" },
-      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by AHOY." },
-      { property: "og:title", content: "Moderation — AHOY Control Center" },
+      { title: "Moderation — !PIRATE Control Center" },
+      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by !PIRATE." },
+      { property: "og:title", content: "Moderation — !PIRATE Control Center" },
       { property: "og:description", content: "Manage all ban, kick, mute and warn cases." },
     ],
   }),

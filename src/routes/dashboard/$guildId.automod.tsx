@@ -7,9 +7,9 @@ import { AutoModPanel } from "@/components/dashboard/settings-panels";
 export const Route = createFileRoute("/dashboard/$guildId/automod")({
   head: () => ({
     meta: [
-      { title: "Auto Moderation — AHOY Control Center" },
+      { title: "Auto Moderation — !PIRATE Control Center" },
       { name: "description", content: "Automatically block spam, invites, links and mass mentions in your server." },
-      { property: "og:title", content: "Auto Moderation — AHOY Control Center" },
+      { property: "og:title", content: "Auto Moderation — !PIRATE Control Center" },
       { property: "og:description", content: "Block spam, invites, links and mass mentions automatically." },
     ],
   }),
@@ -18,7 +18,7 @@ export const Route = createFileRoute("/dashboard/$guildId/automod")({
       <ModuleHeader
         icon={ShieldAlert}
         title="Auto Moderation"
-        description="Prevent spam, invites and other unwanted messages using AHOY's auto moderation."
+        description="Prevent spam, invites and other unwanted messages using !PIRATE's auto moderation."
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (

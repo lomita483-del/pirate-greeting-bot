@@ -634,8 +634,8 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                     value={notifier.templateId}
                     options={templateOptions}
                     onChange={(v) => setNotifier({ ...notifier, templateId: v })}
-                    placeholder="Built-in AHOY embed"
-                    emptyLabel="Built-in AHOY embed"
+                    placeholder="Built-in !PIRATE embed"
+                    emptyLabel="Built-in !PIRATE embed"
                   />
                 </Field>
               </div>
@@ -1071,7 +1071,7 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
         <CardContent className="space-y-4 pt-6">
           <SectionHeader
             title="Execution log"
-            description="Every reminder, summary and activity message AHOY delivered — with failures and retries."
+            description="Every reminder, summary and activity message !PIRATE delivered — with failures and retries."
             badge={`${data.logs.length} entr(ies)`}
           />
           <div className="grid gap-2">
@@ -1192,7 +1192,7 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Event summaries"
-            description="AHOY posts (and optionally pins) a digest of upcoming events on a schedule."
+            description="!PIRATE posts (and optionally pins) a digest of upcoming events on a schedule."
           />
           <ToggleRow
             label="Scheduled summaries enabled"
@@ -1239,8 +1239,8 @@ export function EventAutomationPanel({ guildId, config }: PanelProps) {
                 value={summary.templateId}
                 options={templateOptions.filter((t) => t.name.includes("summary"))}
                 onChange={(v) => setSummaryDraft({ ...summary, templateId: v })}
-                placeholder="Built-in AHOY digest"
-                emptyLabel="Built-in AHOY digest"
+                placeholder="Built-in !PIRATE digest"
+                emptyLabel="Built-in !PIRATE digest"
               />
             </Field>
           </div>
@@ -1365,7 +1365,7 @@ function TemplateEditor({
         <Input
           value={draft.structure.footer ?? ""}
           onChange={(e) => patch({ footer: e.target.value })}
-          placeholder="AHOY Event Automation"
+          placeholder="!PIRATE Event Automation"
         />
       </Field>
 

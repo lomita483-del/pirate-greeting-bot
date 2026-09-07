@@ -209,7 +209,7 @@ export function CommandBulkDialog({
               values={fields.allowedRoleIds}
               options={roles}
               onChange={(v) => set("allowedRoleIds", v)}
-              emptyLabel="No roles found — invite AHOY to load roles."
+              emptyLabel="No roles found — invite !PIRATE to load roles."
             />
           </Section>
 
