@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, Bell, CalendarDays, LayoutDashboard } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bell, CalendarDays, CalendarPlus, LayoutDashboard } from "lucide-react";
 
 import { CalendarEventsPanel } from "@/components/dashboard/calendar-events-panel";
 import { CalendarPanel } from "@/components/dashboard/calendar-panel";
