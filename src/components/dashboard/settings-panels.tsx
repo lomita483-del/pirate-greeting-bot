@@ -17,6 +17,7 @@ import {
   SectionHeader,
   ToggleRow,
 } from "./fields";
+import { PremiumGate } from "./premium-gate";
 import { TicketPanelPublisher } from "./ticket-panel-publisher";
 
 import { SaveBar } from "./save-bar";
@@ -237,11 +238,13 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
             checked={draft.ticket_transcripts_enabled}
             onChange={(v) => set("ticket_transcripts_enabled", v)}
           />
-          <TicketPanelPublisher
-            guildId={guildId}
-            channels={channels}
-            defaultChannelId={draft.ticket_panel_channel_id}
-          />
+          <PremiumGate feature="tickets">
+            <TicketPanelPublisher
+              guildId={guildId}
+              channels={channels}
+              defaultChannelId={draft.ticket_panel_channel_id}
+            />
+          </PremiumGate>
         </CardContent>
       </Card>
 

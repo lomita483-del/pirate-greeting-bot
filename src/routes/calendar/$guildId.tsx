@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowLeft, Bell, CalendarDays, CalendarPlus, LayoutDashboard } from "lucide-react";
 
+import { PremiumGate } from "@/components/dashboard/premium-gate";
 import { CalendarEventsPanel } from "@/components/dashboard/calendar-events-panel";
 import { CalendarPanel } from "@/components/dashboard/calendar-panel";
 import { EventAutomationPanel } from "@/components/dashboard/event-automation-panel";
@@ -85,6 +86,7 @@ function CalendarWorkspace() {
             <Skeleton className="h-72 rounded-2xl" />
           </div>
         ) : (
+          <PremiumGate feature="calendar">
           <Tabs defaultValue="sources">
             <TabsList className="mb-6">
               <TabsTrigger value="sources" className="gap-2">
@@ -122,6 +124,7 @@ function CalendarWorkspace() {
               <EventAutomationPanel guildId={guildId} config={config.data} onSaved={refresh} />
             </TabsContent>
           </Tabs>
+          </PremiumGate>
         )}
       </main>
     </div>

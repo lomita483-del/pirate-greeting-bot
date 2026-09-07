@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Hand } from "lucide-react";
 
+import { PremiumGate } from "@/components/dashboard/premium-gate";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 import { GoodbyePanel } from "@/components/dashboard/settings-panels";
 import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-panel";
@@ -23,10 +24,12 @@ export const Route = createFileRoute("/dashboard/$guildId/welcome")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <>
-            <WelcomeMessagesPanel guildId={guildId} config={config} onSaved={refresh} />
-            <GoodbyePanel guildId={guildId} config={config} onSaved={refresh} />
-          </>
+          <PremiumGate feature="welcome">
+            <div className="space-y-6">
+              <WelcomeMessagesPanel guildId={guildId} config={config} onSaved={refresh} />
+              <GoodbyePanel guildId={guildId} config={config} onSaved={refresh} />
+            </div>
+          </PremiumGate>
         )}
       </WithConfig>
     </div>
