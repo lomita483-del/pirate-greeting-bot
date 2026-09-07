@@ -3,6 +3,7 @@ import { Shield } from "lucide-react";
 
 import { CasesPanel } from "@/components/dashboard/cases-panel";
 import { useGuild } from "@/components/dashboard/guild-context";
+import { PremiumGate } from "@/components/dashboard/premium-gate";
 import { ModuleHeader } from "@/components/dashboard/module-page";
 
 export const Route = createFileRoute("/dashboard/$guildId/moderation")({
@@ -26,7 +27,9 @@ function ModerationPage() {
         title="Moderation"
         description="Manage all ban, kick, mute and warn cases from the dashboard."
       />
-      <CasesPanel guildId={guildId} />
+      <PremiumGate feature="moderation">
+        <CasesPanel guildId={guildId} />
+      </PremiumGate>
     </div>
   );
 }
