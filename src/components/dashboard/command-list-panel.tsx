@@ -130,7 +130,7 @@ export function CommandListPanel({ guildId, config }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Command list"
-            description="Every command AHOY responds to in this server. Switch any command off to block it here."
+            description="Every command !PIRATE responds to in this server. Switch any command off to block it here."
             badge={`${total} commands`}
           />
           <div className="relative">

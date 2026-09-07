@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Hand } from "lucide-react";
 
+import { PremiumGate } from "@/components/dashboard/premium-gate";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 import { GoodbyePanel } from "@/components/dashboard/settings-panels";
 import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-panel";
@@ -8,9 +9,9 @@ import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-pa
 export const Route = createFileRoute("/dashboard/$guildId/welcome")({
   head: () => ({
     meta: [
-      { title: "Welcome messages — AHOY Control Center" },
+      { title: "Welcome messages — !PIRATE Control Center" },
       { name: "description", content: "Greet joining members and announce leaves in the channels you choose." },
-      { property: "og:title", content: "Welcome messages — AHOY Control Center" },
+      { property: "og:title", content: "Welcome messages — !PIRATE Control Center" },
       { property: "og:description", content: "Custom welcome and leave messages for new members." },
     ],
   }),
@@ -23,10 +24,12 @@ export const Route = createFileRoute("/dashboard/$guildId/welcome")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <>
-            <WelcomeMessagesPanel guildId={guildId} config={config} onSaved={refresh} />
-            <GoodbyePanel guildId={guildId} config={config} onSaved={refresh} />
-          </>
+          <PremiumGate feature="welcome">
+            <div className="space-y-6">
+              <WelcomeMessagesPanel guildId={guildId} config={config} onSaved={refresh} />
+              <GoodbyePanel guildId={guildId} config={config} onSaved={refresh} />
+            </div>
+          </PremiumGate>
         )}
       </WithConfig>
     </div>

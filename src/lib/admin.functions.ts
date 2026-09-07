@@ -14,7 +14,19 @@ export const FEATURE_KEYS = [
   "tickets",
   "reminders",
   "custom_commands",
+  "calendar",
 ] as const;
+
+/** Features that only unlock on a paid (premium) plan. */
+export const PREMIUM_FEATURES = [
+  "moderation",
+  "levels",
+  "tickets",
+  "welcome",
+  "calendar",
+] as const;
+
+export type PremiumFeature = (typeof PREMIUM_FEATURES)[number];
 
 const cookie = () => getRequestHeader("cookie") ?? null;
 
@@ -387,3 +399,45 @@ export const markNotificationRead = createServerFn({ method: "POST" })
       );
     return { ok: true };
   });
+
+
+/* ---------------------------------------------------------------- */
+/* Entitlements for the signed-in user                               */
+/* ---------------------------------------------------------------- */
+
+export const getMyEntitlements = createServerFn({ method: "GET" }).handler(async () => {
+  const { sessionFromHeader } = await import("@/lib/discord.server");
+  const session = await sessionFromHeader(cookie());
+  const locked = Object.fromEntries(PREMIUM_FEATURES.map((f) => [f, false])) as Record<
+    PremiumFeature,
+    boolean
+  >;
+  if (!session) {
+    return { signedIn: false as const, plan: "free", premium: false, owner: false, features: locked };
+  }
+
+  const { adminRoleFor } = await import("@/lib/admin.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const role = await adminRoleFor(session.userId);
+  const owner = role === "owner";
+
+  const { data } = await supabaseAdmin
+    .from("platform_users")
+    .select("plan, feature_flags")
+    .eq("discord_user_id", session.userId)
+    .maybeSingle();
+
+  const row = (data ?? {}) as Record<string, unknown>;
+  const plan = (row["plan"] as string | null) ?? "free";
+  const premium = owner || plan !== "free";
+  const flags = (row["feature_flags"] ?? {}) as Record<string, boolean | undefined>;
+
+  const features = Object.fromEntries(
+    PREMIUM_FEATURES.map((feature) => [
+      feature,
+      flags[feature] === false ? false : owner || premium,
+    ]),
+  ) as Record<PremiumFeature, boolean>;
+
+  return { signedIn: true as const, plan, premium, owner, features };
+});

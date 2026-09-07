@@ -80,7 +80,7 @@ export function ActivityLogPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Activity log"
-          description="Everything AHOY sees: message edits and deletions, joins and leaves, nickname and role changes, channel changes, voice movement and invites."
+          description="Everything !PIRATE sees: message edits and deletions, joins and leaves, nickname and role changes, channel changes, voice movement and invites."
           badge={`${total} entries`}
         />
 

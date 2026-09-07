@@ -8,16 +8,16 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/calendar/")({
   head: () => ({
     meta: [
-      { title: "AHOY Calendar — Discord event reminders" },
+      { title: "!PIRATE Calendar — Discord event reminders" },
       {
         name: "description",
         content:
           "Sync Google Calendar and iCalendar feeds to Discord, then send automatic event reminders, RSVPs and daily summaries.",
       },
-      { property: "og:title", content: "AHOY Calendar — Discord event reminders" },
+      { property: "og:title", content: "!PIRATE Calendar — Discord event reminders" },
       {
         property: "og:description",
-        content: "Sync calendars to Discord and automate event reminders with AHOY Calendar.",
+        content: "Sync calendars to Discord and automate event reminders with !PIRATE Calendar.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -42,17 +42,17 @@ function CalendarPicker() {
           className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em]"
         >
           <CalendarDays className="h-4 w-4 text-primary" />
-          Ahoy Calendar
+          !PIRATE Calendar
         </Link>
         <Button asChild size="sm" variant="outline">
-          <Link to="/">Back to AHOY</Link>
+          <Link to="/">Back to !PIRATE</Link>
         </Button>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 pb-24 pt-10">
         <h1 className="text-3xl font-semibold">Pick a server</h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          AHOY Calendar keeps your Google and iCalendar feeds in sync with Discord — reminders,
+          !PIRATE Calendar keeps your Google and iCalendar feeds in sync with Discord — reminders,
           RSVPs, daily summaries and event announcements, all in one place.
         </p>
 
@@ -87,7 +87,7 @@ function CalendarPicker() {
             })}
             {guilds.length === 0 && !isLoading ? (
               <p className="text-sm text-muted-foreground">
-                No servers found where you can manage AHOY.
+                No servers found where you can manage !PIRATE.
               </p>
             ) : null}
           </div>

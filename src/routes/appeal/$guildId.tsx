@@ -14,7 +14,7 @@ import { getMyAppealableCases, submitAppeal } from "@/lib/appeals.functions";
 export const Route = createFileRoute("/appeal/$guildId")({
   head: () => ({
     meta: [
-      { title: "Appeal a case — AHOY" },
+      { title: "Appeal a case — !PIRATE" },
       { name: "description", content: "Request a review of a moderation action against you." },
     ],
   }),

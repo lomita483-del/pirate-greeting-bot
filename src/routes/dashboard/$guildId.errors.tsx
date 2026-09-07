@@ -8,8 +8,8 @@ import { getErrorLogs, clearErrorLogs } from "@/lib/error-log.functions";
 export const Route = createFileRoute("/dashboard/$guildId/errors")({
   head: () => ({
     meta: [
-      { title: "Error log — AHOY Control Center" },
-      { name: "description", content: "Every error AHOY has encountered for this server." },
+      { title: "Error log — !PIRATE Control Center" },
+      { name: "description", content: "Every error !PIRATE has encountered for this server." },
     ],
   }),
   component: ErrorLogPage,
@@ -42,7 +42,7 @@ function ErrorLogPage() {
           <div>
             <h1 className="text-xl font-semibold">Error log</h1>
             <p className="text-sm text-muted-foreground">
-              Every error AHOY has hit while running for this server — command failures, event
+              Every error !PIRATE has hit while running for this server — command failures, event
               handler exceptions, and background task errors. Use this to spot what needs fixing.
             </p>
           </div>

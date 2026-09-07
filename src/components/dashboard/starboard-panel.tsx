@@ -31,7 +31,7 @@ export function StarboardPanel({ guildId, config, onSaved }: PanelProps) {
         <CardContent className="space-y-5 pt-6">
           <SectionHeader
             title="Starboard"
-            description="When a message collects enough stars, AHOY reposts it in your starboard channel with a link back to the original."
+            description="When a message collects enough stars, !PIRATE reposts it in your starboard channel with a link back to the original."
           />
           <ToggleRow
             label="Enable starboard"
@@ -73,7 +73,7 @@ export function StarboardPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ignored_channel_ids}
               options={channels}
               onChange={(v) => set("ignored_channel_ids", v)}
-              emptyLabel="Channels appear once AHOY is in the server."
+              emptyLabel="Channels appear once !PIRATE is in the server."
             />
           </Field>
         </CardContent>

@@ -95,9 +95,12 @@ class MemberEvents(commands.Cog):
 
         assigned_roles: set[int] = set()
 
+        fallback_channel_id = (image_config or {}).get("welcome_channel_id")
+
         for message in messages:
-            channel_id = message.get("channel_id")
+            channel_id = message.get("channel_id") or fallback_channel_id
             if not channel_id:
+                log.warning("No welcome channel configured for guild %s", guild_id)
                 continue
             channel = guild.get_channel(int(channel_id))
             if not isinstance(channel, discord.TextChannel):

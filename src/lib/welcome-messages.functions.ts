@@ -50,7 +50,7 @@ async function authorize(guildId: string) {
   if (!session) throw new Error("Please sign in with Discord.");
   const { isBanned } = await import("@/lib/admin.server");
   if ((await isBanned(session.userId)).banned) {
-    throw new Error("Your access to the AHOY control center has been revoked.");
+    throw new Error("Your access to the !PIRATE control center has been revoked.");
   }
   const guild = await assertGuildAccess(session, guildId);
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");

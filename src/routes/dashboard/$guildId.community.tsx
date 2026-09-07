@@ -9,9 +9,9 @@ import { StarboardPanel } from "@/components/dashboard/starboard-panel";
 export const Route = createFileRoute("/dashboard/$guildId/community")({
   head: () => ({
     meta: [
-      { title: "Community — AHOY Control Center" },
+      { title: "Community — !PIRATE Control Center" },
       { name: "description", content: "Run reaction roles, giveaways, polls and a starboard for your community." },
-      { property: "og:title", content: "Community — AHOY Control Center" },
+      { property: "og:title", content: "Community — !PIRATE Control Center" },
       { property: "og:description", content: "Reaction roles, giveaways, polls and starboard." },
     ],
   }),

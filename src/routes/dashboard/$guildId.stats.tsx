@@ -8,9 +8,9 @@ import { MemberProfilePanel, RanksPanel, ServerStatsPanel } from "@/components/d
 export const Route = createFileRoute("/dashboard/$guildId/stats")({
   head: () => ({
     meta: [
-      { title: "Stats — AHOY Control Center" },
+      { title: "Stats — !PIRATE Control Center" },
       { name: "description", content: "Server statistics, member ranks and individual profile cards." },
-      { property: "og:title", content: "Stats — AHOY Control Center" },
+      { property: "og:title", content: "Stats — !PIRATE Control Center" },
       { property: "og:description", content: "Server statistics, ranks and profile cards." },
     ],
   }),

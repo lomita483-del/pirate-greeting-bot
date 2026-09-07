@@ -13,7 +13,7 @@ export function ServersPanel() {
 
   if (isPending) return <p className="text-sm text-muted-foreground">Charting the fleet…</p>;
   if (!data.length)
-    return <p className="text-sm text-muted-foreground">AHOY has not joined any servers yet.</p>;
+    return <p className="text-sm text-muted-foreground">!PIRATE has not joined any servers yet.</p>;
 
   return (
     <div className="glass overflow-hidden rounded-2xl">

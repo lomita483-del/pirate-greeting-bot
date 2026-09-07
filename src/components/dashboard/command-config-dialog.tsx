@@ -148,7 +148,7 @@ export function CommandConfigDialog({
               values={draft.allowedRoleIds}
               options={roles}
               onChange={(v) => set("allowedRoleIds", v)}
-              emptyLabel="No roles found — invite AHOY to load roles."
+              emptyLabel="No roles found — invite !PIRATE to load roles."
             />
           </Field>
 
@@ -300,7 +300,7 @@ export function CommandConfigDialog({
             onChange={(v) => set("logEvent", v)}
           />
 
-          <Field label="Log channel" hint="Where AHOY posts the log embed for this command.">
+          <Field label="Log channel" hint="Where !PIRATE posts the log embed for this command.">
             <PickerSelect
               value={draft.logChannelId}
               options={textChannels}
@@ -333,7 +333,7 @@ export function CommandConfigDialog({
 
           <Field
             label="Custom response"
-            hint="Replaces AHOY's default reply. Use {user}, {server}, {command}, {value}."
+            hint="Replaces !PIRATE's default reply. Use {user}, {server}, {command}, {value}."
           >
             <Textarea
               rows={3}

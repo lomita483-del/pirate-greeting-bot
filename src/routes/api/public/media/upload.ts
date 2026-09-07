@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 /**
  * Multipart image upload for the dashboard. A plain HTTP route is used instead
  * of a server function because the server-function transport does not carry
- * multipart bodies reliably. Access is still gated by the AHOY session cookie
+ * multipart bodies reliably. Access is still gated by the !PIRATE session cookie
  * plus a live Discord permission check for the target guild.
  */
 export const Route = createFileRoute("/api/public/media/upload")({

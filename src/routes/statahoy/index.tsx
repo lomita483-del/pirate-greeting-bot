@@ -11,7 +11,7 @@ export const Route = createFileRoute("/statahoy/")({
       { title: "Statahoy — Live Discord Analytics" },
       {
         name: "description",
-        content: "Message, voice and member analytics for your Discord server, powered by AHOY.",
+        content: "Message, voice and member analytics for your Discord server, powered by !PIRATE.",
       },
     ],
   }),
@@ -32,14 +32,14 @@ function StatahoyPicker() {
           Statahoy
         </Link>
         <Button asChild size="sm" variant="outline">
-          <Link to="/">Back to AHOY</Link>
+          <Link to="/">Back to !PIRATE</Link>
         </Button>
       </header>
 
       <main className="mx-auto max-w-5xl px-6 pb-24 pt-10">
         <h1 className="text-3xl font-semibold">Pick a server</h1>
         <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Statahoy shows live message, voice and member analytics for any server where AHOY is
+          Statahoy shows live message, voice and member analytics for any server where !PIRATE is
           installed and you have manage-server permission.
         </p>
 
@@ -56,9 +56,9 @@ function StatahoyPicker() {
 
         {data?.signedIn && data.guilds.length === 0 && !isLoading && (
           <div className="glass mt-8 rounded-2xl p-6 text-sm text-muted-foreground">
-            None of your servers have AHOY installed yet.{" "}
+            None of your servers have !PIRATE installed yet.{" "}
             <a className="text-primary underline" href="/api/public/invite">
-              Invite AHOY
+              Invite !PIRATE
             </a>{" "}
             to get started.
           </div>

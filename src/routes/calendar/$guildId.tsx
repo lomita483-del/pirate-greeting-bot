@@ -1,7 +1,9 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { AlertTriangle, ArrowLeft, Bell, CalendarDays, LayoutDashboard } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Bell, CalendarDays, CalendarPlus, LayoutDashboard } from "lucide-react";
 
+import { PremiumGate } from "@/components/dashboard/premium-gate";
+import { CalendarEventsPanel } from "@/components/dashboard/calendar-events-panel";
 import { CalendarPanel } from "@/components/dashboard/calendar-panel";
 import { EventAutomationPanel } from "@/components/dashboard/event-automation-panel";
 import { Button } from "@/components/ui/button";
@@ -12,13 +14,13 @@ import { getGuildConfig } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/calendar/$guildId")({
   head: () => ({
     meta: [
-      { title: "AHOY Calendar — event sync & reminders" },
+      { title: "!PIRATE Calendar — event sync & reminders" },
       {
         name: "description",
         content:
           "Connect Google Calendar or iCalendar feeds and schedule Discord reminders, RSVPs and daily summaries for this server.",
       },
-      { property: "og:title", content: "AHOY Calendar — event sync & reminders" },
+      { property: "og:title", content: "!PIRATE Calendar — event sync & reminders" },
       {
         property: "og:description",
         content: "Manage calendar feeds and Discord event reminders for your server.",
@@ -57,7 +59,7 @@ function CalendarWorkspace() {
             </span>
             <div>
               <p className="text-xs uppercase tracking-[0.22em] text-muted-foreground">
-                Ahoy Calendar
+                !PIRATE Calendar
               </p>
               <h1 className="text-lg font-semibold leading-tight">Event sync & reminders</h1>
             </div>
@@ -84,10 +86,14 @@ function CalendarWorkspace() {
             <Skeleton className="h-72 rounded-2xl" />
           </div>
         ) : (
+          <PremiumGate feature="calendar">
           <Tabs defaultValue="sources">
             <TabsList className="mb-6">
               <TabsTrigger value="sources" className="gap-2">
                 <CalendarDays className="h-4 w-4" /> Calendars
+              </TabsTrigger>
+              <TabsTrigger value="events" className="gap-2">
+                <CalendarPlus className="h-4 w-4" /> Events
               </TabsTrigger>
               <TabsTrigger value="reminders" className="gap-2">
                 <Bell className="h-4 w-4" /> Reminders & automation
@@ -97,9 +103,16 @@ function CalendarWorkspace() {
             <TabsContent value="sources" className="space-y-6">
               <p className="text-sm text-muted-foreground">
                 Connect Google Calendar accounts or paste an iCalendar link, then sync to pull the
-                upcoming events AHOY will announce.
+                upcoming events !PIRATE will announce.
               </p>
               <CalendarPanel guildId={guildId} config={config.data} onSaved={refresh} />
+            </TabsContent>
+
+            <TabsContent value="events" className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Create, edit and delete events by hand, or push a reminder into Discord right now.
+              </p>
+              <CalendarEventsPanel guildId={guildId} config={config.data} onSaved={refresh} />
             </TabsContent>
 
             <TabsContent value="reminders" className="space-y-6">
@@ -111,6 +124,7 @@ function CalendarWorkspace() {
               <EventAutomationPanel guildId={guildId} config={config.data} onSaved={refresh} />
             </TabsContent>
           </Tabs>
+          </PremiumGate>
         )}
       </main>
     </div>

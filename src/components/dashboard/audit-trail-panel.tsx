@@ -58,7 +58,7 @@ export function AuditTrailPanel({ guildId }: { guildId: string }) {
                   </span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  {entry.actorId ? `By <@${entry.actorId}>` : "By AHOY"}
+                  {entry.actorId ? `By <@${entry.actorId}>` : "By !PIRATE"}
                   {entry.targetId ? ` · target <@${entry.targetId}>` : ""}
                   {entry.reason ? ` · ${entry.reason}` : ""}
                 </p>

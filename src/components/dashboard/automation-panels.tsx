@@ -140,7 +140,7 @@ export function AnnouncementsPanel({
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Scheduled announcements"
-          description="AHOY posts these automatically. Times are in UTC and the schedule repeats until you disable it."
+          description="!PIRATE posts these automatically. Times are in UTC and the schedule repeats until you disable it."
           badge={`${rows.filter((r) => r.enabled).length} active`}
         />
 
@@ -396,7 +396,7 @@ export function StatChannelsPanel({
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Server stat channels"
-          description="Pick a voice channel and AHOY renames it with a live count every 10 minutes. Use {count} in the template."
+          description="Pick a voice channel and !PIRATE renames it with a live count every 10 minutes. Use {count} in the template."
           badge={`${rows.length} tracked`}
         />
 

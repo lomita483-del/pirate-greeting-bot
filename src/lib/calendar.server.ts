@@ -1,5 +1,5 @@
 /**
- * Server-only calendar synchronisation + Discord reminder delivery for AHOY.
+ * Server-only calendar synchronisation + Discord reminder delivery for !PIRATE.
  *
  * - Calendar URLs, tokens and the Discord bot token never leave this module.
  * - Synchronisation is idempotent: events are keyed on
@@ -421,7 +421,7 @@ export async function announceActivity(
           .join("\n")
           .slice(0, 3800),
         color: change.kind === "cancelled" ? 0xc0392b : GOLD,
-        footer: { text: `${sourceName} · AHOY Event Automation` },
+        footer: { text: `${sourceName} · !PIRATE Event Automation` },
         timestamp: new Date().toISOString(),
       };
 
@@ -1064,7 +1064,7 @@ export function rsvpComponents(eventId: string) {
 
 export const AHOY_LOGO_URL = "https://ahoy.lovable.app/favicon.png";
 
-/** Discord CDN icon for a guild, if AHOY knows it. Cached for the request. */
+/** Discord CDN icon for a guild, if !PIRATE knows it. Cached for the request. */
 export async function guildIconUrl(
   supabaseAdmin: Admin,
   guildId: string | null | undefined,
@@ -1081,7 +1081,7 @@ export async function guildIconUrl(
   return `https://cdn.discordapp.com/icons/${guildId}/${icon}.${ext}?size=256`;
 }
 
-/** Attach the server icon as thumbnail and the AHOY logo to the footer. */
+/** Attach the server icon as thumbnail and the !PIRATE logo to the footer. */
 export function decorateEmbed(
   embed: Record<string, unknown>,
   options: { guildIcon?: string | null } = {},
@@ -1090,9 +1090,9 @@ export function decorateEmbed(
     embed["thumbnail"] = { url: options.guildIcon };
   }
   const footer = (embed["footer"] as { text?: string; icon_url?: string } | undefined) ?? {
-    text: "AHOY Event Automation",
+    text: "!PIRATE Event Automation",
   };
-  embed["footer"] = { text: footer.text ?? "AHOY Event Automation", icon_url: AHOY_LOGO_URL };
+  embed["footer"] = { text: footer.text ?? "!PIRATE Event Automation", icon_url: AHOY_LOGO_URL };
   return embed;
 }
 
@@ -1129,7 +1129,7 @@ export async function reminderEmbed(
     color: GOLD,
     ...(thumbnail ? { thumbnail: { url: thumbnail } } : {}),
     footer: {
-      text: test ? "AHOY · test reminder — nothing was scheduled" : "AHOY Event Automation",
+      text: test ? "!PIRATE · test reminder — nothing was scheduled" : "!PIRATE Event Automation",
       icon_url: AHOY_LOGO_URL,
     },
     timestamp: new Date().toISOString(),
@@ -1149,7 +1149,7 @@ export async function postToDiscord(
   } = {},
 ): Promise<string | null> {
   const token = process.env["DISCORD_TOKEN"];
-  if (!token) throw new Error("AHOY's bot token is not configured.");
+  if (!token) throw new Error("!PIRATE's bot token is not configured.");
   const content = options.content?.trim() || mentionsString(mention, options.roleMentions ?? []);
   const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
     method: "POST",
@@ -1553,7 +1553,7 @@ export async function generateSummary(
         title: cadence === "weekly" ? "🏴‍☠️ Events this week" : "🏴‍☠️ Events today",
         description: lines.join("\n"),
         color: GOLD,
-        footer: { text: "AHOY Event Automation" },
+        footer: { text: "!PIRATE Event Automation" },
         timestamp: new Date().toISOString(),
       };
 

@@ -45,7 +45,18 @@ COMMAND_FEATURES: dict[str, str] = {
     "close": "tickets",
     "remind": "reminders",
     "reminders": "reminders",
+    "welcome": "welcome",
+    "welcometest": "welcome",
+    "greet": "welcome",
+    "calendar": "calendar",
+    "events": "calendar",
+    "event": "calendar",
+    "rsvp": "calendar",
+    "agenda": "calendar",
 }
+
+# Feature groups that require a paid plan. Owners always keep full access.
+PREMIUM_FEATURES: set[str] = {"moderation", "levels", "tickets", "welcome", "calendar"}
 
 
 class AccessDenied(Exception):
@@ -88,5 +99,13 @@ class PlatformService:
                 f"The **{feature.replace('_', ' ')}** features are disabled for your account."
             )
 
+        if feature in PREMIUM_FEATURES and flags.get(feature) is not True:
+            plan = (profile.get("plan") or "free").lower()
+            if plan == "free":
+                raise AccessDenied(
+                    f"**{feature.replace('_', ' ').title()}** is a premium module. "
+                    "Upgrade your plan in the control center to unlock it."
+                )
 
-__all__ = ["PlatformService", "AccessDenied", "COMMAND_FEATURES"]
+
+__all__ = ["PlatformService", "AccessDenied", "COMMAND_FEATURES", "PREMIUM_FEATURES"]

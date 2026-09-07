@@ -55,7 +55,7 @@ export function RolesPanel({ guildId, config, onSaved }: PanelProps) {
             values={draft.auto_role_ids}
             options={roles}
             onChange={(values) => set("auto_role_ids", values.slice(0, 10))}
-            emptyLabel="AHOY needs to be in this server to list roles."
+            emptyLabel="!PIRATE needs to be in this server to list roles."
           />
         </CardContent>
       </Card>

@@ -17,6 +17,7 @@ import {
   SectionHeader,
   ToggleRow,
 } from "./fields";
+import { PremiumGate } from "./premium-gate";
 import { TicketPanelPublisher } from "./ticket-panel-publisher";
 
 import { SaveBar } from "./save-bar";
@@ -221,7 +222,7 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ticket_support_role_ids}
               options={config.structure.roles}
               onChange={(v) => set("ticket_support_role_ids", v)}
-              emptyLabel="Invite AHOY to this server to load roles."
+              emptyLabel="Invite !PIRATE to this server to load roles."
             />
           </Field>
           <Field label="Ticket welcome message">
@@ -237,11 +238,13 @@ export function GeneralPanel({ guildId, config, onSaved }: PanelProps) {
             checked={draft.ticket_transcripts_enabled}
             onChange={(v) => set("ticket_transcripts_enabled", v)}
           />
-          <TicketPanelPublisher
-            guildId={guildId}
-            channels={channels}
-            defaultChannelId={draft.ticket_panel_channel_id}
-          />
+          <PremiumGate feature="tickets">
+            <TicketPanelPublisher
+              guildId={guildId}
+              channels={channels}
+              defaultChannelId={draft.ticket_panel_channel_id}
+            />
+          </PremiumGate>
         </CardContent>
       </Card>
 
@@ -768,7 +771,7 @@ export function AutoModPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ignored_role_ids}
               options={config.structure.roles}
               onChange={(v) => set("ignored_role_ids", v)}
-              emptyLabel="Invite AHOY to this server to load roles."
+              emptyLabel="Invite !PIRATE to this server to load roles."
             />
           </Field>
           <Field label="Ignored channels">
@@ -776,7 +779,7 @@ export function AutoModPanel({ guildId, config, onSaved }: PanelProps) {
               values={draft.ignored_channel_ids}
               options={config.structure.channels.filter((c) => c.kind === "text")}
               onChange={(v) => set("ignored_channel_ids", v)}
-              emptyLabel="Invite AHOY to this server to load channels."
+              emptyLabel="Invite !PIRATE to this server to load channels."
             />
           </Field>
         </CardContent>

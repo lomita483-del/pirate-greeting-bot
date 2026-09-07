@@ -1,5 +1,5 @@
 /**
- * Server-only Google OAuth2 + Calendar API access for AHOY's calendar sync.
+ * Server-only Google OAuth2 + Calendar API access for !PIRATE's calendar sync.
  *
  * - Refresh tokens are encrypted (AES-GCM) before being stored in
  *   `google_accounts` and are never sent to the browser.

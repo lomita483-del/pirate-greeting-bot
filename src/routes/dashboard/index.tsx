@@ -12,15 +12,15 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/dashboard/")({
   head: () => ({
     meta: [
-      { title: "Choose a server — AHOY Control Center" },
+      { title: "Choose a server — !PIRATE Control Center" },
       {
         name: "description",
-        content: "Pick a Discord server you manage and configure AHOY's moderation, levels, economy and tickets.",
+        content: "Pick a Discord server you manage and configure !PIRATE's moderation, levels, economy and tickets.",
       },
-      { property: "og:title", content: "Choose a server — AHOY Control Center" },
+      { property: "og:title", content: "Choose a server — !PIRATE Control Center" },
       {
         property: "og:description",
-        content: "Pick a Discord server you manage and configure AHOY.",
+        content: "Pick a Discord server you manage and configure !PIRATE.",
       },
     ],
   }),
@@ -87,7 +87,7 @@ function ServerPicker() {
           <div className="glass mt-8 rounded-2xl p-8 text-center">
             <Ban className="mx-auto h-6 w-6 text-destructive" />
             <p className="mt-4 text-sm text-muted-foreground">
-              Your access to the AHOY control center has been revoked.
+              Your access to the !PIRATE control center has been revoked.
               {data.banReason ? ` Reason: ${data.banReason}` : ""}
             </p>
           </div>
@@ -138,7 +138,7 @@ function ServerPicker() {
                         variant="outline"
                         className="mt-2 text-[11px] border-primary/50 text-primary"
                       >
-                        AHOY on board
+                        !PIRATE on board
                       </Badge>
                     ) : (
                       <span
@@ -151,7 +151,7 @@ function ServerPicker() {
                         }}
                         className="mt-2 inline-flex cursor-pointer rounded-full border border-gold/50 px-2.5 py-0.5 text-[11px] text-gold hover:bg-gold/10"
                       >
-                        Invite AHOY
+                        Invite !PIRATE
                       </span>
                     )}
 
