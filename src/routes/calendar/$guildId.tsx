@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { AlertTriangle, ArrowLeft, Bell, CalendarDays, LayoutDashboard } from "lucide-react";
 
+import { CalendarEventsPanel } from "@/components/dashboard/calendar-events-panel";
 import { CalendarPanel } from "@/components/dashboard/calendar-panel";
 import { EventAutomationPanel } from "@/components/dashboard/event-automation-panel";
 import { Button } from "@/components/ui/button";
@@ -89,6 +90,9 @@ function CalendarWorkspace() {
               <TabsTrigger value="sources" className="gap-2">
                 <CalendarDays className="h-4 w-4" /> Calendars
               </TabsTrigger>
+              <TabsTrigger value="events" className="gap-2">
+                <CalendarPlus className="h-4 w-4" /> Events
+              </TabsTrigger>
               <TabsTrigger value="reminders" className="gap-2">
                 <Bell className="h-4 w-4" /> Reminders & automation
               </TabsTrigger>
@@ -100,6 +104,13 @@ function CalendarWorkspace() {
                 upcoming events AHOY will announce.
               </p>
               <CalendarPanel guildId={guildId} config={config.data} onSaved={refresh} />
+            </TabsContent>
+
+            <TabsContent value="events" className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Create, edit and delete events by hand, or push a reminder into Discord right now.
+              </p>
+              <CalendarEventsPanel guildId={guildId} config={config.data} onSaved={refresh} />
             </TabsContent>
 
             <TabsContent value="reminders" className="space-y-6">
