@@ -78,7 +78,12 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   head: () => ({
     meta: [
       { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Desktop-locked: phones render the full desktop layout scaled to fit,
+      // and pinch-zoom is disabled so it always stays at that scale.
+      {
+        name: "viewport",
+        content: "width=1280, initial-scale=0.25, maximum-scale=1, user-scalable=no",
+      },
       { name: "author", content: "!PIRATE" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

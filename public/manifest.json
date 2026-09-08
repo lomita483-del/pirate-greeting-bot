@@ -1,11 +1,11 @@
 {
-  "name": "AHOY Control Center",
-  "short_name": "AHOY",
-  "description": "Manage your AHOY Discord bot — moderation, logging, welcome messages, and more.",
-  "start_url": "/dashboard",
+  "name": "!PIRATE Control Center",
+  "short_name": "!PIRATE",
+  "description": "Manage your !PIRATE Discord bot — moderation, logging, welcome messages, and more.",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "orientation": "portrait",
+  "orientation": "any",
   "background_color": "#0b1220",
   "theme_color": "#0b1220",
   "icons": [
