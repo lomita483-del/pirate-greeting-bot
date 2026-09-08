@@ -42,6 +42,8 @@ export type WelcomeMessage = {
   attachDynamicImage: boolean;
   channelId: string | null;
   autoRoleId: string | null;
+  sendDm: boolean;
+  dmOnly: boolean;
 };
 
 async function authorize(guildId: string) {
@@ -73,6 +75,8 @@ function rowToMessage(row: unknown): WelcomeMessage {
     attachDynamicImage: r["attach_dynamic_image"] === true,
     channelId: (r["channel_id"] as string | null) ?? null,
     autoRoleId: (r["auto_role_id"] as string | null) ?? null,
+    sendDm: r["send_dm"] === true,
+    dmOnly: r["dm_only"] === true,
   };
 }
 
@@ -106,6 +110,8 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
         attachDynamicImage: z.boolean().default(false),
         channelId: snowflake,
         autoRoleId: snowflake,
+        sendDm: z.boolean().default(false),
+        dmOnly: z.boolean().default(false),
       })
       .parse(data),
   )
@@ -130,6 +136,8 @@ export const saveWelcomeMessage = createServerFn({ method: "POST" })
       attach_dynamic_image: data.attachDynamicImage,
       channel_id: data.channelId ?? null,
       auto_role_id: data.autoRoleId ?? null,
+      send_dm: data.sendDm,
+      dm_only: data.dmOnly,
       updated_at: new Date().toISOString(),
     };
 

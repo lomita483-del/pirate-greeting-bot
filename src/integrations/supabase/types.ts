@@ -2826,6 +2826,7 @@ export type Database = {
           channel_id: string | null
           content: string | null
           created_at: string
+          dm_only: boolean
           dynamic_image_background_url: string | null
           dynamic_image_enabled: boolean
           dynamic_image_subtitle: string | null
@@ -2835,6 +2836,7 @@ export type Database = {
           guild_id: string
           id: string
           position: number
+          send_dm: boolean
           updated_at: string
           use_embed: boolean
         }
@@ -2844,6 +2846,7 @@ export type Database = {
           channel_id?: string | null
           content?: string | null
           created_at?: string
+          dm_only?: boolean
           dynamic_image_background_url?: string | null
           dynamic_image_enabled?: boolean
           dynamic_image_subtitle?: string | null
@@ -2853,6 +2856,7 @@ export type Database = {
           guild_id: string
           id?: string
           position?: number
+          send_dm?: boolean
           updated_at?: string
           use_embed?: boolean
         }
@@ -2862,6 +2866,7 @@ export type Database = {
           channel_id?: string | null
           content?: string | null
           created_at?: string
+          dm_only?: boolean
           dynamic_image_background_url?: string | null
           dynamic_image_enabled?: boolean
           dynamic_image_subtitle?: string | null
@@ -2871,6 +2876,7 @@ export type Database = {
           guild_id?: string
           id?: string
           position?: number
+          send_dm?: boolean
           updated_at?: string
           use_embed?: boolean
         }
