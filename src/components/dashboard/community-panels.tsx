@@ -1,19 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Trash2 } from "lucide-react";
+import { Plus, Trash2 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import {
   cancelGiveaway,
+  createReactionRolePanel,
   deleteReactionRole,
   getCommunityFeatures,
 } from "@/lib/ahoy.functions";
 
-import { SectionHeader } from "./fields";
+import { Field, PickerSelect, SectionHeader } from "./fields";
 import type { GuildStructure } from "./types";
 
 function useCommunity(guildId: string) {
