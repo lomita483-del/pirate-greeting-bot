@@ -8,10 +8,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getMyEntitlements, type PremiumFeature } from "@/lib/admin.functions";
 
-export function useEntitlements() {
+/** Pass guildId so a server that unlocked a plan via tasks is honored too,
+ * not just the signed-in user's own paid account. */
+export function useEntitlements(guildId?: string) {
   return useQuery({
-    queryKey: ["entitlements"],
-    queryFn: () => getMyEntitlements(),
+    queryKey: ["entitlements", guildId ?? null],
+    queryFn: () => getMyEntitlements({ data: { guildId } }),
     staleTime: 60_000,
   });
 }
@@ -26,12 +28,14 @@ const LABELS: Record<PremiumFeature, string> = {
 
 export function PremiumGate({
   feature,
+  guildId,
   children,
 }: {
   feature: PremiumFeature;
+  guildId?: string;
   children: ReactNode;
 }) {
-  const { data, isPending } = useEntitlements();
+  const { data, isPending } = useEntitlements(guildId);
 
   if (isPending) return <Skeleton className="h-64 rounded-2xl" />;
   if (data?.features[feature]) return <>{children}</>;
@@ -45,12 +49,13 @@ export function PremiumGate({
         <div>
           <h2 className="text-lg font-semibold">{LABELS[feature]} is a premium module</h2>
           <p className="mx-auto mt-1 max-w-md text-sm text-muted-foreground">
-            Upgrade this account to unlock {LABELS[feature].toLowerCase()} in the control center and
-            on the bot. Your settings stay saved while it is locked.
+            Upgrade this account, or complete this server's task list, to unlock{" "}
+            {LABELS[feature].toLowerCase()} in the control center and on the bot. Your settings
+            stay saved while it is locked.
           </p>
         </div>
         <Button asChild variant="secondary" className="gap-2">
-          <Link to="/plans/">
+          <Link to={guildId ? `/dashboard/$guildId/plans` : "/plans/"} params={guildId ? { guildId } : undefined}>
             <Sparkles className="h-4 w-4" /> See plans
           </Link>
         </Button>
