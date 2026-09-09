@@ -173,9 +173,69 @@ class SendCommands(commands.Cog):
             return
 
         for action in actions:
-            if action.get("action") != "send_message":
-                continue
-            await self._process_send_action(action)
+            kind = action.get("action")
+            if kind == "send_message":
+                await self._process_send_action(action)
+            elif kind == "reaction_role_panel":
+                await self._process_reaction_role_panel(action)
+
+    async def _process_reaction_role_panel(self, action: dict) -> None:
+        payload = action.get("payload") or {}
+        guild_id = action.get("guild_id")
+        error: str | None = None
+        try:
+            guild = self.bot.get_guild(int(guild_id)) if guild_id else None
+            if guild is None:
+                raise ActionRefused("!PIRATE is not in that server (or lost access).")
+            channel = guild.get_channel(int(payload["channel_id"]))
+            if not isinstance(channel, discord.TextChannel):
+                raise ActionRefused("That channel no longer exists or isn't a text channel.")
+
+            options = payload.get("options") or []
+            if not options:
+                raise ActionRefused("Add at least one emoji/role pair.")
+
+            lines = []
+            for opt in options:
+                role = guild.get_role(int(opt["role_id"]))
+                label = opt.get("description") or (role.name if role else opt["role_id"])
+                lines.append(f"{opt['emoji']} — {label}")
+
+            embed = discord.Embed(
+                title=payload.get("title") or "Pick your roles",
+                description=(payload.get("description") or "React below to grant yourself a role.")
+                + "\n\n"
+                + "\n".join(lines),
+                color=discord.Color.from_str("#D4AF37"),
+            )
+            message = await channel.send(embed=embed)
+
+            for opt in options:
+                try:
+                    await message.add_reaction(opt["emoji"])
+                except discord.HTTPException:
+                    continue
+                await self.bot.repo.add_reaction_role(  # type: ignore[attr-defined]
+                    {
+                        "guild_id": str(guild.id),
+                        "channel_id": str(channel.id),
+                        "message_id": str(message.id),
+                        "emoji": opt["emoji"],
+                        "role_id": str(opt["role_id"]),
+                        "description": opt.get("description") or None,
+                    }
+                )
+        except ActionRefused as exc:
+            error = str(exc)
+        except discord.HTTPException as exc:
+            error = f"Discord rejected that panel: {exc}"
+        except Exception as exc:  # noqa: BLE001
+            log.exception("reaction_role_panel action failed")
+            error = str(exc)
+
+        await self.bot.repo.finish_bot_action(  # type: ignore[attr-defined]
+            action["id"], "failed" if error else "done", error
+        )
 
     async def _process_send_action(self, action: dict) -> None:
         payload = action.get("payload") or {}

@@ -52,6 +52,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
   const [attachDynamicImage, setAttachDynamicImage] = useState(false);
   const [channelId, setChannelId] = useState<string | null>(null);
   const [autoRoleId, setAutoRoleId] = useState<string | null>(null);
+  const [sendDm, setSendDm] = useState(false);
+  const [dmOnly, setDmOnly] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
 
   const w = config.welcome as (typeof config.welcome & Record<string, any>) | null;
@@ -89,6 +91,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       attachDynamicImage: boolean;
       channelId: string | null;
       autoRoleId: string | null;
+      sendDm: boolean;
+      dmOnly: boolean;
     }) => save({ data: { guildId, ...input } }),
     onSuccess: () => {
       toast.success("Message saved");
@@ -119,6 +123,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       setAttachDynamicImage(message.attachDynamicImage);
       setChannelId(message.channelId);
       setAutoRoleId(message.autoRoleId);
+      setSendDm(message.sendDm);
+      setDmOnly(message.dmOnly);
     } else {
       setEditingId("new");
       setContent("");
@@ -128,6 +134,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
       setAttachDynamicImage(false);
       setChannelId(null);
       setAutoRoleId(null);
+      setSendDm(false);
+      setDmOnly(false);
     }
   }
 
@@ -251,6 +259,25 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
                   />
                 </Field>
               </div>
+
+              <ToggleRow
+                label="Also send to the member's DM"
+                description="The same message (embed or plain text) is delivered privately when they join."
+                checked={sendDm}
+                onChange={(v) => {
+                  setSendDm(v);
+                  if (!v) setDmOnly(false);
+                }}
+              />
+
+              {sendDm && (
+                <ToggleRow
+                  label="DM only"
+                  description="Skip the welcome channel and send this message privately only."
+                  checked={dmOnly}
+                  onChange={setDmOnly}
+                />
+              )}
 
               <ToggleRow
                 label="Send as embed"
@@ -489,6 +516,8 @@ export function WelcomeMessagesPanel({ guildId, config, onSaved }: PanelProps) {
                     attachDynamicImage,
                     channelId,
                     autoRoleId,
+                    sendDm,
+                    dmOnly: sendDm && dmOnly,
                   };
                   saveMutation.mutate(
                     useEmbed && hasEmbedContent(embed) ? { ...base, embed } : base,
