@@ -98,13 +98,22 @@ class MemberEvents(commands.Cog):
         fallback_channel_id = (image_config or {}).get("welcome_channel_id")
 
         for message in messages:
-            channel_id = message.get("channel_id") or fallback_channel_id
-            if not channel_id:
-                log.warning("No welcome channel configured for guild %s", guild_id)
+            send_dm = bool(message.get("send_dm"))
+            dm_only = bool(message.get("dm_only")) and send_dm
+
+            channel: discord.TextChannel | None = None
+            if not dm_only:
+                channel_id = message.get("channel_id") or fallback_channel_id
+                if not channel_id:
+                    log.warning("No welcome channel configured for guild %s", guild_id)
+                    if not send_dm:
+                        continue
+                else:
+                    found = guild.get_channel(int(channel_id))
+                    channel = found if isinstance(found, discord.TextChannel) else None
+            if channel is None and not send_dm:
                 continue
-            channel = guild.get_channel(int(channel_id))
-            if not isinstance(channel, discord.TextChannel):
-                continue
+
 
             # Each message can carry its own auto-role.
             role_id = message.get("auto_role_id")
