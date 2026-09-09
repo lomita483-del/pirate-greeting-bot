@@ -50,7 +50,7 @@ export function PremiumGate({
           </p>
         </div>
         <Button asChild variant="secondary" className="gap-2">
-          <Link to="/">
+          <Link to="/plans/">
             <Sparkles className="h-4 w-4" /> See plans
           </Link>
         </Button>
