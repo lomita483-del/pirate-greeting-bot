@@ -13,6 +13,9 @@ import {
   ShieldCheck,
   Sparkles,
   Users,
+  Plus,
+  Edit2,
+  Trash2,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -50,6 +53,7 @@ const TABS = [
   { key: "overview", label: "Overview", icon: BarChart3 },
   { key: "users", label: "Users", icon: Users },
   { key: "servers", label: "Servers", icon: Server },
+  { key: "plans", label: "Plans", icon: Coins },
   { key: "notifications", label: "Notifications", icon: Bell },
   { key: "staff", label: "Staff", icon: ShieldCheck },
 ] as const;
@@ -162,6 +166,7 @@ function AdminConsole() {
         {tab === "overview" ? <Overview onJump={setTab} /> : null}
         {tab === "users" ? <UserManager /> : null}
         {tab === "servers" ? <ServersPanel /> : null}
+        {tab === "plans" ? <PlansManagementPanel /> : null}
         {tab === "notifications" ? <NotificationsPanel /> : null}
         {tab === "staff" ? <StaffPanel canEdit={context.role === "owner"} /> : null}
       </main>
@@ -226,7 +231,7 @@ function Overview({ onJump }: { onJump: (tab: TabKey) => void }) {
     { label: "Users", icon: Users, tab: "users" },
     { label: "Limit features", icon: ShieldBan, tab: "users" },
     { label: "Bans", icon: ShieldBan, tab: "users" },
-    { label: "Plans", icon: Coins, tab: "users" },
+    { label: "Plans", icon: Coins, tab: "plans" },
     { label: "Servers", icon: Server, tab: "servers" },
     { label: "Broadcast", icon: Bell, tab: "notifications" },
     { label: "Notices", icon: Bell, tab: "notifications" },
@@ -303,6 +308,294 @@ function Overview({ onJump }: { onJump: (tab: TabKey) => void }) {
           ))}
         </ul>
       </section>
+    </div>
+  );
+}
+
+function PlansManagementPanel() {
+  const [showCreatePlan, setShowCreatePlan] = useState(false);
+  const [selectedPlanForEdit, setSelectedPlanForEdit] = useState<string | null>(null);
+  const [selectedPlanForTasks, setSelectedPlanForTasks] = useState<string | null>(null);
+
+  // Mock data - replace with actual API calls
+  const plans = [
+    {
+      id: "plan-1",
+      name: "Basic Plan",
+      tier: "basic",
+      description: "Entry level features with 3-5 tasks",
+      taskCount: 4,
+      tasksCompleted: 0,
+    },
+    {
+      id: "plan-2",
+      name: "Premium Plan",
+      tier: "premium",
+      description: "Advanced features with 5-7 tasks",
+      taskCount: 6,
+      tasksCompleted: 0,
+    },
+    {
+      id: "plan-3",
+      name: "Elite Plan",
+      tier: "elite",
+      description: "Full suite of features with 7-10 tasks",
+      taskCount: 8,
+      tasksCompleted: 0,
+    },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground">Plans Management</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Create and manage premium unlock plans. Each plan can have 3-10 tasks linked to Discord activities.
+          </p>
+        </div>
+        <Button 
+          onClick={() => setShowCreatePlan(true)}
+          className="gap-2"
+        >
+          <Plus className="w-4 h-4" /> Create Plan
+        </Button>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {plans.map((plan) => (
+          <div key={plan.id} className="glass rounded-2xl p-6 border-l-4 border-gold/50 space-y-4">
+            <div>
+              <h3 className="font-semibold text-lg mb-1">{plan.name}</h3>
+              <p className="text-sm text-muted-foreground">{plan.description}</p>
+              <div className="mt-2">
+                <Badge variant="outline" className="capitalize">{plan.tier}</Badge>
+              </div>
+            </div>
+
+            <div className="bg-surface/50 rounded p-3">
+              <p className="text-xs text-muted-foreground mb-1">Tasks</p>
+              <p className="text-lg font-semibold">{plan.tasksCompleted}/{plan.taskCount}</p>
+              <div className="mt-2 w-full bg-background rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full"
+                  style={{ width: `${(plan.tasksCompleted / plan.taskCount) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setSelectedPlanForEdit(plan.id)}
+                className="flex-1 gap-1"
+              >
+                <Edit2 className="w-3 h-3" /> Edit
+              </Button>
+              <Button 
+                size="sm" 
+                variant="outline"
+                onClick={() => setSelectedPlanForTasks(plan.id)}
+                className="flex-1"
+              >
+                <Coins className="w-3 h-3" /> Manage Tasks
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Task Management Section */}
+      {selectedPlanForTasks && (
+        <TaskManagementSection 
+          planId={selectedPlanForTasks}
+          onClose={() => setSelectedPlanForTasks(null)}
+        />
+      )}
+
+      {/* Plan Info Section */}
+      <div className="glass rounded-2xl p-6">
+        <h3 className="font-semibold mb-4 flex items-center gap-2">
+          <Sparkles className="w-4 h-4 text-gold" /> Plan Configuration Guide
+        </h3>
+        <div className="grid md:grid-cols-2 gap-6">
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-semibold text-sm mb-2">📋 Task Types</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>• <strong>Type 1:</strong> Message activity (daily messages)</li>
+                <li>• <strong>Type 2:</strong> Voice activity (voice hours/minutes)</li>
+                <li>• <strong>Type 4:</strong> Reaction activity (emoji reactions)</li>
+              </ul>
+            </div>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <h4 className="font-semibold text-sm mb-2">✅ Auto-Tracking</h4>
+              <ul className="text-sm text-muted-foreground space-y-1">
+                <li>✓ Bot automatically tracks Discord activities</li>
+                <li>✓ Tasks complete when targets are reached</li>
+                <li>✓ Plans unlock when all tasks done</li>
+                <li>✓ Real-time progress updates</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TaskManagementSection({ planId, onClose }: { planId: string; onClose: () => void }) {
+  const [showAddTask, setShowAddTask] = useState(false);
+  const [newTask, setNewTask] = useState({
+    title: "",
+    description: "",
+    activityType: 1,
+    targetValue: 10,
+  });
+
+  // Mock tasks data
+  const tasks = [
+    {
+      id: "task-1",
+      title: "Send 50 Messages",
+      description: "Post 50 messages in any channel",
+      activityType: 1,
+      targetValue: 50,
+      currentProgress: 0,
+      isCompleted: false,
+    },
+    {
+      id: "task-2",
+      title: "Join Voice for 1 Hour",
+      description: "Spend 1 hour in voice channels",
+      activityType: 2,
+      targetValue: 60,
+      currentProgress: 0,
+      isCompleted: false,
+    },
+  ];
+
+  const handleAddTask = () => {
+    // TODO: Call API to add task
+    setShowAddTask(false);
+    setNewTask({ title: "", description: "", activityType: 1, targetValue: 10 });
+  };
+
+  return (
+    <div className="glass rounded-2xl p-6 space-y-4 border-2 border-gold/30">
+      <div className="flex items-center justify-between">
+        <h3 className="font-semibold text-lg">Tasks for Plan</h3>
+        <div className="flex gap-2">
+          <Button 
+            size="sm"
+            onClick={() => setShowAddTask(!showAddTask)}
+            className="gap-2"
+          >
+            <Plus className="w-3 h-3" /> Add Task
+          </Button>
+          <Button 
+            size="sm" 
+            variant="outline"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+
+      {showAddTask && (
+        <div className="bg-surface/50 rounded-lg p-4 space-y-3 border border-border">
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">Task Title</label>
+            <input
+              type="text"
+              value={newTask.title}
+              onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
+              placeholder="e.g., Send 50 Messages"
+              className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">Description</label>
+            <input
+              type="text"
+              value={newTask.description}
+              onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
+              placeholder="Brief description of the task"
+              className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Activity Type</label>
+              <select
+                value={newTask.activityType}
+                onChange={(e) => setNewTask({ ...newTask, activityType: parseInt(e.target.value) })}
+                className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+              >
+                <option value={1}>Type 1 - Messages</option>
+                <option value={2}>Type 2 - Voice</option>
+                <option value={4}>Type 4 - Reactions</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Target Value</label>
+              <input
+                type="number"
+                value={newTask.targetValue}
+                onChange={(e) => setNewTask({ ...newTask, targetValue: parseInt(e.target.value) })}
+                className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleAddTask} className="flex-1">
+              Add Task
+            </Button>
+            <Button 
+              size="sm" 
+              variant="outline" 
+              onClick={() => setShowAddTask(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        {tasks.map((task) => (
+          <div key={task.id} className="bg-surface/50 rounded-lg p-4 border border-border space-y-2">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h4 className="font-semibold">{task.title}</h4>
+                <p className="text-sm text-muted-foreground">{task.description}</p>
+              </div>
+              <Button 
+                size="sm" 
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+            
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <span>Type {task.activityType}</span>
+              <span>{task.currentProgress}/{task.targetValue}</span>
+              <span>{task.isCompleted ? "✅ Complete" : "⏳ In Progress"}</span>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
