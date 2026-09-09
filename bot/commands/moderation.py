@@ -130,7 +130,11 @@ class Moderation(commands.Cog):
 
         await interaction.response.defer(ephemeral=True)
 
-        check = (lambda m: m.author.id == user.id) if user else None
+        # discord.py's purge() always calls check(message) internally — it
+        # must be a real callable, never None, or every purge without a
+        # user filter raises TypeError: 'NoneType' object is not callable.
+        has_user_filter = user is not None
+        check = (lambda m: m.author.id == user.id) if has_user_filter else (lambda m: True)
         # Discord caps a single purge at 100 messages, so batch the request.
         deleted_total = 0
         remaining = amount
@@ -138,7 +142,7 @@ class Moderation(commands.Cog):
             batch = min(100, remaining)
             try:
                 deleted = await target_channel.purge(
-                    limit=batch if check is None else max(batch, 100),
+                    limit=batch if not has_user_filter else max(batch, 100),
                     check=check,
                     reason=f"/clear by {interaction.user}",
                 )
@@ -149,7 +153,7 @@ class Moderation(commands.Cog):
             if not deleted:
                 break
             deleted_total += len(deleted)
-            remaining -= len(deleted) if check is None else len(deleted)
+            remaining -= len(deleted)
 
         scope = f" from {user.mention}" if user else ""
         await self.mod.record(
