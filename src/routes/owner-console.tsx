@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Activity,
@@ -14,10 +14,10 @@ import {
   Sparkles,
   Users,
   Plus,
-  Edit2,
   Trash2,
 } from "lucide-react";
 import { useState } from "react";
+import { toast } from "sonner";
 
 import { AhoyWordmark } from "@/components/ahoy/brand";
 import { NotificationsPanel } from "@/components/admin/notifications-panel";
@@ -26,7 +26,16 @@ import { StaffPanel } from "@/components/admin/staff-panel";
 import { UserManager } from "@/components/admin/user-manager";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getAdminContext, getAdminOverview } from "@/lib/admin.functions";
+import { FEATURE_KEYS, getAdminContext, getAdminOverview } from "@/lib/admin.functions";
+import {
+  createPlan,
+  createPlanTask,
+  deletePlan,
+  deletePlanTask,
+  listPlansAdmin,
+  TASK_TYPES,
+  type TaskType,
+} from "@/lib/plans.functions";
 
 export const Route = createFileRoute("/owner-console")({
   head: () => ({
@@ -312,38 +321,54 @@ function Overview({ onJump }: { onJump: (tab: TabKey) => void }) {
   );
 }
 
-function PlansManagementPanel() {
-  const [showCreatePlan, setShowCreatePlan] = useState(false);
-  const [selectedPlanForEdit, setSelectedPlanForEdit] = useState<string | null>(null);
-  const [selectedPlanForTasks, setSelectedPlanForTasks] = useState<string | null>(null);
+/* ------------------------------------------------------------------ */
+/* Plans — real data, wired to src/lib/plans.functions.ts              */
+/* ------------------------------------------------------------------ */
 
-  // Mock data - replace with actual API calls
-  const plans = [
-    {
-      id: "plan-1",
-      name: "Basic Plan",
-      tier: "basic",
-      description: "Entry level features with 3-5 tasks",
-      taskCount: 4,
-      tasksCompleted: 0,
+function PlansManagementPanel() {
+  const queryClient = useQueryClient();
+  const [showCreatePlan, setShowCreatePlan] = useState(false);
+  const [selectedPlanForTasks, setSelectedPlanForTasks] = useState<string | null>(null);
+  const [newPlan, setNewPlan] = useState({ key: "", name: "", description: "", features: [] as string[] });
+
+  const { data: plans, isPending } = useQuery({
+    queryKey: ["admin", "plans"],
+    queryFn: () => listPlansAdmin(),
+  });
+
+  const createPlanMutation = useMutation({
+    mutationFn: () =>
+      createPlan({
+        data: {
+          key: newPlan.key.trim(),
+          name: newPlan.name.trim(),
+          description: newPlan.description.trim() || null,
+          features: newPlan.features as never,
+          sortOrder: plans?.length ?? 0,
+          enabled: true,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });
+      setShowCreatePlan(false);
+      setNewPlan({ key: "", name: "", description: "", features: [] });
+      toast.success("Plan created.");
     },
-    {
-      id: "plan-2",
-      name: "Premium Plan",
-      tier: "premium",
-      description: "Advanced features with 5-7 tasks",
-      taskCount: 6,
-      tasksCompleted: 0,
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deletePlanMutation = useMutation({
+    mutationFn: (id: string) => deletePlan({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });
+      toast.success("Plan deleted.");
     },
-    {
-      id: "plan-3",
-      name: "Elite Plan",
-      tier: "elite",
-      description: "Full suite of features with 7-10 tasks",
-      taskCount: 8,
-      tasksCompleted: 0,
-    },
-  ];
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  if (isPending) {
+    return <p className="text-sm text-muted-foreground">Loading plans…</p>;
+  }
 
   return (
     <div className="space-y-6">
@@ -354,92 +379,172 @@ function PlansManagementPanel() {
             Create and manage premium unlock plans. Each plan can have 3-10 tasks linked to Discord activities.
           </p>
         </div>
-        <Button 
-          onClick={() => setShowCreatePlan(true)}
-          className="gap-2"
-        >
+        <Button onClick={() => setShowCreatePlan((v) => !v)} className="gap-2">
           <Plus className="w-4 h-4" /> Create Plan
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {plans.map((plan) => (
-          <div key={plan.id} className="glass rounded-2xl p-6 border-l-4 border-gold/50 space-y-4">
+      {showCreatePlan ? (
+        <div className="glass rounded-2xl p-5 space-y-3 border border-gold/30">
+          <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <h3 className="font-semibold text-lg mb-1">{plan.name}</h3>
-              <p className="text-sm text-muted-foreground">{plan.description}</p>
-              <div className="mt-2">
-                <Badge variant="outline" className="capitalize">{plan.tier}</Badge>
-              </div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Key (slug)
+              </label>
+              <input
+                value={newPlan.key}
+                onChange={(e) => setNewPlan({ ...newPlan, key: e.target.value })}
+                placeholder="e.g. growth"
+                className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+              />
             </div>
-
-            <div className="bg-surface/50 rounded p-3">
-              <p className="text-xs text-muted-foreground mb-1">Tasks</p>
-              <p className="text-lg font-semibold">{plan.tasksCompleted}/{plan.taskCount}</p>
-              <div className="mt-2 w-full bg-background rounded-full h-2">
-                <div
-                  className="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full"
-                  style={{ width: `${(plan.tasksCompleted / plan.taskCount) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-2">
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => setSelectedPlanForEdit(plan.id)}
-                className="flex-1 gap-1"
-              >
-                <Edit2 className="w-3 h-3" /> Edit
-              </Button>
-              <Button 
-                size="sm" 
-                variant="outline"
-                onClick={() => setSelectedPlanForTasks(plan.id)}
-                className="flex-1"
-              >
-                <Coins className="w-3 h-3" /> Manage Tasks
-              </Button>
+            <div>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Name</label>
+              <input
+                value={newPlan.name}
+                onChange={(e) => setNewPlan({ ...newPlan, name: e.target.value })}
+                placeholder="e.g. Growth Plan"
+                className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+              />
             </div>
           </div>
-        ))}
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">Description</label>
+            <input
+              value={newPlan.description}
+              onChange={(e) => setNewPlan({ ...newPlan, description: e.target.value })}
+              className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
+            />
+          </div>
+          <div>
+            <label className="text-xs uppercase tracking-wider text-muted-foreground">
+              Features this plan unlocks
+            </label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {FEATURE_KEYS.map((feature) => {
+                const active = newPlan.features.includes(feature);
+                return (
+                  <button
+                    key={feature}
+                    type="button"
+                    onClick={() =>
+                      setNewPlan((p) => ({
+                        ...p,
+                        features: active
+                          ? p.features.filter((f) => f !== feature)
+                          : [...p.features, feature],
+                      }))
+                    }
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      active ? "border-gold bg-gold/15 text-gold" : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    {feature}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              disabled={!newPlan.key || !newPlan.name || createPlanMutation.isPending}
+              onClick={() => createPlanMutation.mutate()}
+            >
+              Save plan
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowCreatePlan(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {(plans ?? []).map((plan) => {
+          const tasks = (plan as Record<string, unknown>)["plan_tasks"] as unknown[];
+          return (
+            <div key={plan.id as string} className="glass rounded-2xl p-6 border-l-4 border-gold/50 space-y-4">
+              <div>
+                <h3 className="font-semibold text-lg mb-1">{plan.name as string}</h3>
+                <p className="text-sm text-muted-foreground">{plan.description as string}</p>
+                <div className="mt-2 flex flex-wrap gap-1">
+                  {((plan.features as string[]) ?? []).map((f) => (
+                    <Badge key={f} variant="outline" className="text-[10px]">
+                      {f}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-surface/50 rounded p-3">
+                <p className="text-xs text-muted-foreground mb-1">Tasks</p>
+                <p className="text-lg font-semibold">{tasks.length} / 10</p>
+              </div>
+
+              <div className="flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setSelectedPlanForTasks(plan.id as string)}
+                  className="flex-1"
+                >
+                  <Coins className="w-3 h-3 mr-1" /> Manage Tasks
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (confirm(`Delete "${plan.name}"? This cannot be undone.`)) {
+                      deletePlanMutation.mutate(plan.id as string);
+                    }
+                  }}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
-      {/* Task Management Section */}
-      {selectedPlanForTasks && (
-        <TaskManagementSection 
+      {selectedPlanForTasks ? (
+        <TaskManagementSection
           planId={selectedPlanForTasks}
+          tasks={
+            ((plans ?? []).find((p) => p.id === selectedPlanForTasks) as Record<string, unknown> | undefined)?.[
+              "plan_tasks"
+            ] as Array<Record<string, unknown>> ?? []
+          }
           onClose={() => setSelectedPlanForTasks(null)}
         />
-      )}
+      ) : null}
 
-      {/* Plan Info Section */}
       <div className="glass rounded-2xl p-6">
         <h3 className="font-semibold mb-4 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-gold" /> Plan Configuration Guide
         </h3>
         <div className="grid md:grid-cols-2 gap-6">
-          <div className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-2">📋 Task Types</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• <strong>Type 1:</strong> Message activity (daily messages)</li>
-                <li>• <strong>Type 2:</strong> Voice activity (voice hours/minutes)</li>
-                <li>• <strong>Type 4:</strong> Reaction activity (emoji reactions)</li>
-              </ul>
-            </div>
+          <div>
+            <h4 className="font-semibold text-sm mb-2">📋 Task Types</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>• <strong>message_count:</strong> messages sent, tracked live by the bot</li>
+              <li>• <strong>voice_minutes:</strong> time spent in voice, tracked live by the bot</li>
+              <li>• <strong>reaction_count:</strong> reactions given, tracked live by the bot</li>
+              <li>• <strong>member_count / boost_count / invite_count:</strong> server growth</li>
+              <li>• <strong>daily_login_streak:</strong> consecutive days someone opens this server's dashboard</li>
+              <li>• <strong>custom:</strong> ticked by hand by that server's own admins</li>
+            </ul>
           </div>
-          <div className="space-y-3">
-            <div>
-              <h4 className="font-semibold text-sm mb-2">✅ Auto-Tracking</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>✓ Bot automatically tracks Discord activities</li>
-                <li>✓ Tasks complete when targets are reached</li>
-                <li>✓ Plans unlock when all tasks done</li>
-                <li>✓ Real-time progress updates</li>
-              </ul>
-            </div>
+          <div>
+            <h4 className="font-semibold text-sm mb-2">✅ How it unlocks</h4>
+            <ul className="text-sm text-muted-foreground space-y-1">
+              <li>✓ Every task in a plan must complete</li>
+              <li>✓ Unlock is per-server, not per-account</li>
+              <li>✓ Progress updates live from the bot's own counters</li>
+              <li>✓ Once unlocked, it stays unlocked</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -447,71 +552,78 @@ function PlansManagementPanel() {
   );
 }
 
-function TaskManagementSection({ planId, onClose }: { planId: string; onClose: () => void }) {
+function TaskManagementSection({
+  planId,
+  tasks,
+  onClose,
+}: {
+  planId: string;
+  tasks: Array<Record<string, unknown>>;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
   const [showAddTask, setShowAddTask] = useState(false);
   const [newTask, setNewTask] = useState({
     title: "",
     description: "",
-    activityType: 1,
+    taskType: "message_count" as TaskType,
     targetValue: 10,
   });
 
-  // Mock tasks data
-  const tasks = [
-    {
-      id: "task-1",
-      title: "Send 50 Messages",
-      description: "Post 50 messages in any channel",
-      activityType: 1,
-      targetValue: 50,
-      currentProgress: 0,
-      isCompleted: false,
+  const addTask = useMutation({
+    mutationFn: () =>
+      createPlanTask({
+        data: {
+          planId,
+          title: newTask.title.trim(),
+          description: newTask.description.trim() || null,
+          taskType: newTask.taskType,
+          targetValue: newTask.targetValue,
+          sortOrder: tasks.length,
+        },
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });
+      setShowAddTask(false);
+      setNewTask({ title: "", description: "", taskType: "message_count", targetValue: 10 });
+      toast.success("Task added.");
     },
-    {
-      id: "task-2",
-      title: "Join Voice for 1 Hour",
-      description: "Spend 1 hour in voice channels",
-      activityType: 2,
-      targetValue: 60,
-      currentProgress: 0,
-      isCompleted: false,
-    },
-  ];
+    onError: (error: Error) => toast.error(error.message),
+  });
 
-  const handleAddTask = () => {
-    // TODO: Call API to add task
-    setShowAddTask(false);
-    setNewTask({ title: "", description: "", activityType: 1, targetValue: 10 });
-  };
+  const removeTask = useMutation({
+    mutationFn: (id: string) => deletePlanTask({ data: { id } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "plans"] });
+      toast.success("Task removed.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   return (
     <div className="glass rounded-2xl p-6 space-y-4 border-2 border-gold/30">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg">Tasks for Plan</h3>
+        <h3 className="font-semibold text-lg">Tasks for Plan ({tasks.length}/10)</h3>
         <div className="flex gap-2">
-          <Button 
+          <Button
             size="sm"
-            onClick={() => setShowAddTask(!showAddTask)}
+            onClick={() => setShowAddTask((v) => !v)}
+            disabled={tasks.length >= 10}
             className="gap-2"
           >
             <Plus className="w-3 h-3" /> Add Task
           </Button>
-          <Button 
-            size="sm" 
-            variant="outline"
-            onClick={onClose}
-          >
+          <Button size="sm" variant="outline" onClick={onClose}>
             Close
           </Button>
         </div>
       </div>
 
-      {showAddTask && (
+      {showAddTask ? (
         <div className="bg-surface/50 rounded-lg p-4 space-y-3 border border-border">
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground">Task Title</label>
             <input
-              type="text"
               value={newTask.title}
               onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
               placeholder="e.g., Send 50 Messages"
@@ -522,7 +634,6 @@ function TaskManagementSection({ planId, onClose }: { planId: string; onClose: (
           <div>
             <label className="text-xs uppercase tracking-wider text-muted-foreground">Description</label>
             <input
-              type="text"
               value={newTask.description}
               onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
               placeholder="Brief description of the task"
@@ -532,15 +643,17 @@ function TaskManagementSection({ planId, onClose }: { planId: string; onClose: (
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs uppercase tracking-wider text-muted-foreground">Activity Type</label>
+              <label className="text-xs uppercase tracking-wider text-muted-foreground">Task Type</label>
               <select
-                value={newTask.activityType}
-                onChange={(e) => setNewTask({ ...newTask, activityType: parseInt(e.target.value) })}
+                value={newTask.taskType}
+                onChange={(e) => setNewTask({ ...newTask, taskType: e.target.value as TaskType })}
                 className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
               >
-                <option value={1}>Type 1 - Messages</option>
-                <option value={2}>Type 2 - Voice</option>
-                <option value={4}>Type 4 - Reactions</option>
+                {TASK_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {type}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -548,53 +661,59 @@ function TaskManagementSection({ planId, onClose }: { planId: string; onClose: (
               <label className="text-xs uppercase tracking-wider text-muted-foreground">Target Value</label>
               <input
                 type="number"
+                min={1}
                 value={newTask.targetValue}
-                onChange={(e) => setNewTask({ ...newTask, targetValue: parseInt(e.target.value) })}
+                onChange={(e) => setNewTask({ ...newTask, targetValue: Number(e.target.value) })}
                 className="w-full mt-1 px-3 py-2 bg-background border border-border rounded text-sm"
               />
             </div>
           </div>
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={handleAddTask} className="flex-1">
-              Add Task
-            </Button>
-            <Button 
-              size="sm" 
-              variant="outline" 
-              onClick={() => setShowAddTask(false)}
+            <Button
+              size="sm"
+              disabled={!newTask.title || addTask.isPending}
+              onClick={() => addTask.mutate()}
               className="flex-1"
             >
+              Add Task
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowAddTask(false)} className="flex-1">
               Cancel
             </Button>
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="space-y-3">
         {tasks.map((task) => (
-          <div key={task.id} className="bg-surface/50 rounded-lg p-4 border border-border space-y-2">
+          <div key={task["id"] as string} className="bg-surface/50 rounded-lg p-4 border border-border space-y-2">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h4 className="font-semibold">{task.title}</h4>
-                <p className="text-sm text-muted-foreground">{task.description}</p>
+                <h4 className="font-semibold">{task["title"] as string}</h4>
+                {task["description"] ? (
+                  <p className="text-sm text-muted-foreground">{task["description"] as string}</p>
+                ) : null}
               </div>
-              <Button 
-                size="sm" 
+              <Button
+                size="sm"
                 variant="ghost"
                 className="text-destructive hover:text-destructive"
+                onClick={() => removeTask.mutate(task["id"] as string)}
               >
                 <Trash2 className="w-4 h-4" />
               </Button>
             </div>
-            
+
             <div className="flex gap-4 text-xs text-muted-foreground">
-              <span>Type {task.activityType}</span>
-              <span>{task.currentProgress}/{task.targetValue}</span>
-              <span>{task.isCompleted ? "✅ Complete" : "⏳ In Progress"}</span>
+              <span>{task["task_type"] as string}</span>
+              <span>target: {task["target_value"] as number}</span>
             </div>
           </div>
         ))}
+        {tasks.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No tasks yet — add 3 to 10 above.</p>
+        ) : null}
       </div>
     </div>
   );
