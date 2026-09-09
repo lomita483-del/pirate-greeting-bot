@@ -593,6 +593,49 @@ export const deleteReactionRole = createServerFn({ method: "POST" })
     return { ok: true };
   });
 
+export const createReactionRolePanel = createServerFn({ method: "POST" })
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        channelId: z.string().regex(/^\d{5,25}$/),
+        title: z.string().max(200).optional(),
+        description: z.string().max(2000).optional(),
+        options: z
+          .array(
+            z.object({
+              emoji: z.string().min(1).max(64),
+              roleId: z.string().regex(/^\d{5,25}$/),
+              description: z.string().max(200).optional(),
+            }),
+          )
+          .min(1)
+          .max(20),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(data.guildId);
+    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
+      guild_id: data.guildId,
+      action: "reaction_role_panel",
+      payload: {
+        channel_id: data.channelId,
+        title: data.title ?? null,
+        description: data.description ?? null,
+        options: data.options.map((o) => ({
+          emoji: o.emoji,
+          role_id: o.roleId,
+          description: o.description ?? null,
+        })),
+      },
+      requested_by: session.userId,
+      status: "pending",
+    });
+    if (error) throw new Error("Could not queue that reaction role panel.");
+    return { ok: true };
+  });
+
 export const cancelGiveaway = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => rowInput.parse(data))
   .handler(async ({ data }) => {
