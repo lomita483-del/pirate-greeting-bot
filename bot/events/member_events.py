@@ -130,51 +130,71 @@ class MemberEvents(commands.Cog):
             use_embed = message.get("use_embed", True)
             attach_image = bool(message.get("attach_dynamic_image")) and dynamic_image_bytes is not None
 
-            image_file: discord.File | None = None
-            if attach_image and dynamic_image_bytes is not None:
+            def make_file() -> discord.File | None:
+                # A discord.File can only be sent once, so build a fresh one per target.
+                if not attach_image or dynamic_image_bytes is None:
+                    return None
                 import io
 
-                image_file = discord.File(io.BytesIO(dynamic_image_bytes), filename="welcome-card.png")
+                return discord.File(io.BytesIO(dynamic_image_bytes), filename="welcome-card.png")
 
-            try:
-                if use_embed and message.get("embed"):
-                    e = message["embed"] or {}
-                    embed = discord.Embed(
-                        title=_fill(e.get("title")) if e.get("title") else None,
-                        description=_fill(e.get("description")) if e.get("description") else None,
-                        url=e.get("url") or None,
-                        color=discord.Color.from_str(f"#{e['color'].lstrip('#')}")
-                        if e.get("color")
-                        else discord.Color.from_str("#1FB6A6"),
+            def build_embed(has_file: bool) -> discord.Embed | None:
+                if not (use_embed and message.get("embed")):
+                    return None
+                e = message["embed"] or {}
+                embed = discord.Embed(
+                    title=_fill(e.get("title")) if e.get("title") else None,
+                    description=_fill(e.get("description")) if e.get("description") else None,
+                    url=e.get("url") or None,
+                    color=discord.Color.from_str(f"#{e['color'].lstrip('#')}")
+                    if e.get("color")
+                    else discord.Color.from_str("#1FB6A6"),
+                )
+                if e.get("authorName"):
+                    embed.set_author(name=e["authorName"], url=e.get("authorUrl") or None, icon_url=e.get("authorIconUrl") or None)
+                if e.get("footerText"):
+                    embed.set_footer(text=e["footerText"], icon_url=e.get("footerIconUrl") or None)
+                if e.get("useMemberAvatarAsThumbnail"):
+                    embed.set_thumbnail(url=member.display_avatar.url)
+                elif e.get("thumbnailUrl"):
+                    embed.set_thumbnail(url=e["thumbnailUrl"])
+                if has_file:
+                    embed.set_image(url="attachment://welcome-card.png")
+                elif e.get("imageUrl"):
+                    embed.set_image(url=e["imageUrl"])
+                for field in (e.get("fields") or [])[:25]:
+                    embed.add_field(
+                        name=field.get("name") or "\u200b",
+                        value=field.get("value") or "\u200b",
+                        inline=bool(field.get("inline")),
                     )
-                    if e.get("authorName"):
-                        embed.set_author(name=e["authorName"], url=e.get("authorUrl") or None, icon_url=e.get("authorIconUrl") or None)
-                    if e.get("footerText"):
-                        embed.set_footer(text=e["footerText"], icon_url=e.get("footerIconUrl") or None)
-                    if e.get("useMemberAvatarAsThumbnail"):
-                        embed.set_thumbnail(url=member.display_avatar.url)
-                    elif e.get("thumbnailUrl"):
-                        embed.set_thumbnail(url=e["thumbnailUrl"])
-                    if image_file:
-                        embed.set_image(url="attachment://welcome-card.png")
-                    elif e.get("imageUrl"):
-                        embed.set_image(url=e["imageUrl"])
-                    for field in (e.get("fields") or [])[:25]:
-                        embed.add_field(
-                            name=field.get("name") or "\u200b",
-                            value=field.get("value") or "\u200b",
-                            inline=bool(field.get("inline")),
-                        )
-                    if image_file:
-                        await channel.send(content=content or None, embed=embed, file=image_file)
-                    else:
-                        await channel.send(content=content or None, embed=embed)
-                elif image_file:
-                    await channel.send(content=content or None, file=image_file)
+                return embed
+
+            async def deliver(target: discord.abc.Messageable) -> None:
+                image_file = make_file()
+                embed = build_embed(image_file is not None)
+                if embed is not None and image_file is not None:
+                    await target.send(content=content or None, embed=embed, file=image_file)
+                elif embed is not None:
+                    await target.send(content=content or None, embed=embed)
+                elif image_file is not None:
+                    await target.send(content=content or None, file=image_file)
                 else:
-                    await channel.send(content or "\u200b")
-            except (discord.HTTPException, ValueError) as exc:
-                log.warning("Welcome message failed in %s: %s", guild_id, exc)
+                    await target.send(content or "\u200b")
+
+            if channel is not None and not dm_only:
+                try:
+                    await deliver(channel)
+                except (discord.HTTPException, ValueError) as exc:
+                    log.warning("Welcome message failed in %s: %s", guild_id, exc)
+
+            if send_dm:
+                try:
+                    await deliver(member)
+                except discord.Forbidden:
+                    log.info("Welcome DM blocked by %s in %s", member.id, guild_id)
+                except (discord.HTTPException, ValueError) as exc:
+                    log.warning("Welcome DM failed in %s: %s", guild_id, exc)
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
