@@ -290,6 +290,15 @@ class ActivityEvents(commands.Cog):
                         )
                     except Exception as exc:
                         log.warning("Voice activity bucket failed: %s", exc)
+                    # Plans/tasks unlock system: live total in whole minutes.
+                    minutes = session_seconds // 60
+                    if minutes > 0:
+                        try:
+                            await repo.increment_server_counter(
+                                guild_id, "voice_minutes_total", minutes
+                            )
+                        except Exception as exc:
+                            log.warning("voice_minutes_total bump failed: %s", exc)
             return
 
         if before.channel is not None and after.channel is not None:
