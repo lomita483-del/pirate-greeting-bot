@@ -1408,6 +1408,35 @@ class Repository:
             .execute()
         )
         return getattr(rows, "data", None) or []
+        
+    # -- plans/tasks unlock system: live server counters ------------------
+    async def increment_server_counter(self, guild_id: str, column: str, amount: int = 1) -> None:
+        """Bump one of the live task-tracking counters on `servers`
+        (message_count_total, voice_minutes_total, reaction_count_total)
+        used by the task-based premium-unlock system. Same read-then-write
+        pattern as bump_message_activity above, for consistency."""
+        if amount == 0:
+            return
+        rows = await self.db.try_run(
+            lambda c: c.table("servers").select(column).eq("guild_id", guild_id).limit(1).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        current = int((data[0].get(column) or 0)) if data else 0
+        await self.db.try_run(
+            lambda c: c.table("servers")
+            .update({column: current + amount})
+            .eq("guild_id", guild_id)
+            .execute()
+        )
+
+    async def set_server_counters(self, guild_id: str, values: dict[str, int]) -> None:
+        """Overwrite absolute counters (boost_count, invite_count) with a
+        freshly-measured value, rather than incrementing."""
+        if not values:
+            return
+        await self.db.try_run(
+            lambda c: c.table("servers").update(values).eq("guild_id", guild_id).execute()
+        )
 
 
 __all__ = ["Repository", "DatabaseError"]
