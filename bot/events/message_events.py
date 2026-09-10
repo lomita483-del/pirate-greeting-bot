@@ -99,7 +99,9 @@ class MemberEvents(commands.Cog):
             "Member joined",
             f"{member.mention} · `{member.id}`\nMembers: {guild.member_count}",
         )
-        await self.bot.logs.send(guild, "member_join", join_embed)  # type: ignore[attr-defined]
+        # log() alone: it falls back to the "member_join" toggle + default
+        # channel when no specific "user_join" override is set, so a
+        # paired send() call here would just double-post the same embed.
         await self.bot.logs.log(guild, "user_join", join_embed)  # type: ignore[attr-defined]
 
         config = await settings_service.get(guild_id, "welcome_settings")
@@ -224,7 +226,7 @@ class MemberEvents(commands.Cog):
         guild_id = str(guild.id)
         await self.bot.repo.mark_member_left(guild_id, str(member.id))  # type: ignore[attr-defined]
         leave_embed = embeds.info("Member left", f"{member} · `{member.id}`")
-        await self.bot.logs.send(guild, "member_leave", leave_embed)  # type: ignore[attr-defined]
+        # log() alone — see on_member_join for why send() isn't also called.
         await self.bot.logs.log(guild, "user_leave", leave_embed)  # type: ignore[attr-defined]
 
         config = await self.bot.settings.get(guild_id, "welcome_settings")  # type: ignore[attr-defined]
@@ -254,14 +256,6 @@ class MemberEvents(commands.Cog):
         if before.roles != after.roles:
             added = [r for r in after.roles if r not in before.roles]
             removed = [r for r in before.roles if r not in after.roles]
-            detail = ""
-            if added:
-                detail += f"**Added:** {', '.join(r.name for r in added)}\n"
-            if removed:
-                detail += f"**Removed:** {', '.join(r.name for r in removed)}"
-            await self.bot.logs.send(  # type: ignore[attr-defined]
-                after.guild, "role_changes", embeds.info(f"Roles updated · {after}", detail)
-            )
             if added:
                 await self.bot.logs.log(  # type: ignore[attr-defined]
                     after.guild,
@@ -323,7 +317,7 @@ class MemberEvents(commands.Cog):
             text = f"{member.mention} moved to **{after.channel.name}**"
             event_type = "voice_user_switch"
         embed = embeds.info("Voice activity", text)
-        await self.bot.logs.send(member.guild, "voice_activity", embed)  # type: ignore[attr-defined]
+        # log() alone — see on_member_join for why send() isn't also called.
         await self.bot.logs.log(member.guild, event_type, embed)  # type: ignore[attr-defined]
 
 
