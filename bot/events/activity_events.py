@@ -48,11 +48,6 @@ class ActivityEvents(commands.Cog):
         if message.guild is None or message.author.bot:
             return
         content = clean_text(message.content or "", 400) or "*(no text content)*"
-        # Audit-trail row only — the Discord-channel embed for this event is
-        # now posted by MessageEvents (bot.events.message_events) via
-        # LogService.log(), which respects the website's per-event channel
-        # overrides and uses the richer "pro bot" style layout. Passing an
-        # embed here too would double-post the same deletion.
         await self._record(
             message.guild,
             "message_delete",
@@ -60,16 +55,38 @@ class ActivityEvents(commands.Cog):
             actor=message.author,
             channel=message.channel,
             metadata={"content": content, "attachments": len(message.attachments)},
+            embed=embeds.warning(
+                "Message deleted",
+                f"**Author:** {message.author.mention}\n"
+                f"**Channel:** {message.channel.mention if hasattr(message.channel, 'mention') else '—'}\n"
+                f"**Content:** {content}",
+            ),
         )
 
     @commands.Cog.listener()
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
         if after.guild is None or after.author.bot or before.content == after.content:
             return
-        old = clean_text(before.content or "", 300) or "—"
-        new = clean_text(after.content or "", 300) or "—"
-        # Audit-trail row only — see on_message_delete above; MessageEvents
-        # owns the Discord embed for message edits now.
+        old = clean_text(before.content or "", 900) or "*(no text content)*"
+        new = clean_text(after.content or "", 900) or "*(no text content)*"
+        # Triple backticks inside the message would otherwise break the
+        # code block below.
+        old_block = old.replace("```", "'''")
+        new_block = new.replace("```", "'''")
+
+        embed = discord.Embed(
+            description=(
+                f"✏️ Message sent by {after.author.mention} edited in "
+                f"{getattr(after.channel, 'mention', '#' + getattr(after.channel, 'name', '?'))}. "
+                f"[Jump to Message]({_jump(after)})"
+            ),
+            color=embeds.TEAL,
+            timestamp=datetime.now(timezone.utc),
+        )
+        embed.add_field(name="Old", value=f"```{old_block}```", inline=False)
+        embed.add_field(name="New", value=f"```{new_block}```", inline=False)
+        embed.set_footer(text=f"{embeds.BRAND} ⚓")
+
         await self._record(
             after.guild,
             "message_edit",
@@ -77,6 +94,7 @@ class ActivityEvents(commands.Cog):
             actor=after.author,
             channel=after.channel,
             metadata={"before": old, "after": new, "jump_url": _jump(after)},
+            embed=embed,
         )
 
     # -- members --------------------------------------------------------
@@ -102,10 +120,6 @@ class ActivityEvents(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
-        # Audit-trail rows only for nickname/role changes — MemberEvents
-        # (bot.events.member_events) already posts the Discord embed for
-        # both via LogService.log(); passing embed= here too would
-        # double-post the same change.
         if before.nick != after.nick:
             await self._record(
                 after.guild,
@@ -113,6 +127,11 @@ class ActivityEvents(commands.Cog):
                 f"{after} changed nickname",
                 actor=after,
                 metadata={"before": before.nick, "after": after.nick},
+                embed=embeds.info(
+                    "Nickname changed",
+                    f"{after.mention}\n**Before:** {before.nick or '—'}\n"
+                    f"**After:** {after.nick or '—'}",
+                ),
             )
 
         added = [r for r in after.roles if r not in before.roles]
@@ -130,6 +149,11 @@ class ActivityEvents(commands.Cog):
                     "added": [{"id": str(r.id), "name": r.name} for r in added],
                     "removed": [{"id": str(r.id), "name": r.name} for r in removed],
                 },
+                # No embed= — message_events.py's on_member_update already
+                # delivers this to Discord via the granular
+                # "user_roles_add"/"user_roles_remove" log() calls, which
+                # fall back to the broad "role_changes" toggle themselves.
+                # This call still writes the activity_logs audit row.
             )
 
     # -- channels -------------------------------------------------------
@@ -217,14 +241,18 @@ class ActivityEvents(commands.Cog):
         now = datetime.now(timezone.utc)
 
         if before.channel is None and after.channel is not None:
-            # Audit-trail row only — MemberEvents already posts the Discord
-            # embed for voice_user_join via LogService.log().
             await self._record(
                 member.guild,
                 "voice_join",
                 f"{member} joined voice #{after.channel.name}",
                 actor=member,
                 channel=after.channel,
+                # No embed= here on purpose — bot/events/message_events.py's
+                # on_voice_state_update already delivers this to Discord via
+                # the granular "voice_user_join" log(), which falls back to
+                # the broad "voice_activity" toggle itself. Passing an embed
+                # here too would double-post to the same channel. This call
+                # still writes the activity_logs audit-trail row below.
             )
             if repo is not None:
                 stats = await repo.get_voice_stats(guild_id, str(member.id))
@@ -241,14 +269,13 @@ class ActivityEvents(commands.Cog):
             return
 
         if before.channel is not None and after.channel is None:
-            # Audit-trail row only — MemberEvents already posts the Discord
-            # embed for voice_user_leave via LogService.log().
             await self._record(
                 member.guild,
                 "voice_leave",
                 f"{member} left voice #{before.channel.name}",
                 actor=member,
                 channel=before.channel,
+                # No embed= here — see the matching note on voice_join above.
             )
             if repo is not None:
                 stats = await repo.get_voice_stats(guild_id, str(member.id))
