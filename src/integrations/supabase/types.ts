@@ -1830,6 +1830,89 @@ export type Database = {
           },
         ]
       }
+      plan_tasks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          plan_id: string
+          sort_order: number
+          target_value: number
+          task_type: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          plan_id: string
+          sort_order?: number
+          target_value?: number
+          task_type: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          plan_id?: string
+          sort_order?: number
+          target_value?: number
+          task_type?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_tasks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plans: {
+        Row: {
+          created_at: string
+          description: string | null
+          enabled: boolean
+          features: string[]
+          id: string
+          key: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          features?: string[]
+          id?: string
+          key: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          enabled?: boolean
+          features?: string[]
+          id?: string
+          key?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       platform_admins: {
         Row: {
           added_by: string | null
@@ -2242,6 +2325,71 @@ export type Database = {
           },
         ]
       }
+      server_login_streaks: {
+        Row: {
+          guild_id: string
+          last_login_date: string | null
+          streak_days: number
+          updated_at: string
+        }
+        Insert: {
+          guild_id: string
+          last_login_date?: string | null
+          streak_days?: number
+          updated_at?: string
+        }
+        Update: {
+          guild_id?: string
+          last_login_date?: string | null
+          streak_days?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_login_streaks_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      server_plan_unlocks: {
+        Row: {
+          guild_id: string
+          id: string
+          plan_id: string
+          unlocked_at: string
+        }
+        Insert: {
+          guild_id: string
+          id?: string
+          plan_id: string
+          unlocked_at?: string
+        }
+        Update: {
+          guild_id?: string
+          id?: string
+          plan_id?: string
+          unlocked_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_plan_unlocks_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+          {
+            foreignKeyName: "server_plan_unlocks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       server_settings: {
         Row: {
           created_at: string
@@ -2331,39 +2479,99 @@ export type Database = {
           },
         ]
       }
+      server_task_progress: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          guild_id: string
+          id: string
+          progress_value: number
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          guild_id: string
+          id?: string
+          progress_value?: number
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          guild_id?: string
+          id?: string
+          progress_value?: number
+          task_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "server_task_progress_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+          {
+            foreignKeyName: "server_task_progress_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "plan_tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       servers: {
         Row: {
+          boost_count: number
           bot_present: boolean
           created_at: string
           guild_id: string
           icon: string | null
+          invite_count: number
           joined_at: string
           member_count: number
+          message_count_total: number
           name: string
           owner_id: string | null
+          reaction_count_total: number
           updated_at: string
+          voice_minutes_total: number
         }
         Insert: {
+          boost_count?: number
           bot_present?: boolean
           created_at?: string
           guild_id: string
           icon?: string | null
+          invite_count?: number
           joined_at?: string
           member_count?: number
+          message_count_total?: number
           name?: string
           owner_id?: string | null
+          reaction_count_total?: number
           updated_at?: string
+          voice_minutes_total?: number
         }
         Update: {
+          boost_count?: number
           bot_present?: boolean
           created_at?: string
           guild_id?: string
           icon?: string | null
+          invite_count?: number
           joined_at?: string
           member_count?: number
+          message_count_total?: number
           name?: string
           owner_id?: string | null
+          reaction_count_total?: number
           updated_at?: string
+          voice_minutes_total?: number
         }
         Relationships: []
       }
