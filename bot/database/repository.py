@@ -309,6 +309,105 @@ class Repository:
         )
         return getattr(rows, "data", None) or []
 
+   # -- ticket panels -------------------------------------------------
+
+    async def create_ticket_panel(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = await self.db.run(
+            lambda c: c.table("ticket_panels")
+            .insert(payload)
+            .execute()
+        )
+
+        rows = getattr(
+            result,
+            "data",
+            None,
+        ) or []
+
+        return rows[0] if rows else {}
+
+    async def create_ticket_panel_button(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        result = await self.db.run(
+            lambda c: c.table(
+                "ticket_panel_buttons"
+            )
+            .insert(payload)
+            .execute()
+        )
+
+        rows = getattr(
+            result,
+            "data",
+            None,
+        ) or []
+
+        return rows[0] if rows else {}
+
+    async def get_ticket_panel_button(
+        self,
+        button_id: str,
+    ) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table(
+                "ticket_panel_buttons"
+            )
+            .select("*")
+            .eq("id", button_id)
+            .limit(1)
+            .execute()
+        )
+
+        data = getattr(
+            rows,
+            "data",
+            None,
+        ) or []
+
+        return data[0] if data else {}
+
+    async def update_ticket_panel_message(
+        self,
+        panel_id: str,
+        message_id: str,
+    ) -> None:
+        await self.db.try_run(
+            lambda c: c.table("ticket_panels")
+            .update(
+                {
+                    "message_id": message_id,
+                }
+            )
+            .eq("id", panel_id)
+            .execute()
+        )
+
+    async def ticket_panel_buttons(
+        self,
+        panel_id: str,
+    ) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table(
+                "ticket_panel_buttons"
+            )
+            .select("*")
+            .eq("panel_id", panel_id)
+            .order("position")
+            .limit(20)
+            .execute()
+        )
+
+        return getattr(
+            rows,
+            "data",
+            None,
+        ) or []
+
     # -- reminders ----------------------------------------------------
     async def add_reminder(self, payload: dict[str, Any]) -> None:
         await self.db.run(lambda c: c.table("reminders").insert(payload).execute())
