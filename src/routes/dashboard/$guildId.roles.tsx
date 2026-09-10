@@ -23,7 +23,10 @@ export const Route = createFileRoute("/dashboard/$guildId/roles")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <RolesPanel guildId={guildId} config={config} onSaved={refresh} />
+          <div className="space-y-6">
+            <RolesPanel guildId={guildId} config={config} onSaved={refresh} />
+            <ReactionRolesPanel guildId={guildId} structure={config.structure} />
+          </div>
         )}
       </WithConfig>
     </div>
