@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 
+import { ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 import { RolesPanel } from "@/components/dashboard/roles-panel";
 

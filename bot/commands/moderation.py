@@ -137,11 +137,14 @@ class Moderation(commands.Cog):
         while remaining > 0:
             batch = min(100, remaining)
             try:
-                deleted = await target_channel.purge(
-                    limit=batch if check is None else max(batch, 100),
-                    check=check,
-                    reason=f"/clear by {interaction.user}",
-                )
+                # discord.py calls check(message) directly, so only pass it when set.
+                purge_kwargs: dict = {
+                    "limit": batch if check is None else max(batch, 100),
+                    "reason": f"/clear by {interaction.user}",
+                }
+                if check is not None:
+                    purge_kwargs["check"] = check
+                deleted = await target_channel.purge(**purge_kwargs)
             except discord.HTTPException as exc:
                 if deleted_total == 0:
                     raise ActionRefused(f"Discord refused the purge: {exc}") from exc
