@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { ExternalLink } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,14 +18,17 @@ import { getActivityLog } from "@/lib/ahoy.functions";
 
 import { Field, SectionHeader } from "./fields";
 
+// These must match the category strings the bot actually sends in
+// bot/events/activity_events.py's _record() calls — filtering by a
+// category the bot never writes silently returns zero results.
 const CATEGORIES = [
   "all",
   "message_delete",
   "message_edit",
   "member_join",
   "member_leave",
-  "nickname_change",
-  "role_change",
+  "member_nickname",
+  "member_roles",
   "channel_create",
   "channel_delete",
   "channel_update",
@@ -40,8 +44,8 @@ const LABELS: Record<string, string> = {
   message_edit: "Message edited",
   member_join: "Member joined",
   member_leave: "Member left",
-  nickname_change: "Nickname changed",
-  role_change: "Roles changed",
+  member_nickname: "Nickname changed",
+  member_roles: "Roles changed",
   channel_create: "Channel created",
   channel_delete: "Channel deleted",
   channel_update: "Channel updated",
@@ -51,6 +55,80 @@ const LABELS: Record<string, string> = {
   invite_create: "Invite created",
   invite_delete: "Invite deleted",
 };
+
+type ActivityMetadata = {
+  before?: string;
+  after?: string;
+  jump_url?: string;
+  content?: string;
+  added?: Array<{ id: string; name: string }>;
+  removed?: Array<{ id: string; name: string }>;
+};
+
+function ActivityDetail({ category, metadata }: { category: string; metadata: ActivityMetadata | null }) {
+  if (!metadata) return null;
+
+  if (category === "message_edit" && (metadata.before || metadata.after)) {
+    return (
+      <div className="mt-2 w-full space-y-2 rounded-lg border border-border/60 bg-background/40 p-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Old</p>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-xs">
+            {metadata.before || "—"}
+          </pre>
+        </div>
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">New</p>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-xs">
+            {metadata.after || "—"}
+          </pre>
+        </div>
+        {metadata.jump_url ? (
+          <a
+            href={metadata.jump_url}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
+          >
+            Jump to message <ExternalLink className="size-3" />
+          </a>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (category === "message_delete" && metadata.content) {
+    return (
+      <div className="mt-2 w-full rounded-lg border border-border/60 bg-background/40 p-3">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          Deleted content
+        </p>
+        <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-black/30 p-2 text-xs">
+          {metadata.content}
+        </pre>
+      </div>
+    );
+  }
+
+  if (category === "member_roles" && (metadata.added?.length || metadata.removed?.length)) {
+    return (
+      <div className="mt-2 flex w-full flex-wrap gap-1.5">
+        {(metadata.added ?? []).map((r) => (
+          <Badge key={`add-${r.id}`} className="bg-emerald-500/15 text-emerald-500">
+            +{r.name}
+          </Badge>
+        ))}
+        {(metadata.removed ?? []).map((r) => (
+          <Badge key={`rm-${r.id}`} variant="outline" className="border-destructive/40 text-destructive">
+            -{r.name}
+          </Badge>
+        ))}
+      </div>
+    );
+  }
+
+  return null;
+}
 
 export function ActivityLogPanel({ guildId }: { guildId: string }) {
   const [category, setCategory] = useState<string>("all");
@@ -143,6 +221,10 @@ export function ActivityLogPanel({ guildId }: { guildId: string }) {
                 <span className="ml-auto text-xs text-muted-foreground">
                   {new Date(row.created_at).toLocaleString()}
                 </span>
+                <ActivityDetail
+                  category={row.category}
+                  metadata={(row.metadata as ActivityMetadata | null) ?? null}
+                />
               </li>
             ))}
           </ul>
