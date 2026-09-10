@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as OwnerConsoleRouteImport } from './routes/owner-console'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AppealGuildIdRouteImport } from './routes/appeal/$guildId'
 import { Route as CalendarIndexRouteImport } from './routes/calendar/index'
 import { Route as CalendarGuildIdRouteImport } from './routes/calendar/$guildId'
@@ -66,6 +67,11 @@ const AdminRoute = AdminRouteImport.update({
 const OwnerConsoleRoute = OwnerConsoleRouteImport.update({
   id: '/owner-console',
   path: '/owner-console',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppealGuildIdRoute = AppealGuildIdRouteImport.update({
@@ -259,6 +265,7 @@ export interface FileRoutesByFullPath {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/owner-console': typeof OwnerConsoleRoute
+  '/pricing': typeof PricingRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/calendar/$guildId': typeof CalendarGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
@@ -299,6 +306,7 @@ export interface FileRoutesByTo {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/owner-console': typeof OwnerConsoleRoute
+  '/pricing': typeof PricingRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/calendar/$guildId': typeof CalendarGuildIdRoute
   '/statahoy/$guildId': typeof StatahoyGuildIdRoute
@@ -339,6 +347,7 @@ export interface FileRoutesById {
   '/$': typeof SplatRoute
   '/admin': typeof AdminRoute
   '/owner-console': typeof OwnerConsoleRoute
+  '/pricing': typeof PricingRoute
   '/appeal/$guildId': typeof AppealGuildIdRoute
   '/calendar/$guildId': typeof CalendarGuildIdRoute
   '/dashboard/$guildId': typeof DashboardGuildIdRouteWithChildren
@@ -381,6 +390,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/owner-console'
+    | '/pricing'
     | '/appeal/$guildId'
     | '/calendar/$guildId'
     | '/dashboard/$guildId'
@@ -421,6 +431,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/owner-console'
+    | '/pricing'
     | '/appeal/$guildId'
     | '/calendar/$guildId'
     | '/statahoy/$guildId'
@@ -460,6 +471,7 @@ export interface FileRouteTypes {
     | '/$'
     | '/admin'
     | '/owner-console'
+    | '/pricing'
     | '/appeal/$guildId'
     | '/calendar/$guildId'
     | '/dashboard/$guildId'
@@ -501,6 +513,7 @@ export interface RootRouteChildren {
   SplatRoute: typeof SplatRoute
   AdminRoute: typeof AdminRoute
   OwnerConsoleRoute: typeof OwnerConsoleRoute
+  PricingRoute: typeof PricingRoute
   AppealGuildIdRoute: typeof AppealGuildIdRoute
   CalendarGuildIdRoute: typeof CalendarGuildIdRoute
   DashboardGuildIdRoute: typeof DashboardGuildIdRouteWithChildren
@@ -547,6 +560,13 @@ declare module '@tanstack/react-router' {
       path: '/owner-console'
       fullPath: '/owner-console'
       preLoaderRoute: typeof OwnerConsoleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/appeal/$guildId': {
@@ -840,6 +860,7 @@ const rootRouteChildren: RootRouteChildren = {
   SplatRoute: SplatRoute,
   AdminRoute: AdminRoute,
   OwnerConsoleRoute: OwnerConsoleRoute,
+  PricingRoute: PricingRoute,
   AppealGuildIdRoute: AppealGuildIdRoute,
   CalendarGuildIdRoute: CalendarGuildIdRoute,
   DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren,
