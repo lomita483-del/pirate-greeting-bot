@@ -115,47 +115,300 @@ export const deleteEmbedTemplate = createServerFn({ method: "POST" })
 /* Ticket panel                                                       */
 /* ---------------------------------------------------------------- */
 
+const ticketFormQuestion = z.object({
+  id: z.string().min(1).max(80),
+  label: z.string().min(1).max(45),
+  placeholder: z.string().max(100).optional(),
+  required: z.boolean().default(true),
+  style: z.enum(["short", "paragraph"]).default("short"),
+});
+
+const ticketPanelButton = z.object({
+  label: z.string().min(1).max(80),
+
+  description: z
+    .string()
+    .max(200)
+    .optional(),
+
+  emoji: z
+    .string()
+    .max(8)
+    .optional(),
+
+  style: z
+    .enum([
+      "primary",
+      "secondary",
+      "success",
+      "danger",
+    ])
+    .default("primary"),
+
+  /*
+   * Discord category ID.
+   */
+  categoryId: z
+    .string()
+    .regex(/^\d{5,25}$/)
+    .nullable()
+    .optional(),
+
+  /*
+   * Internal ticket category.
+   */
+  category: z
+    .string()
+    .max(80)
+    .optional(),
+
+  /*
+   * Roles that can work on tickets opened by this button.
+   */
+  supportRoleIds: z
+    .array(z.string().regex(/^\d{5,25}$/))
+    .max(25)
+    .default([]),
+
+  /*
+   * Roles allowed to use this button.
+   */
+  accessRoleIds: z
+    .array(z.string().regex(/^\d{5,25}$/))
+    .max(25)
+    .default([]),
+
+  /*
+   * Permission required to open.
+   *
+   * everyone
+   * manage_channels
+   * manage_guild
+   * administrator
+   */
+  requiredPermission: z
+    .enum([
+      "everyone",
+      "manage_channels",
+      "manage_guild",
+      "administrator",
+    ])
+    .default("everyone"),
+
+  /*
+   * Questions displayed in the Discord modal.
+   */
+  formQuestions: z
+    .array(ticketFormQuestion)
+    .max(5)
+    .default([]),
+
+  /*
+   * Whether messages should be transcripted.
+   */
+  transcriptEnabled: z
+    .boolean()
+    .default(true),
+
+  /*
+   * Optional button-specific transcript channel.
+   * Falls back to global setting when null.
+   */
+  transcriptChannelId: z
+    .string()
+    .regex(/^\d{5,25}$/)
+    .nullable()
+    .optional(),
+
+  /*
+   * Send transcript to ticket owner's DM.
+   */
+  dmTranscriptEnabled: z
+    .boolean()
+    .default(false),
+});
+
 export const postTicketPanel = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) =>
     z
       .object({
-        guildId: z.string().regex(/^\d{5,25}$/),
-        channelId: z.string().regex(/^\d{5,25}$/),
-        title: z.string().max(256).optional(),
-        description: z.string().max(2000).optional(),
-        buttonLabel: z.string().max(80).optional(),
-        buttons: z
-          .array(
-            z.object({
-              label: z.string().min(1).max(80),
-              description: z.string().max(200).optional(),
-              emoji: z.string().max(8).optional(),
-              style: z.enum(["primary", "secondary", "success", "danger"]).optional(),
-              category: z.string().max(40).optional(),
-            }),
-          )
-          .max(20)
+        guildId: z
+          .string()
+          .regex(/^\d{5,25}$/),
+
+        channelId: z
+          .string()
+          .regex(/^\d{5,25}$/),
+
+        title: z
+          .string()
+          .max(256)
           .optional(),
+
+        description: z
+          .string()
+          .max(2000)
+          .optional(),
+
+        /*
+         * Global transcript destination.
+         */
+        transcriptChannelId: z
+          .string()
+          .regex(/^\d{5,25}$/)
+          .nullable()
+          .optional(),
+
+        /*
+         * Global DM transcript behaviour.
+         */
+        dmTranscriptEnabled: z
+          .boolean()
+          .default(false),
+
+        buttons: z
+          .array(ticketPanelButton)
+          .min(1)
+          .max(20),
       })
       .parse(data),
   )
   .handler(async ({ data }) => {
-    const { supabaseAdmin, session } = await authorize(data.guildId);
-    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
-      guild_id: data.guildId,
-      action: "ticket_panel",
-      payload: {
-        channel_id: data.channelId,
-        title: data.title ?? null,
-        description: data.description ?? null,
-        button_label: data.buttonLabel ?? null,
-        buttons: data.buttons ?? [],
-      },
-      requested_by: session.userId,
-      status: "pending",
-    });
-    if (error) throw new Error("Could not queue the ticket panel.");
-    return { ok: true };
+    const { supabaseAdmin, session } =
+      await authorize(data.guildId);
+
+    /*
+     * Save global ticket transcript settings.
+     */
+    const { error: settingsError } =
+      await supabaseAdmin
+        .from("server_settings")
+        .update({
+          ticket_transcript_channel_id:
+            data.transcriptChannelId ?? null,
+
+          ticket_dm_transcript_enabled:
+            Boolean(data.dmTranscriptEnabled),
+
+          updated_at:
+            new Date().toISOString(),
+        })
+        .eq("guild_id", data.guildId);
+
+    if (settingsError) {
+      console.error(
+        "Ticket transcript settings update failed",
+        settingsError,
+      );
+
+      throw new Error(
+        "Could not save ticket transcript settings.",
+      );
+    }
+
+    /*
+     * Queue the actual Discord panel creation.
+     *
+     * The Python bot will create the persistent panel/button
+     * records before posting the Discord message.
+     */
+    const { error } =
+      await supabaseAdmin
+        .from("bot_action_queue")
+        .insert({
+          guild_id: data.guildId,
+
+          action: "ticket_panel",
+
+          payload: {
+            channel_id: data.channelId,
+
+            title:
+              data.title ?? null,
+
+            description:
+              data.description ?? null,
+
+            transcript_channel_id:
+              data.transcriptChannelId ?? null,
+
+            dm_transcript_enabled:
+              Boolean(data.dmTranscriptEnabled),
+
+            buttons: data.buttons.map(
+              (button) => ({
+                label: button.label.trim(),
+
+                description:
+                  button.description?.trim() ||
+                  null,
+
+                emoji:
+                  button.emoji?.trim() ||
+                  null,
+
+                style:
+                  button.style,
+
+                category_id:
+                  button.categoryId ??
+                  null,
+
+                category:
+                  button.category ??
+                  null,
+
+                support_role_ids:
+                  button.supportRoleIds ?? [],
+
+                access_role_ids:
+                  button.accessRoleIds ?? [],
+
+                required_permission:
+                  button.requiredPermission ??
+                  "everyone",
+
+                form_questions:
+                  button.formQuestions ?? [],
+
+                transcript_enabled:
+                  button.transcriptEnabled,
+
+                transcript_channel_id:
+                  button.transcriptChannelId ??
+                  null,
+
+                dm_transcript_enabled:
+                  button.dmTranscriptEnabled,
+              }),
+            ),
+          },
+
+          requested_by:
+            session.userId,
+
+          status:
+            "pending",
+        });
+
+    if (error) {
+      console.error(
+        "Ticket panel queue insert failed",
+        error,
+      );
+
+      throw new Error(
+        `Could not queue the ticket panel${
+          error.message
+            ? `: ${error.message}`
+            : "."
+        }`,
+      );
+    }
+
+    return {
+      ok: true,
+    };
   });
 
 /* ---------------------------------------------------------------- */
