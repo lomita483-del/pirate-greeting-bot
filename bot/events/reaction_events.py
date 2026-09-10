@@ -60,6 +60,18 @@ class ReactionEvents(commands.Cog):
     async def on_raw_reaction_add(self, payload: discord.RawReactionActionEvent) -> None:
         if payload.user_id == getattr(self.bot.user, "id", None):
             return
+
+        # Plans/tasks unlock system: live total used by "reaction_count" tasks.
+        if payload.guild_id is not None:
+            repo = getattr(self.bot, "repo", None)
+            if repo is not None:
+                try:
+                    await repo.increment_server_counter(
+                        str(payload.guild_id), "reaction_count_total", 1
+                    )
+                except Exception as exc:
+                    log.warning("reaction_count_total bump failed: %s", exc)
+
         await self._side_effects(payload)
         try:
             resolved = await self._resolve(payload)
@@ -101,4 +113,3 @@ class ReactionEvents(commands.Cog):
 
 async def setup(bot: commands.Bot) -> None:
     await bot.add_cog(ReactionEvents(bot))
-
