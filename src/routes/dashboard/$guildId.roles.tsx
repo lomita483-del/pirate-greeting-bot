@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Users } from "lucide-react";
 
+import { ReactionRolesPanel } from "@/components/dashboard/community-panels";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 import { RolesPanel } from "@/components/dashboard/roles-panel";
 
@@ -22,7 +23,10 @@ export const Route = createFileRoute("/dashboard/$guildId/roles")({
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
-          <RolesPanel guildId={guildId} config={config} onSaved={refresh} />
+          <div className="space-y-6">
+            <RolesPanel guildId={guildId} config={config} onSaved={refresh} />
+            <ReactionRolesPanel guildId={guildId} structure={config.structure} />
+          </div>
         )}
       </WithConfig>
     </div>

@@ -135,6 +135,12 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Keep the app upright: never auto-rotate into landscape on phones.
+  useEffect(() => {
+    const orientation = typeof screen !== "undefined" ? (screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> } | undefined) : undefined;
+    orientation?.lock?.("portrait").catch(() => {});
+  }, []);
+
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js").catch((error) => {

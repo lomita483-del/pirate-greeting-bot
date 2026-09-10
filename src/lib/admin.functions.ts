@@ -405,61 +405,39 @@ export const markNotificationRead = createServerFn({ method: "POST" })
 /* Entitlements for the signed-in user                               */
 /* ---------------------------------------------------------------- */
 
-export const getMyEntitlements = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) =>
-    z.object({ guildId: snowflake.optional() }).parse(data ?? {}),
-  )
-  .handler(async ({ data }) => {
-    const { sessionFromHeader } = await import("@/lib/discord.server");
-    const session = await sessionFromHeader(cookie());
-    const locked = Object.fromEntries(PREMIUM_FEATURES.map((f) => [f, false])) as Record<
-      PremiumFeature,
-      boolean
-    >;
-    if (!session) {
-      return { signedIn: false as const, plan: "free", premium: false, owner: false, features: locked };
-    }
+export const getMyEntitlements = createServerFn({ method: "GET" }).handler(async () => {
+  const { sessionFromHeader } = await import("@/lib/discord.server");
+  const session = await sessionFromHeader(cookie());
+  const locked = Object.fromEntries(PREMIUM_FEATURES.map((f) => [f, false])) as Record<
+    PremiumFeature,
+    boolean
+  >;
+  if (!session) {
+    return { signedIn: false as const, plan: "free", premium: false, owner: false, features: locked };
+  }
 
-    const { adminRoleFor } = await import("@/lib/admin.server");
-    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const role = await adminRoleFor(session.userId);
-    const owner = role === "owner";
+  const { adminRoleFor } = await import("@/lib/admin.server");
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const role = await adminRoleFor(session.userId);
+  const owner = role === "owner";
 
-    const { data: userRow } = await supabaseAdmin
-      .from("platform_users")
-      .select("plan, feature_flags")
-      .eq("discord_user_id", session.userId)
-      .maybeSingle();
+  const { data } = await supabaseAdmin
+    .from("platform_users")
+    .select("plan, feature_flags")
+    .eq("discord_user_id", session.userId)
+    .maybeSingle();
 
-    const row = (userRow ?? {}) as Record<string, unknown>;
-    const plan = (row["plan"] as string | null) ?? "free";
-    const premium = owner || plan !== "free";
-    const flags = (row["feature_flags"] ?? {}) as Record<string, boolean | undefined>;
+  const row = (data ?? {}) as Record<string, unknown>;
+  const plan = (row["plan"] as string | null) ?? "free";
+  const premium = owner || plan !== "free";
+  const flags = (row["feature_flags"] ?? {}) as Record<string, boolean | undefined>;
 
-    // Features this specific server unlocked itself by completing plan
-    // tasks — independent of the signed-in user's own account plan.
-    const serverUnlockedFeatures = new Set<string>();
-    if (data.guildId) {
-      const { data: unlocks } = await supabaseAdmin
-        .from("server_plan_unlocks")
-        .select("plans(features)")
-        .eq("guild_id", data.guildId);
-      for (const unlockRow of unlocks ?? []) {
-        const planRel = (unlockRow as Record<string, unknown>)["plans"] as
-          | { features?: string[] }
-          | null;
-        for (const f of planRel?.features ?? []) serverUnlockedFeatures.add(f);
-      }
-    }
+  const features = Object.fromEntries(
+    PREMIUM_FEATURES.map((feature) => [
+      feature,
+      flags[feature] === false ? false : owner || premium,
+    ]),
+  ) as Record<PremiumFeature, boolean>;
 
-    const features = Object.fromEntries(
-      PREMIUM_FEATURES.map((feature) => [
-        feature,
-        flags[feature] === false
-          ? false
-          : owner || premium || serverUnlockedFeatures.has(feature),
-      ]),
-    ) as Record<PremiumFeature, boolean>;
-
-    return { signedIn: true as const, plan, premium, owner, features };
-  });
+  return { signedIn: true as const, plan, premium, owner, features };
+});
