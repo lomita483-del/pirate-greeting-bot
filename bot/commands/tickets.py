@@ -22,6 +22,28 @@ CATEGORIES = [
 ]
 
 
+async def _is_ticket_staff(bot: commands.Bot, member: discord.Member) -> bool:
+    """Server managers, or anyone holding a configured ticket support role."""
+    if member.guild_permissions.manage_channels or member.guild_permissions.administrator:
+        return True
+    settings = await bot.repo.get_settings(str(member.guild.id))  # type: ignore[attr-defined]
+    support_role_ids = {str(r) for r in (settings.get("ticket_support_role_ids") or [])}
+    if not support_role_ids:
+        return False
+    return any(str(role.id) in support_role_ids for role in member.roles)
+
+
+async def _require_ticket_staff(bot: commands.Bot, interaction: discord.Interaction) -> None:
+    member = interaction.user
+    if not isinstance(member, discord.Member):
+        raise ActionRefused("This only works inside a server.")
+    if not await _is_ticket_staff(bot, member):
+        raise ActionRefused(
+            "Only the support team (server managers or a configured ticket support role) "
+            "can do that."
+        )
+
+
 class TicketControls(discord.ui.View):
     """Persistent controls attached to every ticket channel."""
 
@@ -39,6 +61,7 @@ class TicketControls(discord.ui.View):
         label="Claim", style=discord.ButtonStyle.primary, custom_id="ahoy:ticket:claim"
     )
     async def claim(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await _require_ticket_staff(self.bot, interaction)
         ticket = await self._ticket(interaction)
         if ticket.get("status") == "closed":
             raise ActionRefused("This ticket is already closed.")
@@ -73,9 +96,48 @@ class TicketControls(discord.ui.View):
         await interaction.followup.send(file=file, ephemeral=True)
 
     @discord.ui.button(
+        label="Lock", style=discord.ButtonStyle.secondary, emoji="🔒", custom_id="ahoy:ticket:lock"
+    )
+    async def lock(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await _require_ticket_staff(self.bot, interaction)
+        ticket = await self._ticket(interaction)
+        if ticket.get("status") == "closed":
+            raise ActionRefused("This ticket is already closed.")
+        channel = interaction.channel
+        if not isinstance(channel, discord.TextChannel):
+            raise ActionRefused("This only works inside a ticket channel.")
+
+        opener_id = ticket.get("opener_id")
+        opener = channel.guild.get_member(int(opener_id)) if opener_id else None
+        if opener is None:
+            raise ActionRefused("Could not find the person who opened this ticket.")
+
+        overwrite = channel.overwrites_for(opener)
+        currently_locked = overwrite.send_messages is False
+        overwrite.send_messages = None if currently_locked else False
+        await channel.set_permissions(
+            opener,
+            overwrite=overwrite,
+            reason=f"Ticket {'unlocked' if currently_locked else 'locked'} by {interaction.user}",
+        )
+        if currently_locked:
+            await interaction.response.send_message(
+                embed=embeds.success(
+                    "Ticket unlocked", f"{opener.mention} can send messages again."
+                )
+            )
+        else:
+            await interaction.response.send_message(
+                embed=embeds.warning(
+                    "Ticket locked", f"{opener.mention} can no longer send messages here."
+                )
+            )
+
+    @discord.ui.button(
         label="Close", style=discord.ButtonStyle.danger, custom_id="ahoy:ticket:close"
     )
     async def close(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await _require_ticket_staff(self.bot, interaction)
         ticket = await self._ticket(interaction)
         if ticket.get("status") == "closed":
             raise ActionRefused("This ticket is already closed.")
@@ -295,17 +357,36 @@ class Tickets(commands.Cog):
             reason=f"AHOY ticket opened by {interaction.user}",
         )
 
-        ticket = await repo.create_ticket(
-            {
-                "guild_id": str(guild.id),
-                "ticket_number": number,
-                "channel_id": str(channel.id),
-                "category": category,
-                "opener_id": str(interaction.user.id),
-                "opener_name": str(interaction.user),
-                "status": "open",
-            }
-        )
+        try:
+            ticket = await repo.create_ticket(
+                {
+                    "guild_id": str(guild.id),
+                    "ticket_number": number,
+                    "channel_id": str(channel.id),
+                    "category": category,
+                    "opener_id": str(interaction.user.id),
+                    "opener_name": str(interaction.user),
+                    "status": "open",
+                }
+            )
+        except Exception:
+            # The channel already exists at this point — never leave it
+            # blank and silent if the ticket row itself fails to save.
+            log.exception("create_ticket failed for guild %s, category %s", guild.id, category)
+            await channel.send(
+                content=interaction.user.mention,
+                embed=embeds.warning(
+                    "Ticket created",
+                    "Ahoy! A crew member will be with you shortly. ⚓\n\n"
+                    "(Note: this ticket could not be fully saved — claim/transcript "
+                    "history may be incomplete. Staff have been notified.)",
+                ),
+            )
+            await interaction.followup.send(
+                embed=embeds.success("Ticket created", f"Your ticket: {channel.mention}"),
+                ephemeral=True,
+            )
+            raise
 
         label = next(
             (lbl for val, lbl, _ in CATEGORIES if val == category),
