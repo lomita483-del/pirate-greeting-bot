@@ -2,7 +2,7 @@ export function AhoyMark({ size = 40 }: { size?: number }) {
   return (
     <img
       src="/favicon.png"
-      alt="!PIRATE logo"
+      alt="!HOY plogo"
       width={size}
       height={size}
       className="rounded-2xl ring-1 ring-gold/30 shadow-[0_10px_30px_-12px_oklch(0_0_0/0.8)]"
