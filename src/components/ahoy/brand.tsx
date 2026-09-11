@@ -17,7 +17,7 @@ export function AhoyWordmark({ subtitle }: { subtitle?: string }) {
       <AhoyMark />
       <span className="flex flex-col leading-none">
         <span className="font-display text-lg font-semibold tracking-[0.28em] text-tide">
-          !PIRATE
+          !HOY BOT 
         </span>
         {subtitle ? (
           <span className="mt-1 text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
