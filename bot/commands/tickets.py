@@ -1,19 +1,18 @@
 """AHOY ticket system.
 
 Supports:
-
-- Persistent dashboard-created ticket panels
-- Per-button Discord category routing
+- Per-panel ticket buttons
+- Per-button Discord categories
 - Per-button support roles
-- Per-button access roles
-- Per-button permission requirements
-- Per-button Discord modal forms
-- Form answers inside the ticket
-- Automatic ticket message transcripts
-- Transcript channel delivery
+- Per-button member access roles
+- Per-button Discord permissions
+- Per-button modal forms
+- Form answers stored with the ticket
+- Support-role mentions when a ticket opens
+- Per-button transcript channels
 - Ticket-owner DM transcripts
-- Claim / lock / transcript / close controls
-- Legacy /ticket compatibility
+- Persistent ticket controls
+- Legacy /ticket support
 """
 
 from __future__ import annotations
@@ -28,13 +27,39 @@ from discord.ext import commands
 
 from ..services.ticket_panel_service import TicketPanelService
 from ..utils import embeds
-from ..utils.checks import ActionRefused, ensure_bot_permission, ensure_guild
+from ..utils.checks import (
+    ActionRefused,
+    ensure_bot_permission,
+    ensure_guild,
+)
 from ..utils.logger import get_logger
 
 log = get_logger("tickets")
 
 BUTTON_PREFIX = "ahoy:ticket:btn:"
-MODAL_PREFIX = "ahoy:ticket:modal:"
+
+CATEGORIES = [
+    (
+        "general",
+        "General Support",
+        "Questions and general help",
+    ),
+    (
+        "report",
+        "Report",
+        "Report a member or an issue",
+    ),
+    (
+        "partnership",
+        "Partnership",
+        "Collaborations and partnerships",
+    ),
+    (
+        "other",
+        "Other",
+        "Anything else",
+    ),
+]
 
 BUTTON_STYLES = {
     "primary": discord.ButtonStyle.primary,
@@ -43,156 +68,119 @@ BUTTON_STYLES = {
     "danger": discord.ButtonStyle.danger,
 }
 
-VALID_PERMISSIONS = {
-    "everyone",
-    "manage_channels",
-    "manage_guild",
-    "administrator",
+PERMISSION_NAMES = {
+    "everyone": "Everyone",
+    "manage_channels": "Manage Channels",
+    "manage_guild": "Manage Server",
+    "administrator": "Administrator",
 }
 
 
-def _safe_int(value: Any) -> int | None:
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return None
+# ---------------------------------------------------------------------------
+# General helpers
+# ---------------------------------------------------------------------------
 
 
-def _parse_json(value: Any, fallback: Any) -> Any:
+def _as_list(value: Any) -> list[Any]:
     if value is None:
-        return fallback
+        return []
 
-    if isinstance(value, (dict, list)):
+    if isinstance(value, list):
         return value
+
+    if isinstance(value, tuple):
+        return list(value)
 
     if isinstance(value, str):
         try:
-            return json.loads(value)
-        except (ValueError, TypeError):
-            return fallback
+            parsed = json.loads(value)
+            if isinstance(parsed, list):
+                return parsed
+        except (TypeError, ValueError):
+            pass
 
-    return fallback
-
-
-def _parse_json_list(value: Any) -> list[Any]:
-    parsed = _parse_json(value, [])
-
-    if isinstance(parsed, list):
-        return parsed
+        return [
+            item.strip()
+            for item in value.split(",")
+            if item.strip()
+        ]
 
     return []
 
 
+def _as_dict(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except (TypeError, ValueError):
+            pass
+
+    return {}
+
+
 def _normalise_questions(value: Any) -> list[dict[str, Any]]:
-    value = _parse_json_list(value)
+    questions = _as_list(value)
 
     result: list[dict[str, Any]] = []
 
-    for index, item in enumerate(value[:5]):
-        if not isinstance(item, dict):
+    for index, raw in enumerate(questions[:5]):
+        if not isinstance(raw, dict):
             continue
 
-        label = str(item.get("label") or "").strip()
+        label = str(
+            raw.get("label")
+            or raw.get("name")
+            or ""
+        ).strip()
 
         if not label:
             continue
 
         style = str(
-            item.get("style") or "short"
+            raw.get("style")
+            or "short"
         ).lower()
-
-        if style not in {"short", "paragraph"}:
-            style = "short"
-
-        placeholder = item.get("placeholder")
-
-        if placeholder is not None:
-            placeholder = str(placeholder).strip()[:100]
 
         result.append(
             {
                 "id": str(
-                    item.get("id")
+                    raw.get("id")
                     or f"q{index + 1}"
                 )[:80],
                 "label": label[:45],
-                "placeholder": placeholder,
-                "required": bool(
-                    item.get("required", True)
+                "placeholder": (
+                    str(raw["placeholder"])[:100]
+                    if raw.get("placeholder")
+                    else None
                 ),
-                "style": style,
+                "required": bool(
+                    raw.get("required", True)
+                ),
+                "style": (
+                    "paragraph"
+                    if style == "paragraph"
+                    else "short"
+                ),
             }
         )
 
     return result
 
 
-def _normalise_role_ids(value: Any) -> list[str]:
-    values = _parse_json_list(value)
+def _slugify(value: str) -> str:
+    slug = "".join(
+        ch.lower()
+        if ch.isalnum()
+        else "-"
+        for ch in value
+    ).strip("-")
 
-    result: list[str] = []
-
-    for value in values:
-        text = str(value).strip()
-
-        if not text:
-            continue
-
-        if text not in result:
-            result.append(text)
-
-    return result[:25]
-
-
-def _member_has_required_permission(
-    member: discord.Member,
-    permission: str,
-) -> bool:
-    permission = str(
-        permission or "everyone"
-    )
-
-    if permission == "everyone":
-        return True
-
-    permissions = member.guild_permissions
-
-    if permission == "administrator":
-        return permissions.administrator
-
-    if permission == "manage_guild":
-        return (
-            permissions.manage_guild
-            or permissions.administrator
-        )
-
-    if permission == "manage_channels":
-        return (
-            permissions.manage_channels
-            or permissions.administrator
-        )
-
-    return True
-
-
-def _member_has_access_roles(
-    member: discord.Member,
-    role_ids: list[str],
-) -> bool:
-    if not role_ids:
-        return True
-
-    member_role_ids = {
-        str(role.id)
-        for role in member.roles
-    }
-
-    return bool(
-        member_role_ids.intersection(
-            str(role_id)
-            for role_id in role_ids
-        )
-    )
+    return (slug or "support")[:40]
 
 
 async def _is_ticket_staff(
@@ -200,48 +188,44 @@ async def _is_ticket_staff(
     member: discord.Member,
     ticket: dict[str, Any] | None = None,
 ) -> bool:
-    """Return whether a member can manage a ticket."""
-
-    permissions = member.guild_permissions
+    """Return whether this member can manage the ticket."""
 
     if (
-        permissions.administrator
-        or permissions.manage_channels
+        member.guild_permissions.manage_channels
+        or member.guild_permissions.administrator
     ):
         return True
 
-    role_ids: list[str] = []
+    configured_roles: set[str] = set()
 
     if ticket:
-        role_ids = _normalise_role_ids(
-            ticket.get(
-                "support_role_ids"
+        configured_roles.update(
+            str(role_id)
+            for role_id in _as_list(
+                ticket.get("support_role_ids")
             )
         )
 
-    if not role_ids:
-        settings = await bot.repo.get_settings(  # type: ignore[attr-defined]
+    if not configured_roles:
+        settings = await bot.repo.get_settings(
             str(member.guild.id)
-        )
+        )  # type: ignore[attr-defined]
 
-        role_ids = _normalise_role_ids(
-            settings.get(
-                "ticket_support_role_ids"
+        configured_roles.update(
+            str(role_id)
+            for role_id in _as_list(
+                settings.get(
+                    "ticket_support_role_ids"
+                )
             )
         )
 
-    if not role_ids:
+    if not configured_roles:
         return False
 
-    member_role_ids = {
-        str(role.id)
+    return any(
+        str(role.id) in configured_roles
         for role in member.roles
-    }
-
-    return bool(
-        member_role_ids.intersection(
-            role_ids
-        )
     )
 
 
@@ -252,10 +236,7 @@ async def _require_ticket_staff(
 ) -> None:
     member = interaction.user
 
-    if not isinstance(
-        member,
-        discord.Member,
-    ):
+    if not isinstance(member, discord.Member):
         raise ActionRefused(
             "This only works inside a server."
         )
@@ -266,30 +247,95 @@ async def _require_ticket_staff(
         ticket,
     ):
         raise ActionRefused(
-            "Only the configured support team or server managers can do that."
+            "Only the configured ticket support team "
+            "can do that."
         )
+
+
+def _member_has_permission(
+    member: discord.Member,
+    required: str,
+) -> bool:
+    required = str(
+        required or "everyone"
+    ).lower()
+
+    if required == "everyone":
+        return True
+
+    permissions = member.guild_permissions
+
+    if required == "manage_channels":
+        return permissions.manage_channels
+
+    if required == "manage_guild":
+        return permissions.manage_guild
+
+    if required == "administrator":
+        return permissions.administrator
+
+    return False
+
+
+def _member_has_access_roles(
+    member: discord.Member,
+    access_role_ids: Any,
+) -> bool:
+    role_ids = {
+        str(role_id)
+        for role_id in _as_list(
+            access_role_ids
+        )
+    }
+
+    if not role_ids:
+        return True
+
+    return any(
+        str(role.id) in role_ids
+        for role in member.roles
+    )
+
+
+def _role_mentions(
+    guild: discord.Guild,
+    role_ids: Any,
+) -> list[str]:
+    mentions: list[str] = []
+
+    for raw_role_id in _as_list(role_ids):
+        try:
+            role_id = int(raw_role_id)
+        except (TypeError, ValueError):
+            continue
+
+        role = guild.get_role(role_id)
+
+        if role is not None:
+            mentions.append(role.mention)
+
+    return mentions
+
+
+# ---------------------------------------------------------------------------
+# Ticket controls
+# ---------------------------------------------------------------------------
 
 
 class TicketControls(discord.ui.View):
-    """Persistent controls attached to every private ticket."""
+    """Persistent controls attached to every ticket."""
 
-    def __init__(
-        self,
-        bot: commands.Bot,
-    ) -> None:
-        super().__init__(
-            timeout=None
-        )
-
+    def __init__(self, bot: commands.Bot) -> None:
+        super().__init__(timeout=None)
         self.bot = bot
 
     async def _ticket(
         self,
         interaction: discord.Interaction,
     ) -> dict[str, Any]:
-        ticket = await self.bot.repo.get_ticket_by_channel(  # type: ignore[attr-defined]
+        ticket = await self.bot.repo.get_ticket_by_channel(
             str(interaction.channel_id)
-        )
+        )  # type: ignore[attr-defined]
 
         if not ticket:
             raise ActionRefused(
@@ -308,9 +354,7 @@ class TicketControls(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
-        ticket = await self._ticket(
-            interaction
-        )
+        ticket = await self._ticket(interaction)
 
         await _require_ticket_staff(
             self.bot,
@@ -323,7 +367,7 @@ class TicketControls(discord.ui.View):
                 "This ticket is already closed."
             )
 
-        await self.bot.repo.update_ticket(  # type: ignore[attr-defined]
+        await self.bot.repo.update_ticket(
             ticket["id"],
             {
                 "claimed_by": str(
@@ -331,7 +375,7 @@ class TicketControls(discord.ui.View):
                 ),
                 "status": "claimed",
             },
-        )
+        )  # type: ignore[attr-defined]
 
         await interaction.response.send_message(
             embed=embeds.success(
@@ -350,9 +394,7 @@ class TicketControls(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
-        ticket = await self._ticket(
-            interaction
-        )
+        ticket = await self._ticket(interaction)
 
         await _require_ticket_staff(
             self.bot,
@@ -364,31 +406,49 @@ class TicketControls(discord.ui.View):
             ephemeral=True
         )
 
-        service = TicketPanelService(
-            self.bot
-        )
+        service = getattr(
+            self.bot,
+            "ticket_panels",
+            None,
+        ) or TicketPanelService(self.bot)
 
-        body = await service.transcript_text(
-            ticket
-        )
+        try:
+            guild = ensure_guild(interaction)
+            body = await service.transcript_text(
+                ticket
+            )
 
-        file = discord.File(
-            io.BytesIO(
-                body.encode(
-                    "utf-8",
-                    errors="replace",
-                )
-            ),
-            filename=(
-                f"ahoy-ticket-"
-                f"{ticket.get('ticket_number')}.txt"
-            ),
-        )
+            file = discord.File(
+                io.BytesIO(
+                    body.encode(
+                        "utf-8",
+                        errors="replace",
+                    )
+                ),
+                filename=(
+                    f"ahoy-ticket-"
+                    f"{ticket.get('ticket_number')}.txt"
+                ),
+            )
 
-        await interaction.followup.send(
-            file=file,
-            ephemeral=True,
-        )
+            await interaction.followup.send(
+                file=file,
+                ephemeral=True,
+            )
+
+        except Exception as exc:
+            log.exception(
+                "Could not generate ticket transcript: %s",
+                exc,
+            )
+
+            await interaction.followup.send(
+                embed=embeds.warning(
+                    "Transcript unavailable",
+                    "I could not generate the transcript right now.",
+                ),
+                ephemeral=True,
+            )
 
     @discord.ui.button(
         label="Lock",
@@ -401,9 +461,7 @@ class TicketControls(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
-        ticket = await self._ticket(
-            interaction
-        )
+        ticket = await self._ticket(interaction)
 
         await _require_ticket_staff(
             self.bot,
@@ -423,32 +481,21 @@ class TicketControls(discord.ui.View):
             discord.TextChannel,
         ):
             raise ActionRefused(
-                "This only works inside a ticket text channel."
+                "This only works inside a ticket channel."
             )
 
-        opener_id = _safe_int(
-            ticket.get("opener_id")
+        opener_id = ticket.get(
+            "opener_id"
         )
 
-        if opener_id is None:
+        if not opener_id:
             raise ActionRefused(
-                "Could not determine who opened this ticket."
+                "The ticket owner could not be identified."
             )
 
         opener = channel.guild.get_member(
-            opener_id
+            int(opener_id)
         )
-
-        if opener is None:
-            try:
-                opener = await channel.guild.fetch_member(
-                    opener_id
-                )
-            except (
-                discord.NotFound,
-                discord.HTTPException,
-            ):
-                opener = None
 
         if opener is None:
             raise ActionRefused(
@@ -473,12 +520,9 @@ class TicketControls(discord.ui.View):
             opener,
             overwrite=overwrite,
             reason=(
-                "AHOY ticket "
-                + (
-                    "unlocked"
-                    if currently_locked
-                    else "locked"
-                )
+                f"Ticket "
+                f"{'unlocked' if currently_locked else 'locked'} "
+                f"by {interaction.user}"
             ),
         )
 
@@ -507,9 +551,7 @@ class TicketControls(discord.ui.View):
         interaction: discord.Interaction,
         _: discord.ui.Button,
     ) -> None:
-        ticket = await self._ticket(
-            interaction
-        )
+        ticket = await self._ticket(interaction)
 
         await _require_ticket_staff(
             self.bot,
@@ -522,11 +564,14 @@ class TicketControls(discord.ui.View):
                 "This ticket is already closed."
             )
 
-        await interaction.response.defer(
-            ephemeral=True
+        await interaction.response.send_message(
+            embed=embeds.warning(
+                "Ticket closing",
+                "This ticket will be closed and its transcript will be delivered.",
+            )
         )
 
-        await self.bot.repo.update_ticket(  # type: ignore[attr-defined]
+        await self.bot.repo.update_ticket(
             ticket["id"],
             {
                 "status": "closed",
@@ -535,18 +580,20 @@ class TicketControls(discord.ui.View):
                 ),
                 "closed_at": discord.utils.utcnow().isoformat(),
             },
-        )
+        )  # type: ignore[attr-defined]
 
         channel = interaction.channel
-
-        service = TicketPanelService(
-            self.bot
-        )
 
         if isinstance(
             channel,
             discord.TextChannel,
         ):
+            service = getattr(
+                self.bot,
+                "ticket_panels",
+                None,
+            ) or TicketPanelService(self.bot)
+
             try:
                 await service.send_transcript(
                     ticket,
@@ -554,21 +601,9 @@ class TicketControls(discord.ui.View):
                 )
             except Exception:
                 log.exception(
-                    "Transcript delivery failed during ticket closure."
+                    "Ticket transcript delivery failed."
                 )
 
-        await interaction.followup.send(
-            embed=embeds.warning(
-                "Ticket closing",
-                "The transcript has been processed. This channel will now be removed.",
-            ),
-            ephemeral=True,
-        )
-
-        if isinstance(
-            channel,
-            discord.TextChannel,
-        ):
             try:
                 await channel.delete(
                     reason=(
@@ -583,8 +618,13 @@ class TicketControls(discord.ui.View):
                 )
 
 
+# ---------------------------------------------------------------------------
+# Ticket form modal
+# ---------------------------------------------------------------------------
+
+
 class TicketFormModal(discord.ui.Modal):
-    """Dynamic Discord modal generated from one panel button."""
+    """Discord modal shown before a configured ticket is created."""
 
     def __init__(
         self,
@@ -592,15 +632,13 @@ class TicketFormModal(discord.ui.Modal):
         button: dict[str, Any],
         questions: list[dict[str, Any]],
     ) -> None:
+        title = str(
+            button.get("label")
+            or "Open a ticket"
+        )
+
         super().__init__(
-            title=str(
-                button.get("label")
-                or "Ticket form"
-            )[:45],
-            custom_id=(
-                f"{MODAL_PREFIX}"
-                f"{button.get('id')}"
-            ),
+            title=title[:45],
             timeout=300,
         )
 
@@ -615,9 +653,7 @@ class TicketFormModal(discord.ui.Modal):
             ]
         ] = []
 
-        for index, question in enumerate(
-            questions[:5]
-        ):
+        for question in questions[:5]:
             style = (
                 discord.TextStyle.paragraph
                 if question.get("style")
@@ -628,7 +664,7 @@ class TicketFormModal(discord.ui.Modal):
             text_input = discord.ui.TextInput(
                 label=str(
                     question.get("label")
-                    or f"Question {index + 1}"
+                    or "Answer"
                 )[:45],
                 placeholder=(
                     str(
@@ -648,16 +684,7 @@ class TicketFormModal(discord.ui.Modal):
                     )
                 ),
                 style=style,
-                custom_id=str(
-                    question.get("id")
-                    or f"q{index + 1}"
-                )[:100],
-                max_length=(
-                    4000
-                    if style
-                    == discord.TextStyle.paragraph
-                    else 1000
-                ),
+                max_length=4000,
             )
 
             self.inputs.append(
@@ -667,9 +694,7 @@ class TicketFormModal(discord.ui.Modal):
                 )
             )
 
-            self.add_item(
-                text_input
-            )
+            self.add_item(text_input)
 
     async def on_submit(
         self,
@@ -678,74 +703,113 @@ class TicketFormModal(discord.ui.Modal):
         answers: dict[str, str] = {}
 
         for question, text_input in self.inputs:
-            key = str(
-                question.get("label")
-                or question.get("id")
-                or "Question"
+            question_id = str(
+                question.get("id")
+                or question.get("label")
+                or "question"
             )
 
-            answers[key] = str(
-                text_input.value or ""
+            answers[question_id] = str(
+                text_input.value
             ).strip()
 
         await self.cog.open_ticket(
             interaction,
-            self.button,
-            answers,
+            category=str(
+                self.button.get(
+                    "category"
+                )
+                or self.button.get(
+                    "label"
+                )
+                or "support"
+            ),
+            button=self.button,
+            form_answers=answers,
         )
+
+
+# ---------------------------------------------------------------------------
+# Dynamic panel button
+# ---------------------------------------------------------------------------
 
 
 class TicketPanelButton(
     discord.ui.Button
 ):
-    """A dashboard button that resolves its own DB configuration."""
+    """One persisted dashboard button."""
 
     def __init__(
         self,
-        cog: "Tickets",
+        bot: commands.Bot,
         spec: dict[str, Any],
     ) -> None:
-        self.cog = cog
-        self.spec = spec
-
         button_id = str(
-            spec.get("id") or ""
+            spec.get("id")
+            or ""
+        )
+
+        label = str(
+            spec.get("label")
+            or "Create a ticket"
+        )[:80]
+
+        style = BUTTON_STYLES.get(
+            str(
+                spec.get("style")
+                or "primary"
+            ),
+            discord.ButtonStyle.primary,
         )
 
         super().__init__(
-            label=str(
-                spec.get("label")
-                or "Create a ticket"
-            )[:80],
-            style=BUTTON_STYLES.get(
-                str(
-                    spec.get("style")
-                    or "primary"
-                ),
-                discord.ButtonStyle.primary,
-            ),
+            label=label,
+            style=style,
             emoji=(
                 str(spec.get("emoji"))
                 if spec.get("emoji")
                 else None
             ),
             custom_id=(
-                f"{BUTTON_PREFIX}"
-                f"{button_id}"
+                f"{BUTTON_PREFIX}{button_id}"
             ),
+            row=int(
+                spec.get("position")
+                or 0
+            ) // 5,
         )
+
+        self.bot = bot
+        self.button_id = button_id
 
     async def callback(
         self,
         interaction: discord.Interaction,
     ) -> None:
+        cog = interaction.client.get_cog(
+            "Tickets"
+        )
+
+        if cog is None:
+            raise ActionRefused(
+                "The ticket system is unavailable right now."
+            )
+
+        if not isinstance(
+            cog,
+            Tickets,
+        ):
+            raise ActionRefused(
+                "The ticket system is unavailable right now."
+            )
+
         guild = ensure_guild(
             interaction
         )
 
-        settings = await self.cog.bot.repo.get_settings(  # type: ignore[attr-defined]
+        settings = await self.bot.repo.get_settings(
             str(guild.id)
-        )
+        )  # type: ignore[attr-defined]
 
         if not settings.get(
             "tickets_enabled"
@@ -754,33 +818,25 @@ class TicketPanelButton(
                 "Tickets are disabled in this server."
             )
 
-        button_id = str(
-            self.spec.get("id")
-            or ""
-        )
-
-        if not button_id:
-            raise ActionRefused(
-                "This ticket button is invalid."
-            )
-
-        # Always reload the DB row.
-        # This prevents an old cached category/configuration
-        # from being used after dashboard changes.
-        button = await self.cog.bot.repo.get_ticket_panel_button(  # type: ignore[attr-defined]
-            button_id
-        )
+        /*
+         * Always reload the button from the database.
+         *
+         * This is critical. It prevents an old in-memory
+         * button configuration from sending members to
+         * an old category.
+         */
+        button = await self.bot.repo.get_ticket_panel_button(
+            self.button_id
+        )  # type: ignore[attr-defined]
 
         if not button:
             raise ActionRefused(
-                "This ticket button is no longer configured."
+                "This ticket option no longer exists."
             )
 
-        if not bool(
-            button.get(
-                "enabled",
-                True,
-            )
+        if not button.get(
+            "enabled",
+            True,
         ):
             raise ActionRefused(
                 "This ticket option is currently disabled."
@@ -793,39 +849,33 @@ class TicketPanelButton(
             discord.Member,
         ):
             raise ActionRefused(
-                "This ticket button can only be used inside a server."
+                "This only works inside a server."
             )
 
-        permission = str(
+        required_permission = str(
             button.get(
-                "required_permission",
-                "everyone",
+                "required_permission"
             )
-        )
+            or "everyone"
+        ).lower()
 
-        if permission not in VALID_PERMISSIONS:
-            permission = "everyone"
-
-        if not _member_has_required_permission(
+        if not _member_has_permission(
             member,
-            permission,
+            required_permission,
         ):
             raise ActionRefused(
-                "You do not have the required Discord permission to use this ticket option."
+                "You do not have the required Discord permission "
+                f"({PERMISSION_NAMES.get(required_permission, required_permission)})."
             )
-
-        access_roles = _normalise_role_ids(
-            button.get(
-                "access_role_ids"
-            )
-        )
 
         if not _member_has_access_roles(
             member,
-            access_roles,
+            button.get(
+                "access_role_ids"
+            ),
         ):
             raise ActionRefused(
-                "You do not have one of the roles required to use this ticket option."
+                "You do not have a role that is allowed to use this ticket option."
             )
 
         questions = _normalise_questions(
@@ -840,26 +890,42 @@ class TicketPanelButton(
         if questions:
             await interaction.response.send_modal(
                 TicketFormModal(
-                    self.cog,
+                    cog,
                     button,
                     questions,
                 )
             )
             return
 
-        await self.cog.open_ticket(
+        await cog.open_ticket(
             interaction,
-            button,
-            {},
+            category=str(
+                button.get(
+                    "category"
+                )
+                or button.get(
+                    "label"
+                )
+                or "support"
+            ),
+            button=button,
+            form_answers={},
         )
 
 
-class MultiTicketPanel(discord.ui.View):
-    """Persistent dashboard-created ticket panel."""
+# ---------------------------------------------------------------------------
+# Multi-button persistent panel
+# ---------------------------------------------------------------------------
+
+
+class MultiTicketPanel(
+    discord.ui.View
+):
+    """Persistent view containing dashboard-configured buttons."""
 
     def __init__(
         self,
-        cog: "Tickets",
+        bot: commands.Bot,
         buttons: list[dict[str, Any]],
     ) -> None:
         super().__init__(
@@ -867,131 +933,31 @@ class MultiTicketPanel(discord.ui.View):
         )
 
         for spec in buttons[:20]:
-            if not spec.get("id"):
+            button_id = str(
+                spec.get("id")
+                or ""
+            )
+
+            if not button_id:
                 continue
 
             self.add_item(
                 TicketPanelButton(
-                    cog,
+                    bot,
                     spec,
                 )
             )
 
 
-async def post_ticket_panel(
-    bot: commands.Bot,
-    channel: discord.TextChannel,
-    title: str | None,
-    description: str | None,
-    button_label: str | None,
-    buttons: list[dict[str, Any]] | None = None,
-    created_by: str | None = None,
-) -> discord.Message:
-    """Save and publish a dashboard ticket panel."""
-
-    specs = [
-        button
-        for button in (
-            buttons or []
-        )
-        if isinstance(button, dict)
-        and button.get("label")
-    ]
-
-    embed = embeds.brand(
-        title or "Need a hand?",
-        description
-        or (
-            "Pick the option that matches your request. "
-            "A private channel will be created for you "
-            "and the crew only."
-        ),
-    )
-
-    if not specs:
-        view = TicketPanel(
-            bot.get_cog("Tickets")
-        )
-
-        if (
-            button_label
-            and view.children
-        ):
-            child = view.children[0]
-
-            if isinstance(
-                child,
-                discord.ui.Button,
-            ):
-                child.label = (
-                    button_label[:80]
-                )
-
-        return await channel.send(
-            embed=embed,
-            view=view,
-        )
-
-    service = getattr(
-        bot,
-        "ticket_panels",
-        None,
-    )
-
-    if service is None:
-        service = TicketPanelService(
-            bot
-        )
-        bot.ticket_panels = service
-
-    saved = await service.create_panel(
-        str(channel.guild.id),
-        str(channel.id),
-        title,
-        description,
-        created_by,
-        specs,
-    )
-
-    rows = saved.get(
-        "buttons"
-    ) or []
-
-    for spec in rows:
-        if spec.get(
-            "description"
-        ):
-            embed.add_field(
-                name=(
-                    f"{spec.get('emoji') or '🎫'} "
-                    f"{str(spec.get('label') or 'Ticket')[:80]}"
-                ),
-                value=str(
-                    spec.get(
-                        "description"
-                    )
-                )[:1024],
-                inline=False,
-            )
-
-    message = await channel.send(
-        embed=embed,
-        view=MultiTicketPanel(
-            bot.get_cog("Tickets"),
-            rows,
-        ),
-    )
-
-    await service.set_message_id(
-        saved["panel"]["id"],
-        str(message.id),
-    )
-
-    return message
+# ---------------------------------------------------------------------------
+# Legacy ticket panel
+# ---------------------------------------------------------------------------
 
 
-class TicketPanel(discord.ui.View):
-    """Legacy single-button panel."""
+class TicketPanel(
+    discord.ui.View
+):
+    """Legacy one-button panel."""
 
     def __init__(
         self,
@@ -1030,9 +996,9 @@ class TicketPanel(discord.ui.View):
             interaction
         )
 
-        settings = await interaction.client.repo.get_settings(  # type: ignore[attr-defined]
+        settings = await interaction.client.repo.get_settings(
             str(guild.id)
-        )
+        )  # type: ignore[attr-defined]
 
         if not settings.get(
             "tickets_enabled"
@@ -1041,111 +1007,244 @@ class TicketPanel(discord.ui.View):
                 "Tickets are disabled in this server."
             )
 
-        await cog.open_ticket(
-            interaction,
-            {
-                "id": None,
-                "label": "General Support",
-                "category": "general",
-                "category_id": settings.get(
-                    "ticket_category_id"
-                ),
-                "support_role_ids": settings.get(
-                    "ticket_support_role_ids"
-                ) or [],
-                "access_role_ids": [],
-                "required_permission": "everyone",
-                "form_questions": [],
-                "transcript_enabled": settings.get(
-                    "ticket_transcripts_enabled",
-                    True,
-                ),
-                "transcript_channel_id": settings.get(
-                    "ticket_transcript_channel_id"
-                ),
-                "dm_transcript_enabled": settings.get(
-                    "ticket_dm_transcript_enabled",
-                    False,
-                ),
-            },
-            {},
+        await interaction.response.send_message(
+            embed=embeds.brand(
+                "Open a ticket",
+                "Pick the category that best matches your request. "
+                "A private channel will be created for you.",
+            ),
+            view=TicketOpener(cog),
+            ephemeral=True,
         )
 
 
-class Tickets(commands.Cog):
+# ---------------------------------------------------------------------------
+# Legacy category picker
+# ---------------------------------------------------------------------------
+
+
+class TicketOpener(
+    discord.ui.View
+):
+    def __init__(
+        self,
+        cog: "Tickets",
+    ) -> None:
+        super().__init__(
+            timeout=120
+        )
+
+        self.add_item(
+            TicketCategorySelect(cog)
+        )
+
+
+class TicketCategorySelect(
+    discord.ui.Select
+):
+    def __init__(
+        self,
+        cog: "Tickets",
+    ) -> None:
+        super().__init__(
+            placeholder="Choose a ticket category…",
+            options=[
+                discord.SelectOption(
+                    label=label,
+                    value=value,
+                    description=description,
+                )
+                for value, label, description
+                in CATEGORIES
+            ],
+        )
+
+        self.cog = cog
+
+    async def callback(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        await self.cog.open_ticket(
+            interaction,
+            self.values[0],
+            button=None,
+            form_answers={},
+        )
+
+
+# ---------------------------------------------------------------------------
+# Dashboard panel publishing
+# ---------------------------------------------------------------------------
+
+
+async def post_ticket_panel(
+    bot: commands.Bot,
+    channel: discord.TextChannel,
+    title: str | None,
+    description: str | None,
+    button_label: str | None,
+    buttons: list[dict[str, Any]] | None = None,
+    created_by: str | None = None,
+) -> discord.Message:
+    """Persist and publish a dashboard-created ticket panel."""
+
+    specs = [
+        button
+        for button in (
+            buttons or []
+        )
+        if isinstance(button, dict)
+        and str(
+            button.get("label")
+            or ""
+        ).strip()
+    ]
+
+    embed = embeds.brand(
+        title or "Need a hand?",
+        description
+        or (
+            "Pick the option that matches your request. "
+            "A private channel will be created for you "
+            "and the crew only."
+        ),
+    )
+
+    if not specs:
+        view = TicketPanel(
+            bot.get_cog(
+                "Tickets"
+            )
+        )
+
+        if button_label:
+            first = view.children[0]
+
+            if isinstance(
+                first,
+                discord.ui.Button,
+            ):
+                first.label = (
+                    str(button_label)[:80]
+                )
+
+        return await channel.send(
+            embed=embed,
+            view=view,
+        )
+
+    service = getattr(
+        bot,
+        "ticket_panels",
+        None,
+    ) or TicketPanelService(bot)
+
+    saved = await service.create_panel(
+        str(channel.guild.id),
+        str(channel.id),
+        title,
+        description,
+        created_by,
+        specs,
+    )
+
+    rows = saved.get(
+        "buttons"
+    ) or []
+
+    for row in rows:
+        row_description = row.get(
+            "description"
+        )
+
+        if row_description:
+            embed.add_field(
+                name=(
+                    f"{row.get('emoji') or '🎫'} "
+                    f"{str(row.get('label') or 'Ticket')[:80]}"
+                ),
+                value=str(
+                    row_description
+                )[:1024],
+                inline=False,
+            )
+
+    message = await channel.send(
+        embed=embed,
+        view=MultiTicketPanel(
+            bot,
+            rows,
+        ),
+    )
+
+    await service.set_message_id(
+        saved["panel"]["id"],
+        str(message.id),
+    )
+
+    return message
+
+
+# ---------------------------------------------------------------------------
+# Tickets cog
+# ---------------------------------------------------------------------------
+
+
+class Tickets(
+    commands.Cog
+):
     def __init__(
         self,
         bot: commands.Bot,
     ) -> None:
         self.bot = bot
 
-        if not hasattr(
-            bot,
-            "ticket_panels",
-        ):
-            bot.ticket_panels = (
-                TicketPanelService(bot)
-            )
-
     @commands.Cog.listener()
-    async def on_message(
+    async def on_interaction(
         self,
-        message: discord.Message,
+        interaction: discord.Interaction,
     ) -> None:
-        """Record messages belonging to tracked tickets."""
+        """Fallback handler for old panel custom IDs."""
 
-        if message.author.bot:
+        data = interaction.data or {}
+
+        custom_id = str(
+            data.get("custom_id")
+            or ""
+        )
+
+        if not custom_id.startswith(
+            "ahoy:ticket:open:"
+        ):
             return
 
-        if not message.guild:
-            return
+        guild = ensure_guild(
+            interaction
+        )
 
-        try:
-            ticket = await self.bot.repo.get_ticket_by_channel(  # type: ignore[attr-defined]
-                str(message.channel.id)
-            )
-        except Exception:
-            return
+        settings = await self.bot.repo.get_settings(
+            str(guild.id)
+        )  # type: ignore[attr-defined]
 
-        if not ticket:
-            return
-
-        content = message.content or ""
-
-        if message.attachments:
-            attachment_lines = "\n".join(
-                attachment.url
-                for attachment in message.attachments
+        if not settings.get(
+            "tickets_enabled"
+        ):
+            raise ActionRefused(
+                "Tickets are disabled in this server."
             )
 
-            if content:
-                content = (
-                    f"{content}\n\n"
-                    f"Attachments:\n"
-                    f"{attachment_lines}"
-                )
-            else:
-                content = (
-                    f"Attachments:\n"
-                    f"{attachment_lines}"
-                )
+        category = (
+            custom_id.split(":")[-1]
+            or "support"
+        )
 
-        if not content:
-            content = (
-                "[Embed / non-text message]"
-            )
-
-        try:
-            await self.bot.repo.add_ticket_message(  # type: ignore[attr-defined]
-                ticket["id"],
-                message.author,
-                content,
-            )
-        except Exception:
-            log.exception(
-                "Could not record ticket message for channel %s",
-                message.channel.id,
-            )
+        await self.open_ticket(
+            interaction,
+            category,
+            button=None,
+            form_answers={},
+        )
 
     @app_commands.command(
         name="ticket",
@@ -1160,21 +1259,23 @@ class Tickets(commands.Cog):
             interaction
         )
 
-        settings = await self.bot.repo.get_settings(  # type: ignore[attr-defined]
+        settings = await self.bot.repo.get_settings(
             str(guild.id)
-        )
+        )  # type: ignore[attr-defined]
 
         if not settings.get(
             "tickets_enabled"
         ):
             raise ActionRefused(
-                "Tickets are disabled here. An administrator can enable them in the AHOY Control Center."
+                "Tickets are disabled here. "
+                "An administrator can enable them in the AHOY Control Center."
             )
 
         await interaction.response.send_message(
             embed=embeds.brand(
                 "Open a ticket",
-                "Choose the type of request you need help with.",
+                "Pick the category that best matches your request. "
+                "A private channel will be created for you.",
             ),
             view=TicketOpener(self),
             ephemeral=True,
@@ -1183,8 +1284,9 @@ class Tickets(commands.Cog):
     async def open_ticket(
         self,
         interaction: discord.Interaction,
-        button: dict[str, Any],
-        answers: dict[str, str] | None = None,
+        category: str,
+        button: dict[str, Any] | None = None,
+        form_answers: dict[str, str] | None = None,
     ) -> None:
         guild = ensure_guild(
             interaction
@@ -1201,205 +1303,244 @@ class Tickets(commands.Cog):
             str(guild.id)
         )
 
-        answers = answers or {}
+        form_answers = form_answers or {}
 
-        if not interaction.response.is_done():
-            await interaction.response.defer(
-                ephemeral=True
+        await interaction.response.defer(
+            ephemeral=True
+        )
+
+        # ---------------------------------------------------------------
+        # Resolve configuration.
+        #
+        # For dashboard buttons, NEVER use the old global category.
+        # The selected button's category_id wins.
+        # ---------------------------------------------------------------
+
+        button_id = None
+        button_label = None
+
+        if button:
+            button_id = button.get(
+                "id"
+            )
+
+            button_label = str(
+                button.get(
+                    "label"
+                )
+                or category
+            )
+
+        category_id = None
+
+        if button:
+            raw_category_id = (
+                button.get(
+                    "category_id"
+                )
+                or button.get(
+                    "category_channel_id"
+                )
+            )
+
+            if raw_category_id:
+                try:
+                    category_id = int(
+                        raw_category_id
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    category_id = None
+
+        # Legacy /ticket behavior uses the global category.
+        if category_id is None:
+            raw_global_category = settings.get(
+                "ticket_category_id"
+            )
+
+            if raw_global_category:
+                try:
+                    category_id = int(
+                        raw_global_category
+                    )
+                except (
+                    TypeError,
+                    ValueError,
+                ):
+                    category_id = None
+
+        parent = None
+
+        if category_id:
+            maybe_parent = guild.get_channel(
+                category_id
+            )
+
+            if isinstance(
+                maybe_parent,
+                discord.CategoryChannel,
+            ):
+                parent = maybe_parent
+
+        # ---------------------------------------------------------------
+        # Resolve support roles.
+        # ---------------------------------------------------------------
+
+        if button:
+            support_role_ids = _as_list(
+                button.get(
+                    "support_role_ids"
+                )
+            )
+        else:
+            support_role_ids = _as_list(
+                settings.get(
+                    "ticket_support_role_ids"
+                )
+            )
+
+        # ---------------------------------------------------------------
+        # Resolve transcript configuration.
+        # ---------------------------------------------------------------
+
+        transcript_enabled = (
+            bool(
+                button.get(
+                    "transcript_enabled",
+                    True,
+                )
+            )
+            if button
+            else bool(
+                settings.get(
+                    "ticket_transcripts_enabled",
+                    True,
+                )
+            )
+        )
+
+        transcript_channel_id = None
+
+        if button:
+            transcript_channel_id = (
+                button.get(
+                    "transcript_channel_id"
+                )
+            )
+
+        if not transcript_channel_id:
+            transcript_channel_id = settings.get(
+                "ticket_transcript_channel_id"
+            )
+
+        if transcript_channel_id:
+            transcript_channel_id = str(
+                transcript_channel_id
+            )
+
+        dm_transcript_enabled = (
+            bool(
+                button.get(
+                    "dm_transcript_enabled",
+                    False,
+                )
+            )
+            if button
+            else bool(
+                settings.get(
+                    "ticket_dm_transcript_enabled",
+                    False,
+                )
+            )
+        )
+
+        # ---------------------------------------------------------------
+        # Build private-channel permissions.
+        # ---------------------------------------------------------------
+
+        overwrites: dict[
+            discord.abc.Snowflake,
+            discord.PermissionOverwrite,
+        ] = {
+            guild.default_role: discord.PermissionOverwrite(
+                view_channel=False
+            ),
+            guild.me: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                manage_channels=True,
+                manage_messages=True,
+                attach_files=True,
+            ),
+            interaction.user: discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                attach_files=True,
+                embed_links=True,
+            ),
+        }
+
+        for raw_role_id in support_role_ids:
+            try:
+                role = guild.get_role(
+                    int(raw_role_id)
+                )
+            except (
+                TypeError,
+                ValueError,
+            ):
+                role = None
+
+            if role is None:
+                continue
+
+            overwrites[role] = discord.PermissionOverwrite(
+                view_channel=True,
+                send_messages=True,
+                read_message_history=True,
+                attach_files=True,
+                embed_links=True,
             )
 
         number = await repo.next_ticket_number(
             str(guild.id)
         )
 
-        button_label = str(
-            button.get("label")
-            or "Support"
-        )[:80]
-
-        internal_category = str(
-            button.get("category")
-            or button_label
-            or "support"
-        ).strip()
-
-        if not internal_category:
-            internal_category = "support"
-
-        support_role_ids = _normalise_role_ids(
-            button.get(
-                "support_role_ids"
-            )
+        channel_name = (
+            f"ticket-{number:04d}"
         )
-
-        access_role_ids = _normalise_role_ids(
-            button.get(
-                "access_role_ids"
-            )
-        )
-
-        # ========================================================
-        # CRITICAL CATEGORY FIX
-        #
-        # Per-button category wins.
-        # The old global category is ONLY a fallback.
-        # ========================================================
-
-        raw_category_id = (
-            button.get("category_id")
-            or button.get(
-                "category_channel_id"
-            )
-        )
-
-        if not raw_category_id:
-            raw_category_id = settings.get(
-                "ticket_category_id"
-            )
-
-        category_id = _safe_int(
-            raw_category_id
-        )
-
-        parent: discord.CategoryChannel | None = None
-
-        if category_id is not None:
-            category_channel = guild.get_channel(
-                category_id
-            )
-
-            if isinstance(
-                category_channel,
-                discord.CategoryChannel,
-            ):
-                parent = category_channel
-            else:
-                log.warning(
-                    "Configured ticket category %s for button '%s' "
-                    "is not a category in guild %s.",
-                    category_id,
-                    button_label,
-                    guild.id,
-                )
-
-        # ========================================================
-        # PERMISSION OVERWRITES
-        # ========================================================
-
-        overwrites: dict[
-            discord.Role | discord.Member,
-            discord.PermissionOverwrite,
-        ] = {
-            guild.default_role: discord.PermissionOverwrite(
-                view_channel=False
-            ),
-            interaction.user: discord.PermissionOverwrite(
-                view_channel=True,
-                send_messages=True,
-                attach_files=True,
-                read_message_history=True,
-            ),
-        }
-
-        if guild.me is not None:
-            overwrites[guild.me] = (
-                discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    manage_channels=True,
-                    read_message_history=True,
-                    attach_files=True,
-                )
-            )
-
-        support_mentions: list[str] = []
-
-        for role_id in support_role_ids:
-            role = guild.get_role(
-                _safe_int(role_id) or 0
-            )
-
-            if role is None:
-                log.warning(
-                    "Support role %s configured for ticket button '%s' "
-                    "does not exist in guild %s.",
-                    role_id,
-                    button_label,
-                    guild.id,
-                )
-                continue
-
-            overwrites[role] = (
-                discord.PermissionOverwrite(
-                    view_channel=True,
-                    send_messages=True,
-                    read_message_history=True,
-                    attach_files=True,
-                )
-            )
-
-            support_mentions.append(
-                role.mention
-            )
-
-        # ========================================================
-        # CREATE PRIVATE CHANNEL
-        # ========================================================
 
         try:
             channel = await guild.create_text_channel(
-                name=f"ticket-{number:04d}",
+                name=channel_name,
                 overwrites=overwrites,
                 category=parent,
                 reason=(
-                    f"AHOY ticket '{button_label}' "
-                    f"opened by {interaction.user}"
+                    f"AHOY ticket opened by "
+                    f"{interaction.user}"
                 ),
             )
-        except discord.HTTPException:
+        except discord.HTTPException as exc:
             log.exception(
-                "Could not create ticket channel."
+                "Failed to create ticket channel: %s",
+                exc,
             )
-            raise
 
-        # ========================================================
-        # TRANSCRIPT CONFIGURATION
-        # ========================================================
+            raise ActionRefused(
+                "I could not create the ticket channel. "
+                "Please check AHOY's Manage Channels permission "
+                "and make sure the selected category still exists."
+            ) from exc
 
-        transcript_enabled = bool(
-            button.get(
-                "transcript_enabled",
-                settings.get(
-                    "ticket_transcripts_enabled",
-                    True,
-                ),
-            )
-        )
+        # ---------------------------------------------------------------
+        # Save ticket record.
+        # ---------------------------------------------------------------
 
-        transcript_channel_id = (
-            button.get(
-                "transcript_channel_id"
-            )
-            or settings.get(
-                "ticket_transcript_channel_id"
-            )
-        )
-
-        dm_transcript_enabled = bool(
-            button.get(
-                "dm_transcript_enabled",
-                settings.get(
-                    "ticket_dm_transcript_enabled",
-                    False,
-                ),
-            )
-        )
-
-        # ========================================================
-        # SAVE TICKET
-        # ========================================================
-
-        ticket_payload = {
+        ticket_payload: dict[str, Any] = {
             "guild_id": str(
                 guild.id
             ),
@@ -1407,42 +1548,75 @@ class Tickets(commands.Cog):
             "channel_id": str(
                 channel.id
             ),
-            "category": internal_category,
-            "subject": button_label,
-            "button_id": (
-                str(
-                    button.get("id")
+            "category": str(
+                button.get(
+                    "category"
                 )
-                if button.get("id")
-                else None
-            ),
-            "button_label": button_label,
+                if button
+                else category
+            )[:80],
             "opener_id": str(
                 interaction.user.id
             ),
             "opener_name": str(
                 interaction.user
             ),
-            "support_role_ids": support_role_ids,
-            "access_role_ids": access_role_ids,
-            "required_permission": str(
+            "status": "open",
+        }
+
+        if button_id:
+            ticket_payload[
+                "button_id"
+            ] = str(button_id)
+
+        if button_label:
+            ticket_payload[
+                "button_label"
+            ] = button_label[:80]
+
+        ticket_payload[
+            "support_role_ids"
+        ] = [
+            str(role_id)
+            for role_id in support_role_ids
+        ][:25]
+
+        if button:
+            ticket_payload[
+                "access_role_ids"
+            ] = [
+                str(role_id)
+                for role_id in _as_list(
+                    button.get(
+                        "access_role_ids"
+                    )
+                )
+            ][:25]
+
+            ticket_payload[
+                "required_permission"
+            ] = str(
                 button.get(
                     "required_permission"
                 )
                 or "everyone"
-            ),
-            "form_answers": answers,
-            "transcript_enabled": transcript_enabled,
-            "transcript_channel_id": (
-                str(
-                    transcript_channel_id
-                )
-                if transcript_channel_id
-                else None
-            ),
-            "dm_transcript_enabled": dm_transcript_enabled,
-            "status": "open",
-        }
+            )
+
+        ticket_payload[
+            "form_answers"
+        ] = form_answers
+
+        ticket_payload[
+            "transcript_enabled"
+        ] = transcript_enabled
+
+        ticket_payload[
+            "transcript_channel_id"
+        ] = transcript_channel_id
+
+        ticket_payload[
+            "dm_transcript_enabled"
+        ] = dm_transcript_enabled
 
         try:
             ticket = await repo.create_ticket(
@@ -1450,40 +1624,61 @@ class Tickets(commands.Cog):
             )
         except Exception:
             log.exception(
-                "Could not save ticket %s.",
-                number,
+                "create_ticket failed for guild %s",
+                guild.id,
             )
 
             try:
                 await channel.delete(
                     reason=(
-                        "AHOY ticket database "
-                        "save failed"
+                        "AHOY ticket database save failed"
                     )
                 )
             except discord.HTTPException:
                 pass
 
-            raise
+            raise ActionRefused(
+                "The ticket channel could not be saved. "
+                "The channel was removed so you are not left with a broken ticket."
+            )
 
-        # ========================================================
-        # WELCOME EMBED
-        # ========================================================
+        # ---------------------------------------------------------------
+        # Build opening embed.
+        # ---------------------------------------------------------------
+
+        display_label = (
+            button_label
+            or next(
+                (
+                    label
+                    for value, label, _
+                    in CATEGORIES
+                    if value == category
+                ),
+                str(
+                    category
+                )
+                .replace(
+                    "-",
+                    " ",
+                )
+                .title(),
+            )
+        )
 
         welcome_message = (
             settings.get(
                 "ticket_welcome_message"
             )
             or (
-                "Ahoy! A crew member will "
-                "be with you shortly. ⚓"
+                "Ahoy! A crew member will be with you shortly. ⚓"
             )
         )
 
         embed = embeds.brand(
             (
                 f"Ticket #{number:04d} · "
-                f"{button_label}"
+                f"{display_label}"
             ),
             welcome_message,
         )
@@ -1496,261 +1691,267 @@ class Tickets(commands.Cog):
 
         if parent is not None:
             embed.add_field(
-                name="Category",
-                value=parent.name,
+                name="Ticket category",
+                value=parent.mention,
                 inline=True,
             )
 
-        # ========================================================
-        # FORM ANSWERS
-        # ========================================================
+        # ---------------------------------------------------------------
+        # Add form answers visibly inside the ticket.
+        # ---------------------------------------------------------------
 
-        if answers:
+        if form_answers:
             answer_lines: list[str] = []
 
-            for key, value in answers.items():
+            questions = _normalise_questions(
+                button.get(
+                    "form_questions"
+                )
+                if button
+                else []
+            )
+
+            labels_by_id = {
+                str(
+                    question.get(
+                        "id"
+                    )
+                ): str(
+                    question.get(
+                        "label"
+                    )
+                )
+                for question in questions
+            }
+
+            for key, value in form_answers.items():
+                label = (
+                    labels_by_id.get(
+                        str(key)
+                    )
+                    or str(key)
+                )
+
+                answer = str(
+                    value
+                ).strip()
+
+                if not answer:
+                    answer = "*No answer provided*"
+
                 answer_lines.append(
-                    f"**{str(key)[:100]}:**\n"
-                    f"{str(value)[:900]}"
+                    f"**{label[:45]}**\n"
+                    f"{answer[:1000]}"
                 )
 
-            answer_text = "\n\n".join(
-                answer_lines
-            )
-
-            if len(answer_text) > 1024:
-                answer_text = (
-                    answer_text[:1021]
-                    + "..."
+            if answer_lines:
+                embed.add_field(
+                    name="📋 Form responses",
+                    value="\n\n".join(
+                        answer_lines
+                    )[:1024],
+                    inline=False,
                 )
 
-            embed.add_field(
-                name="📋 Form answers",
-                value=answer_text,
-                inline=False,
+        # ---------------------------------------------------------------
+        # Mention support roles.
+        # ---------------------------------------------------------------
+
+        role_mentions = _role_mentions(
+            guild,
+            support_role_ids,
+        )
+
+        support_text = ""
+
+        if role_mentions:
+            support_text = (
+                " ".join(
+                    role_mentions
+                )
+                + "\n\n"
             )
 
-        # ========================================================
-        # MENTION OWNER + SUPPORT ROLES
+        try:
+            await channel.send(
+                content=(
+                    f"{interaction.user.mention}"
+                    + (
+                        f" {support_text}"
+                        if support_text
+                        else ""
+                    )
+                ),
+                embed=embed,
+                view=TicketControls(
+                    self.bot
+                ),
+                allowed_mentions=discord.AllowedMentions(
+                    users=True,
+                    roles=True,
+                    everyone=False,
+                ),
+            )
+        except discord.HTTPException as exc:
+            log.warning(
+                "Failed to send ticket opening message: %s",
+                exc,
+            )
+
+        # ---------------------------------------------------------------
+        # Send an explicit form-answer message too.
         #
-        # This is the actual Discord mention.
-        # ========================================================
+        # This makes the answers impossible for staff to miss.
+        # ---------------------------------------------------------------
 
-        mention_parts = [
-            interaction.user.mention
-        ]
+        if form_answers:
+            lines = [
+                "📋 **Ticket form submission**",
+                f"**Member:** {interaction.user.mention}",
+            ]
 
-        mention_parts.extend(
-            support_mentions
-        )
-
-        mention_content = "\n".join(
-            mention_parts
-        )
-
-        await channel.send(
-            content=mention_content,
-            embed=embed,
-            view=TicketControls(
-                self.bot
-            ),
-            allowed_mentions=discord.AllowedMentions(
-                users=True,
-                roles=True,
-                everyone=False,
-            ),
-        )
-
-        # ========================================================
-        # STORE FORM SUBMISSION IN TRANSCRIPT
-        # ========================================================
-
-        if answers:
-            form_text = "\n".join(
-                f"{key}: {value}"
-                for key, value in answers.items()
+            questions = _normalise_questions(
+                button.get(
+                    "form_questions"
+                )
+                if button
+                else []
             )
+
+            labels_by_id = {
+                str(
+                    question.get(
+                        "id"
+                    )
+                ): str(
+                    question.get(
+                        "label"
+                    )
+                )
+                for question in questions
+            }
+
+            for key, value in form_answers.items():
+                label = (
+                    labels_by_id.get(
+                        str(key)
+                    )
+                    or str(key)
+                )
+
+                lines.append(
+                    f"\n**{label[:45]}**\n"
+                    f"{str(value)[:1500]}"
+                )
 
             try:
-                await repo.add_ticket_message(
-                    str(ticket["id"]),
-                    interaction.user,
-                    (
-                        "[FORM SUBMISSION]\n"
-                        f"{form_text}"
-                    ),
+                await channel.send(
+                    "\n".join(
+                        lines
+                    )[:6000]
                 )
-            except Exception:
-                log.exception(
-                    "Could not store form submission "
-                    "for ticket %s.",
-                    number,
+            except discord.HTTPException as exc:
+                log.warning(
+                    "Failed to send ticket form answers: %s",
+                    exc,
                 )
 
-        # ========================================================
-        # SUCCESS TO USER
-        # ========================================================
+        # ---------------------------------------------------------------
+        # Confirmation to member.
+        # ---------------------------------------------------------------
 
         await interaction.followup.send(
             embed=embeds.success(
                 "Ticket created",
-                (
-                    f"Your private ticket is ready: "
-                    f"{channel.mention}"
-                ),
+                f"Your private ticket is ready: {channel.mention}",
             ),
             ephemeral=True,
         )
 
         log.info(
-            "Ticket #%s opened in guild %s | "
-            "button=%s | category=%s | support_roles=%s",
-            number,
+            "Ticket %s opened in guild %s "
+            "using button %s and category %s",
+            ticket.get("id"),
             guild.id,
-            button_label,
-            category_id or "default",
-            support_role_ids,
+            button_id or "legacy",
+            parent.id if parent else "default",
         )
 
 
-class TicketOpener(
-    discord.ui.View
-):
-    def __init__(
-        self,
-        cog: "Tickets",
-    ) -> None:
-        super().__init__(
-            timeout=120
-        )
-
-        self.cog = cog
-
-        self.add_item(
-            TicketCategorySelect(
-                cog
-            )
-        )
-
-
-class TicketCategorySelect(
-    discord.ui.Select
-):
-    def __init__(
-        self,
-        cog: "Tickets",
-    ) -> None:
-        super().__init__(
-            placeholder=(
-                "Choose a ticket category…"
-            ),
-            options=[
-                discord.SelectOption(
-                    label="General Support",
-                    value="general",
-                    description=(
-                        "Questions and general help"
-                    ),
-                ),
-                discord.SelectOption(
-                    label="Report",
-                    value="report",
-                    description=(
-                        "Report a member or issue"
-                    ),
-                ),
-                discord.SelectOption(
-                    label="Partnership",
-                    value="partnership",
-                    description=(
-                        "Collaborations and partnerships"
-                    ),
-                ),
-                discord.SelectOption(
-                    label="Other",
-                    value="other",
-                    description=(
-                        "Anything else"
-                    ),
-                ),
-            ],
-        )
-
-        self.cog = cog
-
-    async def callback(
-        self,
-        interaction: discord.Interaction,
-    ) -> None:
-        category = self.values[0]
-
-        guild = ensure_guild(
-            interaction
-        )
-
-        settings = await self.cog.bot.repo.get_settings(  # type: ignore[attr-defined]
-            str(guild.id)
-        )
-
-        await self.cog.open_ticket(
-            interaction,
-            {
-                "id": None,
-                "label": category.title(),
-                "category": category,
-                "category_id": settings.get(
-                    "ticket_category_id"
-                ),
-                "support_role_ids": settings.get(
-                    "ticket_support_role_ids"
-                ) or [],
-                "access_role_ids": [],
-                "required_permission": "everyone",
-                "form_questions": [],
-                "transcript_enabled": settings.get(
-                    "ticket_transcripts_enabled",
-                    True,
-                ),
-                "transcript_channel_id": settings.get(
-                    "ticket_transcript_channel_id"
-                ),
-                "dm_transcript_enabled": settings.get(
-                    "ticket_dm_transcript_enabled",
-                    False,
-                ),
-            },
-            {},
-        )
+# ---------------------------------------------------------------------------
+# Cog setup
+# ---------------------------------------------------------------------------
 
 
 async def setup(
     bot: commands.Bot,
 ) -> None:
-    """Register persistent ticket controls."""
-
-    # TicketControls contains fixed custom IDs, so it can be
-    # safely restored after bot restart.
     bot.add_view(
         TicketControls(bot)
     )
 
-    # Legacy panel.
-    bot.add_view(
-        TicketPanel(
-            bot.get_cog("Tickets")
+    tickets_cog = Tickets(bot)
+
+    await bot.add_cog(
+        tickets_cog
+    )
+
+    # ---------------------------------------------------------------
+    # Re-register every saved dashboard panel on startup.
+    #
+    # This is what makes the buttons continue working after the bot
+    # restarts instead of becoming dead Discord components.
+    # ---------------------------------------------------------------
+
+    try:
+        panels = await bot.repo.active_ticket_panels()
+        buttons = await bot.repo.active_ticket_panel_buttons()
+
+        buttons_by_panel: dict[
+            str,
+            list[dict[str, Any]],
+        ] = {}
+
+        for button in buttons:
+            panel_id = str(
+                button.get(
+                    "panel_id"
+                )
+            )
+
+            buttons_by_panel.setdefault(
+                panel_id,
+                [],
+            ).append(button)
+
+        for panel in panels:
+            panel_id = str(
+                panel.get(
+                    "id"
+                )
+            )
+
+            panel_buttons = buttons_by_panel.get(
+                panel_id,
+                [],
+            )
+
+            if not panel_buttons:
+                continue
+
+            bot.add_view(
+                MultiTicketPanel(
+                    bot,
+                    panel_buttons,
+                )
+            )
+
+        log.info(
+            "Registered %s persistent ticket panels.",
+            len(panels),
         )
-    )
 
-    # IMPORTANT:
-    # The Tickets cog must exist before dashboard-created
-    # TicketPanelButton callbacks are constructed.
-    cog = bot.get_cog(
-        "Tickets"
-    )
-
-    if cog is None:
-        cog = Tickets(bot)
-
-        await bot.add_cog(
-            cog
+    except Exception:
+        log.exception(
+            "Could not restore persistent ticket panels on startup."
         )
