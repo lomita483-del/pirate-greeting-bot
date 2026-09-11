@@ -20,17 +20,17 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "!PIRATE — Discord Bot & Server Dashboard" },
+      { title: "!HOY BOT — Discord Bot & Server Dashboard" },
       {
         name: "description",
         content:
-          "!PIRATE is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
+          "!HOY BOT  is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
       },
-      { property: "og:title", content: "!PIRATE — Discord Bot & Server Dashboard" },
+      { property: "og:title", content: "!HOY BOT  — Discord Bot & Server Dashboard" },
       {
         property: "og:description",
         content:
-          "!PIRATE is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
+          "!HOY BOT  is a premium Discord bot with moderation, AutoMod, XP levels, economy, tickets, live analytics and a real-time web control center.",
       },
     ],
   }),
@@ -126,7 +126,7 @@ function LandingPage() {
             <div className="glass flex flex-col justify-between rounded-2xl p-8">
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
-                  <Anchor className="h-4 w-4 text-primary" />!PIRATE</div>
+                  <Anchor className="h-4 w-4 text-primary" />!HOY</div>
                 <h2 className="mt-4 text-2xl font-semibold">Server control center</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Moderation, AutoMod, welcome messages, tickets, custom commands and every setting
@@ -151,17 +151,17 @@ function LandingPage() {
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-muted-foreground">
                   <CalendarDays className="h-4 w-4 text-primary" />
-                  !PIRATE Calendar
+                  !HOY Calendar
                 </div>
                 <h2 className="mt-4 text-2xl font-semibold">Events & reminders</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                  Sync Google Calendar or iCalendar feeds, then let !PIRATE announce every event with
+                  Sync Google Calendar or iCalendar feeds, then let !HOY announce every event with
                   countdown reminders, RSVPs and daily summaries in your channels.
                 </p>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/calendar">Open !PIRATE Calendar</Link>
+                  <Link to="/calendar">Open !HOY Calendar</Link>
                 </Button>
               </div>
             </div>
@@ -180,7 +180,7 @@ function LandingPage() {
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/statahoy">Enter Statahoy</Link>
+                  <Link to="/stathoy">Enter Statahoy</Link>
                 </Button>
               </div>
             </div>
@@ -199,7 +199,7 @@ function LandingPage() {
           </div>
           <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" variant="secondary">
-              <a href="/api/public/invite">Add !PIRATE to your server</a>
+              <a href="/api/public/invite">Add !HOY to your server</a>
             </Button>
           </div>
           <p className="mt-4 text-center text-xs text-muted-foreground">
@@ -212,8 +212,8 @@ function LandingPage() {
 
       <footer className="hairline border-t border-border/60">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground">
-          <span>!PIRATE — steady as she goes.</span>
-          <span>Built with discord.py + Lovable Cloud</span>
+          <span>!HOY — steady as she goes.</span>
+          <span>Built with LOVE 💕</span>
         </div>
       </footer>
     </div>
