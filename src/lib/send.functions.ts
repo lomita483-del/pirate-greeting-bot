@@ -23,10 +23,7 @@ async function authorize(guildId: string) {
     );
   }
 
-  const guild = await assertGuildAccess(
-    session,
-    guildId,
-  );
+  const guild = await assertGuildAccess(session, guildId);
 
   const { supabaseAdmin } = await import(
     "@/integrations/supabase/client.server"
@@ -39,6 +36,10 @@ async function authorize(guildId: string) {
   };
 }
 
+/* ---------------------------------------------------------------- */
+/* Embed templates                                                   */
+/* ---------------------------------------------------------------- */
+
 const embedField = z.object({
   name: z.string().max(256),
   value: z.string().max(1024),
@@ -47,8 +48,7 @@ const embedField = z.object({
 
 const optionalUrl = z.preprocess(
   (value) =>
-    typeof value === "string" &&
-    value.trim() === ""
+    typeof value === "string" && value.trim() === ""
       ? undefined
       : value,
   z.string().url().optional(),
@@ -70,620 +70,638 @@ const embedShape = z.object({
   fields: z.array(embedField).max(25).optional(),
 });
 
-export type EmbedShape =
-  z.infer<typeof embedShape>;
+export type EmbedShape = z.infer<typeof embedShape>;
 
-export type EmbedTemplate =
-  EmbedShape & {
-    id: string;
-    name: string;
-  };
+export type EmbedTemplate = EmbedShape & {
+  id: string;
+  name: string;
+};
 
 /* ---------------------------------------------------------------- */
-/* Templates                                                        */
+/* Embed template operations                                         */
 /* ---------------------------------------------------------------- */
 
-export const listEmbedTemplates =
-  createServerFn({
-    method: "GET",
-  })
-    .inputValidator(
-      (data: unknown) =>
-        z
-          .object({
-            guildId: z
-              .string()
-              .regex(/^\d{5,25}$/),
-          })
-          .parse(data),
-    )
-    .handler(async ({ data }) => {
-      const { supabaseAdmin } =
-        await authorize(data.guildId);
+export const listEmbedTemplates = createServerFn({
+  method: "GET",
+})
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
 
-      const { data: rows } =
-        await supabaseAdmin
-          .from("embed_templates")
-          .select("*")
-          .eq(
-            "guild_id",
-            data.guildId,
-          )
-          .order("name");
+    const { data: rows } = await supabaseAdmin
+      .from("embed_templates")
+      .select("*")
+      .eq("guild_id", data.guildId)
+      .order("name");
 
-      return (rows ?? []).map(
-        rowToTemplate,
-      );
-    });
+    return (rows ?? []).map(rowToTemplate);
+  });
 
-export const saveEmbedTemplate =
-  createServerFn({
-    method: "POST",
-  })
-    .inputValidator(
-      (data: unknown) =>
-        z
-          .object({
-            guildId: z
-              .string()
-              .regex(/^\d{5,25}$/),
-            name: z
-              .string()
-              .min(1)
-              .max(80),
-            embed: embedShape,
-          })
-          .parse(data),
-    )
-    .handler(async ({ data }) => {
-      const {
-        supabaseAdmin,
-        session,
-      } = await authorize(
-        data.guildId,
-      );
+export const saveEmbedTemplate = createServerFn({
+  method: "POST",
+})
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        name: z.string().min(1).max(80),
+        embed: embedShape,
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin, session } = await authorize(
+      data.guildId,
+    );
 
-      const {
-        data: row,
+    const { data: row, error } = await supabaseAdmin
+      .from("embed_templates")
+      .upsert(
+        {
+          guild_id: data.guildId,
+          name: data.name,
+          ...templateToRow(data.embed),
+          created_by: session.userId,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "guild_id,name",
+        },
+      )
+      .select("*")
+      .maybeSingle();
+
+    if (error || !row) {
+      console.error(
+        "Embed template save failed",
         error,
-      } = await supabaseAdmin
-        .from("embed_templates")
-        .upsert(
-          {
-            guild_id: data.guildId,
-            name: data.name,
-            ...templateToRow(
-              data.embed,
-            ),
-            created_by:
-              session.userId,
-            updated_at:
-              new Date().toISOString(),
-          },
-          {
-            onConflict:
-              "guild_id,name",
-          },
-        )
-        .select("*")
-        .maybeSingle();
-
-      if (error || !row) {
-        console.error(
-          "Embed template save failed",
-          error,
-        );
-
-        throw new Error(
-          `Could not save that template${
-            error?.message
-              ? `: ${error.message}`
-              : "."
-          }`,
-        );
-      }
-
-      return rowToTemplate(row);
-    });
-
-export const deleteEmbedTemplate =
-  createServerFn({
-    method: "POST",
-  })
-    .inputValidator(
-      (data: unknown) =>
-        z
-          .object({
-            guildId: z
-              .string()
-              .regex(/^\d{5,25}$/),
-            id: z.string().uuid(),
-          })
-          .parse(data),
-    )
-    .handler(async ({ data }) => {
-      const {
-        supabaseAdmin,
-      } = await authorize(
-        data.guildId,
       );
 
-      await supabaseAdmin
-        .from("embed_templates")
-        .delete()
-        .eq(
-          "id",
-          data.id,
-        )
-        .eq(
-          "guild_id",
-          data.guildId,
-        );
+      throw new Error(
+        `Could not save that template${
+          error?.message
+            ? `: ${error.message}`
+            : "."
+        }`,
+      );
+    }
 
-      return {
-        ok: true,
-      };
-    });
-
-
-/* ---------------------------------------------------------------- */
-/* Ticket panel                                                     */
-/* ---------------------------------------------------------------- */
-
-const ticketFormQuestion =
-  z.object({
-    id: z
-      .string()
-      .min(1)
-      .max(80),
-
-    label: z
-      .string()
-      .min(1)
-      .max(45),
-
-    placeholder: z
-      .string()
-      .max(100)
-      .optional(),
-
-    required: z
-      .boolean()
-      .default(true),
-
-    style: z
-      .enum([
-        "short",
-        "paragraph",
-      ])
-      .default("short"),
+    return rowToTemplate(row);
   });
 
+export const deleteEmbedTemplate = createServerFn({
+  method: "POST",
+})
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: z.string().regex(/^\d{5,25}$/),
+        id: z.string().uuid(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(
+      data.guildId,
+    );
 
-const ticketPanelButton =
-  z.object({
-    label: z
-      .string()
-      .min(1)
-      .max(80),
+    await supabaseAdmin
+      .from("embed_templates")
+      .delete()
+      .eq("id", data.id)
+      .eq("guild_id", data.guildId);
 
-    description: z
-      .string()
-      .max(200)
-      .optional(),
-
-    emoji: z
-      .string()
-      .max(8)
-      .optional(),
-
-    style: z
-      .enum([
-        "primary",
-        "secondary",
-        "success",
-        "danger",
-      ])
-      .default("primary"),
-
-    categoryId: z
-      .string()
-      .regex(/^\d{5,25}$/)
-      .nullable()
-      .optional(),
-
-    category: z
-      .string()
-      .max(80)
-      .optional(),
-
-    supportRoleIds: z
-      .array(
-        z.string().regex(/^\d{5,25}$/),
-      )
-      .max(25)
-      .default([]),
-
-    accessRoleIds: z
-      .array(
-        z.string().regex(/^\d{5,25}$/),
-      )
-      .max(25)
-      .default([]),
-
-    requiredPermission: z
-      .enum([
-        "everyone",
-        "manage_channels",
-        "manage_guild",
-        "administrator",
-      ])
-      .default("everyone"),
-
-    formQuestions: z
-      .array(ticketFormQuestion)
-      .max(5)
-      .default([]),
-
-    transcriptEnabled: z
-      .boolean()
-      .default(true),
-
-    transcriptChannelId: z
-      .string()
-      .regex(/^\d{5,25}$/)
-      .nullable()
-      .optional(),
-
-    dmTranscriptEnabled: z
-      .boolean()
-      .default(false),
+    return {
+      ok: true,
+    };
   });
 
+/* ---------------------------------------------------------------- */
+/* Ticket panel                                                      */
+/* ---------------------------------------------------------------- */
 
-export const postTicketPanel =
-  createServerFn({
-    method: "POST",
-  })
-    .inputValidator(
-      (data: unknown) =>
-        z
-          .object({
-            guildId: z
-              .string()
-              .regex(/^\d{5,25}$/),
+const snowflake = z
+  .string()
+  .regex(/^\d{5,25}$/);
 
-            channelId: z
-              .string()
-              .regex(/^\d{5,25}$/),
+const ticketFormQuestion = z.object({
+  id: z.string().min(1).max(80),
 
-            title: z
-              .string()
-              .max(256)
-              .optional(),
+  label: z.string().min(1).max(45),
 
-            description: z
-              .string()
-              .max(2000)
-              .optional(),
+  placeholder: z
+    .string()
+    .max(100)
+    .optional(),
 
-            transcriptChannelId: z
-              .string()
-              .regex(/^\d{5,25}$/)
-              .nullable()
-              .optional(),
+  required: z
+    .boolean()
+    .default(true),
 
-            dmTranscriptEnabled: z
-              .boolean()
-              .default(false),
+  style: z
+    .enum(["short", "paragraph"])
+    .default("short"),
+});
 
-            buttons: z
-              .array(
-                ticketPanelButton,
-              )
-              .min(1)
-              .max(20),
-          })
-          .parse(data),
-    )
-    .handler(async ({ data }) => {
-      const {
-        supabaseAdmin,
-        session,
-      } = await authorize(
-        data.guildId,
+const ticketPanelButton = z.object({
+  label: z
+    .string()
+    .min(1)
+    .max(80),
+
+  description: z
+    .string()
+    .max(200)
+    .optional(),
+
+  emoji: z
+    .string()
+    .max(8)
+    .optional(),
+
+  style: z
+    .enum([
+      "primary",
+      "secondary",
+      "success",
+      "danger",
+    ])
+    .default("primary"),
+
+  /*
+   * Exact Discord category ID where this button's
+   * tickets must be created.
+   */
+  categoryId: snowflake
+    .nullable()
+    .optional(),
+
+  /*
+   * Internal ticket type/category name.
+   */
+  category: z
+    .string()
+    .max(80)
+    .optional(),
+
+  /*
+   * Staff/support roles that can access the ticket.
+   */
+  supportRoleIds: z
+    .array(snowflake)
+    .max(25)
+    .default([]),
+
+  /*
+   * Roles allowed to click this particular button.
+   */
+  accessRoleIds: z
+    .array(snowflake)
+    .max(25)
+    .default([]),
+
+  /*
+   * Discord permission required to use this button.
+   */
+  requiredPermission: z
+    .enum([
+      "everyone",
+      "manage_channels",
+      "manage_guild",
+      "administrator",
+    ])
+    .default("everyone"),
+
+  /*
+   * Discord modal questions.
+   * Discord allows a maximum of five text inputs.
+   */
+  formQuestions: z
+    .array(ticketFormQuestion)
+    .max(5)
+    .default([]),
+
+  /*
+   * Whether a transcript should be generated
+   * when this ticket is closed.
+   */
+  transcriptEnabled: z
+    .boolean()
+    .default(true),
+
+  /*
+   * Button-specific transcript channel.
+   * null means use the global transcript channel.
+   */
+  transcriptChannelId: snowflake
+    .nullable()
+    .optional(),
+
+  /*
+   * Whether the completed transcript should also
+   * be sent to the ticket owner's Discord DM.
+   */
+  dmTranscriptEnabled: z
+    .boolean()
+    .default(false),
+});
+
+const ticketPanelPayload = z.object({
+  guildId: snowflake,
+
+  channelId: snowflake,
+
+  title: z
+    .string()
+    .max(256)
+    .optional(),
+
+  description: z
+    .string()
+    .max(2000)
+    .optional(),
+
+  /*
+   * Global/default transcript destination.
+   */
+  transcriptChannelId: snowflake
+    .nullable()
+    .optional(),
+
+  /*
+   * Global/default DM transcript setting.
+   */
+  dmTranscriptEnabled: z
+    .boolean()
+    .default(false),
+
+  buttons: z
+    .array(ticketPanelButton)
+    .min(1)
+    .max(20),
+});
+
+export const postTicketPanel = createServerFn({
+  method: "POST",
+})
+  .inputValidator((data: unknown) =>
+    ticketPanelPayload.parse(data),
+  )
+  .handler(async ({ data }) => {
+    const {
+      supabaseAdmin,
+      session,
+    } = await authorize(data.guildId);
+
+    /*
+     * Save the global/default transcript settings.
+     */
+    const {
+      error: settingsError,
+    } = await supabaseAdmin
+      .from("server_settings")
+      .update({
+        ticket_transcript_channel_id:
+          data.transcriptChannelId ?? null,
+
+        ticket_dm_transcript_enabled:
+          Boolean(
+            data.dmTranscriptEnabled,
+          ),
+
+        updated_at:
+          new Date().toISOString(),
+      })
+      .eq("guild_id", data.guildId);
+
+    if (settingsError) {
+      console.error(
+        "Ticket transcript settings update failed",
+        settingsError,
       );
 
-      const {
-        error: settingsError,
-      } = await supabaseAdmin
-        .from("server_settings")
-        .update({
-          ticket_transcript_channel_id:
-            data.transcriptChannelId ??
+      throw new Error(
+        "Could not save ticket transcript settings.",
+      );
+    }
+
+    /*
+     * IMPORTANT:
+     *
+     * Do not reduce this payload to a button index or
+     * category slug.
+     *
+     * The Python bot needs the complete configuration
+     * for every button so that it can:
+     *
+     * 1. create the ticket in the exact selected category
+     * 2. apply the selected support roles
+     * 3. apply access-role restrictions
+     * 4. enforce the required permission
+     * 5. display the correct Discord modal
+     * 6. save the submitted form answers
+     * 7. send the support-role mention
+     * 8. use the selected transcript channel
+     * 9. DM the ticket owner when enabled
+     */
+    const payload = {
+      channel_id: data.channelId,
+
+      title:
+        data.title?.trim() || null,
+
+      description:
+        data.description?.trim() || null,
+
+      transcript_channel_id:
+        data.transcriptChannelId ?? null,
+
+      dm_transcript_enabled:
+        Boolean(
+          data.dmTranscriptEnabled,
+        ),
+
+      buttons: data.buttons.map(
+        (button, index) => ({
+          /*
+           * Stable position is useful to the Discord
+           * button callback while the database ID is
+           * generated by the bot.
+           */
+          position: index,
+
+          label:
+            button.label.trim(),
+
+          description:
+            button.description?.trim() ||
             null,
 
-          ticket_dm_transcript_enabled:
-            Boolean(
-              data.dmTranscriptEnabled,
+          emoji:
+            button.emoji?.trim() ||
+            null,
+
+          style:
+            button.style,
+
+          /*
+           * EXACT Discord category.
+           */
+          category_id:
+            button.categoryId ??
+            null,
+
+          /*
+           * Internal ticket category/type.
+           */
+          category:
+            button.category?.trim() ||
+            button.label.trim(),
+
+          /*
+           * Staff/support roles.
+           */
+          support_role_ids:
+            Array.from(
+              new Set(
+                button.supportRoleIds ?? [],
+              ),
+            ).slice(0, 25),
+
+          /*
+           * Roles allowed to open this ticket type.
+           */
+          access_role_ids:
+            Array.from(
+              new Set(
+                button.accessRoleIds ?? [],
+              ),
+            ).slice(0, 25),
+
+          /*
+           * Permission required to open.
+           */
+          required_permission:
+            button.requiredPermission ??
+            "everyone",
+
+          /*
+           * Modal questions.
+           */
+          form_questions:
+            button.formQuestions.map(
+              (question) => ({
+                id: question.id,
+                label:
+                  question.label.trim(),
+                placeholder:
+                  question.placeholder
+                    ?.trim() ||
+                  null,
+                required:
+                  Boolean(
+                    question.required,
+                  ),
+                style:
+                  question.style,
+              }),
             ),
 
-          updated_at:
-            new Date().toISOString(),
-        })
-        .eq(
-          "guild_id",
-          data.guildId,
-        );
+          /*
+           * Transcript configuration.
+           */
+          transcript_enabled:
+            Boolean(
+              button.transcriptEnabled,
+            ),
 
-      if (settingsError) {
-        console.error(
-          "Ticket transcript settings update failed",
-          settingsError,
-        );
+          transcript_channel_id:
+            button.transcriptChannelId ??
+            null,
 
-        throw new Error(
-          "Could not save ticket transcript settings.",
-        );
-      }
+          dm_transcript_enabled:
+            Boolean(
+              button.dmTranscriptEnabled,
+            ),
 
-      const payloadButtons =
-        data.buttons.map(
-          (button) => ({
-            label:
-              button.label.trim(),
+          enabled: true,
+        }),
+      ),
+    };
 
-            description:
-              button.description
-                ?.trim() || null,
+    /*
+     * Queue the complete panel configuration.
+     *
+     * The Discord bot consumes this record and is
+     * responsible for creating the actual Discord
+     * message/buttons and persistent database records.
+     */
+    const { error } =
+      await supabaseAdmin
+        .from("bot_action_queue")
+        .insert({
+          guild_id:
+            data.guildId,
 
-            emoji:
-              button.emoji
-                ?.trim() || null,
+          action:
+            "ticket_panel",
 
-            style:
-              button.style,
+          payload,
 
-            category_id:
-              button.categoryId ??
-              null,
+          requested_by:
+            session.userId,
 
-            category:
-              button.category ??
-              null,
+          status:
+            "pending",
+        });
 
-            support_role_ids:
-              button.supportRoleIds ??
-              [],
-
-            access_role_ids:
-              button.accessRoleIds ??
-              [],
-
-            required_permission:
-              button.requiredPermission ??
-              "everyone",
-
-            form_questions:
-              button.formQuestions ??
-              [],
-
-            transcript_enabled:
-              Boolean(
-                button.transcriptEnabled,
-              ),
-
-            transcript_channel_id:
-              button.transcriptChannelId ??
-              null,
-
-            dm_transcript_enabled:
-              Boolean(
-                button.dmTranscriptEnabled,
-              ),
-          }),
-        );
-
-      const {
+    if (error) {
+      console.error(
+        "Ticket panel queue insert failed",
         error,
-      } =
-        await supabaseAdmin
-          .from("bot_action_queue")
-          .insert({
-            guild_id:
-              data.guildId,
-
-            action:
-              "ticket_panel",
-
-            payload: {
-              channel_id:
-                data.channelId,
-
-              title:
-                data.title ??
-                null,
-
-              description:
-                data.description ??
-                null,
-
-              transcript_channel_id:
-                data.transcriptChannelId ??
-                null,
-
-              dm_transcript_enabled:
-                Boolean(
-                  data.dmTranscriptEnabled,
-                ),
-
-              buttons:
-                payloadButtons,
-            },
-
-            requested_by:
-              session.userId,
-
-            status:
-              "pending",
-          });
-
-      if (error) {
-        console.error(
-          "Ticket panel queue insert failed",
-          error,
-        );
-
-        throw new Error(
-          `Could not queue the ticket panel${
-            error.message
-              ? `: ${error.message}`
-              : "."
-          }`,
-        );
-      }
-
-      return {
-        ok: true,
-      };
-    });
-
-
-/* ---------------------------------------------------------------- */
-/* Send                                                              */
-/* ---------------------------------------------------------------- */
-
-export const sendMessage =
-  createServerFn({
-    method: "POST",
-  })
-    .inputValidator(
-      (data: unknown) =>
-        z
-          .object({
-            guildId: z
-              .string()
-              .regex(/^\d{5,25}$/),
-
-            channelId: z
-              .string()
-              .regex(/^\d{5,25}$/),
-
-            content: z
-              .string()
-              .max(2000)
-              .optional(),
-
-            mentionRoleId: z
-              .string()
-              .regex(/^\d{5,25}$/)
-              .optional(),
-
-            mentionEveryone: z
-              .boolean()
-              .optional(),
-
-            embed:
-              embedShape.optional(),
-          })
-          .parse(data),
-    )
-    .handler(async ({ data }) => {
-      const {
-        supabaseAdmin,
-        session,
-      } = await authorize(
-        data.guildId,
       );
 
-      const hasEmbedContent =
-        data.embed &&
-        (
-          data.embed.title ||
-          data.embed.description ||
-          (
-            data.embed.fields &&
-            data.embed.fields.length > 0
-          ) ||
-          data.embed.imageUrl
-        );
+      throw new Error(
+        `Could not queue the ticket panel${
+          error.message
+            ? `: ${error.message}`
+            : "."
+        }`,
+      );
+    }
 
-      if (
-        !data.content &&
-        !hasEmbedContent
-      ) {
-        throw new Error(
-          "Add a message or fill in the embed before sending.",
-        );
-      }
-
-      const {
-        error,
-      } =
-        await supabaseAdmin
-          .from("bot_action_queue")
-          .insert({
-            guild_id:
-              data.guildId,
-
-            action:
-              "send_message",
-
-            payload: {
-              channel_id:
-                data.channelId,
-
-              content:
-                data.content ??
-                "",
-
-              mention_role_id:
-                data.mentionRoleId ??
-                null,
-
-              mention_everyone:
-                Boolean(
-                  data.mentionEveryone,
-                ),
-
-              embed:
-                data.embed
-                  ? templateToPayload(
-                      data.embed,
-                    )
-                  : null,
-            },
-
-            requested_by:
-              session.userId,
-
-            status:
-              "pending",
-          });
-
-      if (error) {
-        console.error(
-          "Message queue insert failed",
-          error,
-        );
-
-        throw new Error(
-          `Could not queue that message${
-            error.message
-              ? `: ${error.message}`
-              : "."
-          }`,
-        );
-      }
-
-      return {
-        ok: true,
-      };
-    });
-
+    return {
+      ok: true,
+      buttonCount:
+        data.buttons.length,
+    };
+  });
 
 /* ---------------------------------------------------------------- */
-/* Helpers                                                          */
+/* Send message                                                      */
+/* ---------------------------------------------------------------- */
+
+export const sendMessage = createServerFn({
+  method: "POST",
+})
+  .inputValidator((data: unknown) =>
+    z
+      .object({
+        guildId: snowflake,
+
+        channelId: snowflake,
+
+        content: z
+          .string()
+          .max(2000)
+          .optional(),
+
+        mentionRoleId: snowflake.optional(),
+
+        mentionEveryone:
+          z.boolean().optional(),
+
+        embed:
+          embedShape.optional(),
+      })
+      .parse(data),
+  )
+  .handler(async ({ data }) => {
+    const {
+      supabaseAdmin,
+      session,
+    } = await authorize(data.guildId);
+
+    const hasEmbedContent =
+      data.embed &&
+      (
+        data.embed.title ||
+        data.embed.description ||
+        (
+          data.embed.fields &&
+          data.embed.fields.length > 0
+        ) ||
+        data.embed.imageUrl
+      );
+
+    if (
+      !data.content &&
+      !hasEmbedContent
+    ) {
+      throw new Error(
+        "Add a message or fill in the embed before sending.",
+      );
+    }
+
+    const { error } =
+      await supabaseAdmin
+        .from("bot_action_queue")
+        .insert({
+          guild_id:
+            data.guildId,
+
+          action:
+            "send_message",
+
+          payload: {
+            channel_id:
+              data.channelId,
+
+            content:
+              data.content ?? "",
+
+            mention_role_id:
+              data.mentionRoleId ??
+              null,
+
+            mention_everyone:
+              Boolean(
+                data.mentionEveryone,
+              ),
+
+            embed:
+              data.embed
+                ? templateToPayload(
+                    data.embed,
+                  )
+                : null,
+          },
+
+          requested_by:
+            session.userId,
+
+          status:
+            "pending",
+        });
+
+    if (error) {
+      console.error(
+        "Message queue insert failed",
+        error,
+      );
+
+      throw new Error(
+        `Could not queue that message${
+          error.message
+            ? `: ${error.message}`
+            : "."
+        }`,
+      );
+    }
+
+    return {
+      ok: true,
+    };
+  });
+
+/* ---------------------------------------------------------------- */
+/* Helpers                                                           */
 /* ---------------------------------------------------------------- */
 
 function templateToRow(
@@ -745,7 +763,6 @@ function templateToRow(
   };
 }
 
-
 function templateToPayload(
   embed: EmbedShape,
 ) {
@@ -793,7 +810,6 @@ function templateToPayload(
       row.timestamp,
   };
 }
-
 
 function rowToTemplate(
   row: unknown,
