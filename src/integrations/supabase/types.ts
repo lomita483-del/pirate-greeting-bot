@@ -2406,6 +2406,7 @@ export type Database = {
           prefix: string
           starting_balance: number
           ticket_category_id: string | null
+          ticket_dm_transcript_enabled: boolean
           ticket_panel_channel_id: string | null
           ticket_support_role_ids: string[]
           ticket_transcript_channel_id: string | null
@@ -2433,6 +2434,7 @@ export type Database = {
           prefix?: string
           starting_balance?: number
           ticket_category_id?: string | null
+          ticket_dm_transcript_enabled?: boolean
           ticket_panel_channel_id?: string | null
           ticket_support_role_ids?: string[]
           ticket_transcript_channel_id?: string | null
@@ -2460,6 +2462,7 @@ export type Database = {
           prefix?: string
           starting_balance?: number
           ticket_category_id?: string | null
+          ticket_dm_transcript_enabled?: boolean
           ticket_panel_channel_id?: string | null
           ticket_support_role_ids?: string[]
           ticket_transcript_channel_id?: string | null
@@ -2804,45 +2807,78 @@ export type Database = {
       }
       ticket_panel_buttons: {
         Row: {
+          access_role_ids: string[]
           category: string
           category_channel_id: string | null
+          category_id: string | null
+          category_key: string | null
           created_at: string
           description: string | null
+          dm_transcript_enabled: boolean
           emoji: string | null
+          enabled: boolean
           form_fields: Json
+          form_questions: Json
           guild_id: string
           id: string
           label: string
+          panel_id: string | null
+          position: number
+          required_permission: string
           style: string
           support_role_ids: string[]
+          transcript_channel_id: string | null
+          transcript_enabled: boolean
           updated_at: string
         }
         Insert: {
+          access_role_ids?: string[]
           category: string
           category_channel_id?: string | null
+          category_id?: string | null
+          category_key?: string | null
           created_at?: string
           description?: string | null
+          dm_transcript_enabled?: boolean
           emoji?: string | null
+          enabled?: boolean
           form_fields?: Json
+          form_questions?: Json
           guild_id: string
           id?: string
           label: string
+          panel_id?: string | null
+          position?: number
+          required_permission?: string
           style?: string
           support_role_ids?: string[]
+          transcript_channel_id?: string | null
+          transcript_enabled?: boolean
           updated_at?: string
         }
         Update: {
+          access_role_ids?: string[]
           category?: string
           category_channel_id?: string | null
+          category_id?: string | null
+          category_key?: string | null
           created_at?: string
           description?: string | null
+          dm_transcript_enabled?: boolean
           emoji?: string | null
+          enabled?: boolean
           form_fields?: Json
+          form_questions?: Json
           guild_id?: string
           id?: string
           label?: string
+          panel_id?: string | null
+          position?: number
+          required_permission?: string
           style?: string
           support_role_ids?: string[]
+          transcript_channel_id?: string | null
+          transcript_enabled?: boolean
           updated_at?: string
         }
         Relationships: [
@@ -2853,10 +2889,57 @@ export type Database = {
             referencedRelation: "servers"
             referencedColumns: ["guild_id"]
           },
+          {
+            foreignKeyName: "ticket_panel_buttons_panel_id_fkey"
+            columns: ["panel_id"]
+            isOneToOne: false
+            referencedRelation: "ticket_panels"
+            referencedColumns: ["id"]
+          },
         ]
+      }
+      ticket_panels: {
+        Row: {
+          channel_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          enabled: boolean
+          guild_id: string
+          id: string
+          message_id: string | null
+          title: string | null
+          updated_at: string
+        }
+        Insert: {
+          channel_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          guild_id: string
+          id?: string
+          message_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          enabled?: boolean
+          guild_id?: string
+          id?: string
+          message_id?: string | null
+          title?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       tickets: {
         Row: {
+          button_label: string | null
           category: string
           channel_id: string | null
           claimed_by: string | null
@@ -2864,17 +2947,25 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           created_at: string
+          dm_transcript_enabled: boolean
           form_answers: Json
           guild_id: string
           id: string
           opener_id: string
           opener_name: string | null
+          panel_button_id: string | null
+          panel_id: string | null
           status: string
           subject: string | null
+          support_role_ids: string[]
+          ticket_category_id: string | null
           ticket_number: number
+          transcript_channel_id: string | null
+          transcript_enabled: boolean
           updated_at: string
         }
         Insert: {
+          button_label?: string | null
           category?: string
           channel_id?: string | null
           claimed_by?: string | null
@@ -2882,17 +2973,25 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
+          dm_transcript_enabled?: boolean
           form_answers?: Json
           guild_id: string
           id?: string
           opener_id: string
           opener_name?: string | null
+          panel_button_id?: string | null
+          panel_id?: string | null
           status?: string
           subject?: string | null
+          support_role_ids?: string[]
+          ticket_category_id?: string | null
           ticket_number: number
+          transcript_channel_id?: string | null
+          transcript_enabled?: boolean
           updated_at?: string
         }
         Update: {
+          button_label?: string | null
           category?: string
           channel_id?: string | null
           claimed_by?: string | null
@@ -2900,14 +2999,21 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
+          dm_transcript_enabled?: boolean
           form_answers?: Json
           guild_id?: string
           id?: string
           opener_id?: string
           opener_name?: string | null
+          panel_button_id?: string | null
+          panel_id?: string | null
           status?: string
           subject?: string | null
+          support_role_ids?: string[]
+          ticket_category_id?: string | null
           ticket_number?: number
+          transcript_channel_id?: string | null
+          transcript_enabled?: boolean
           updated_at?: string
         }
         Relationships: [
