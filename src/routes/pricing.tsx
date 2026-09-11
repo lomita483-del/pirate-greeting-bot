@@ -36,6 +36,7 @@ const PLANS = [
     name: "Free crew",
     price: "$0",
     tagline: "Everything you need to get the bot sailing.",
+    highlight: false,
     perks: [
       "Custom commands and AutoMod",
       "Event logging and economy",
