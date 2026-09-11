@@ -408,6 +408,29 @@ class Repository:
             None,
         ) or []
 
+    async def active_ticket_panels(self) -> list[dict[str, Any]]:
+        """Every enabled panel — used to rebuild persistent views on startup."""
+        rows = await self.db.try_run(
+            lambda c: c.table("ticket_panels")
+            .select("*")
+            .eq("enabled", True)
+            .limit(500)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def active_ticket_panel_buttons(self) -> list[dict[str, Any]]:
+        """Every enabled panel button, ordered so views rebuild identically."""
+        rows = await self.db.try_run(
+            lambda c: c.table("ticket_panel_buttons")
+            .select("*")
+            .eq("enabled", True)
+            .order("position")
+            .limit(2000)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
     # -- reminders ----------------------------------------------------
     async def add_reminder(self, payload: dict[str, Any]) -> None:
         await self.db.run(lambda c: c.table("reminders").insert(payload).execute())
