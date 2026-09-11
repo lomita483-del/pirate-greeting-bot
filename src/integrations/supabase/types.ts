@@ -2408,6 +2408,7 @@ export type Database = {
           ticket_category_id: string | null
           ticket_panel_channel_id: string | null
           ticket_support_role_ids: string[]
+          ticket_transcript_channel_id: string | null
           ticket_transcripts_enabled: boolean
           ticket_welcome_message: string
           tickets_enabled: boolean
@@ -2434,6 +2435,7 @@ export type Database = {
           ticket_category_id?: string | null
           ticket_panel_channel_id?: string | null
           ticket_support_role_ids?: string[]
+          ticket_transcript_channel_id?: string | null
           ticket_transcripts_enabled?: boolean
           ticket_welcome_message?: string
           tickets_enabled?: boolean
@@ -2460,6 +2462,7 @@ export type Database = {
           ticket_category_id?: string | null
           ticket_panel_channel_id?: string | null
           ticket_support_role_ids?: string[]
+          ticket_transcript_channel_id?: string | null
           ticket_transcripts_enabled?: boolean
           ticket_welcome_message?: string
           tickets_enabled?: boolean
@@ -2799,6 +2802,59 @@ export type Database = {
           },
         ]
       }
+      ticket_panel_buttons: {
+        Row: {
+          category: string
+          category_channel_id: string | null
+          created_at: string
+          description: string | null
+          emoji: string | null
+          form_fields: Json
+          guild_id: string
+          id: string
+          label: string
+          style: string
+          support_role_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          category: string
+          category_channel_id?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          form_fields?: Json
+          guild_id: string
+          id?: string
+          label: string
+          style?: string
+          support_role_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          category_channel_id?: string | null
+          created_at?: string
+          description?: string | null
+          emoji?: string | null
+          form_fields?: Json
+          guild_id?: string
+          id?: string
+          label?: string
+          style?: string
+          support_role_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ticket_panel_buttons_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       tickets: {
         Row: {
           category: string
@@ -2808,6 +2864,7 @@ export type Database = {
           closed_at: string | null
           closed_by: string | null
           created_at: string
+          form_answers: Json
           guild_id: string
           id: string
           opener_id: string
@@ -2825,6 +2882,7 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
+          form_answers?: Json
           guild_id: string
           id?: string
           opener_id: string
@@ -2842,6 +2900,7 @@ export type Database = {
           closed_at?: string | null
           closed_by?: string | null
           created_at?: string
+          form_answers?: Json
           guild_id?: string
           id?: string
           opener_id?: string
@@ -2860,6 +2919,60 @@ export type Database = {
             referencedColumns: ["guild_id"]
           },
         ]
+      }
+      user_activity: {
+        Row: {
+          command_count: number
+          created_at: string
+          guild_id: string
+          last_command_at: string | null
+          last_command_name: string | null
+          last_message_at: string | null
+          last_message_channel_id: string | null
+          last_message_content: string | null
+          last_online_status: string | null
+          last_seen_at: string | null
+          last_voice_join_at: string | null
+          last_voice_leave_at: string | null
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          command_count?: number
+          created_at?: string
+          guild_id: string
+          last_command_at?: string | null
+          last_command_name?: string | null
+          last_message_at?: string | null
+          last_message_channel_id?: string | null
+          last_message_content?: string | null
+          last_online_status?: string | null
+          last_seen_at?: string | null
+          last_voice_join_at?: string | null
+          last_voice_leave_at?: string | null
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          command_count?: number
+          created_at?: string
+          guild_id?: string
+          last_command_at?: string | null
+          last_command_name?: string | null
+          last_message_at?: string | null
+          last_message_channel_id?: string | null
+          last_message_content?: string | null
+          last_online_status?: string | null
+          last_seen_at?: string | null
+          last_voice_join_at?: string | null
+          last_voice_leave_at?: string | null
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
       }
       user_reports: {
         Row: {
