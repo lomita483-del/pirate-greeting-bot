@@ -205,22 +205,33 @@ def _slugify(value: str) -> str:
     return (slug or "support")[:40]
 
 
+BUTTON_PREFIX = "ahoy:ticket:btn:"
+
+
 class MultiTicketPanel(discord.ui.View):
-    """Panel with one button per ticket topic — persistent via custom_id prefix."""
+    """Panel with one button per persisted ticket-panel button row.
+
+    The custom_id carries the database button ID, so the configuration
+    (category, roles, form, transcripts) is always looked up from the row
+    that the dashboard saved — never from the button's position or slug.
+    """
 
     def __init__(self, buttons: list[dict]) -> None:
         super().__init__(timeout=None)
-        for index, spec in enumerate(buttons[:20]):
+        for spec in buttons[:20]:
+            button_id = str(spec.get("id") or "")
+            if not button_id:
+                continue
             label = str(spec.get("label") or "Create a ticket")[:80]
-            category = _slugify(str(spec.get("category") or label))
-            style = BUTTON_STYLES.get(str(spec.get("style") or "primary"), discord.ButtonStyle.primary)
-            emoji = spec.get("emoji") or None
+            style = BUTTON_STYLES.get(
+                str(spec.get("style") or "primary"), discord.ButtonStyle.primary
+            )
             self.add_item(
                 discord.ui.Button(
                     label=label,
                     style=style,
-                    emoji=emoji,
-                    custom_id=f"ahoy:ticket:open:{index}:{category}",
+                    emoji=spec.get("emoji") or None,
+                    custom_id=f"{BUTTON_PREFIX}{button_id}",
                 )
             )
 
@@ -232,8 +243,9 @@ async def post_ticket_panel(
     description: str | None,
     button_label: str | None,
     buttons: list[dict] | None = None,
+    created_by: str | None = None,
 ) -> discord.Message:
-    """Post the public ticket panel — used by the dashboard action queue."""
+    """Persist the panel, then post it — used by the dashboard action queue."""
     specs = [b for b in (buttons or []) if isinstance(b, dict) and b.get("label")]
 
     embed = embeds.brand(
@@ -249,14 +261,30 @@ async def post_ticket_panel(
             view.children[0].label = button_label[:80]  # type: ignore[attr-defined]
         return await channel.send(embed=embed, view=view)
 
-    for spec in specs[:20]:
+    from ..services.ticket_panel_service import TicketPanelService
+
+    service = getattr(bot, "ticket_panels", None) or TicketPanelService(bot)
+    saved = await service.create_panel(
+        str(channel.guild.id),
+        str(channel.id),
+        title,
+        description,
+        created_by,
+        specs,
+    )
+    rows = saved["buttons"]
+
+    for spec in rows:
         if spec.get("description"):
             embed.add_field(
                 name=f"{spec.get('emoji') or '🎫'} {str(spec['label'])[:80]}",
                 value=str(spec["description"])[:1024],
                 inline=False,
             )
-    return await channel.send(embed=embed, view=MultiTicketPanel(specs))
+
+    message = await channel.send(embed=embed, view=MultiTicketPanel(rows))
+    await service.set_message_id(saved["panel"]["id"], str(message.id))
+    return message
 
 
 class TicketOpener(discord.ui.View):
