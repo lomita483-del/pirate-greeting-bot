@@ -90,7 +90,7 @@ function LandingPage() {
         <AhoyWordmark subtitle="Control Center" />
         <div className="flex items-center gap-2">
           <Button asChild size="sm" variant="outline">
-            <a href="/api/public/invite">Invite !PIRATE</a>
+            <a href="/api/public/invite">Invite !HOY BOT </a>
           </Button>
           {signedIn ? (
             <Button asChild size="sm">
@@ -115,7 +115,7 @@ function LandingPage() {
             Command your Discord server from <span className="text-tide">one helm</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
-            One bot, two decks: run moderation, AutoMod, levels, economy and tickets from !PIRATE's
+            One bot, two decks: run moderation, AutoMod, levels, economy and tickets from !HOY BOT 
             control center, or dive into Statahoy for live message, voice and member analytics.
           </p>
         </section>
@@ -130,7 +130,7 @@ function LandingPage() {
                 <h2 className="mt-4 text-2xl font-semibold">Server control center</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                   Moderation, AutoMod, welcome messages, tickets, custom commands and every setting
-                  !PIRATE runs on — configured live, saved straight to your database.
+                  !HOY BOT  runs on — configured live, saved straight to your database.
                 </p>
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
@@ -180,7 +180,7 @@ function LandingPage() {
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/stathoy">Enter Statahoy</Link>
+                  <Link to="/stathoy">Enter Stathoy</Link>
                 </Button>
               </div>
             </div>
