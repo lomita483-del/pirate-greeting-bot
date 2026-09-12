@@ -45,17 +45,17 @@ import { getAdminContext, getAdminOverview } from "@/lib/admin.functions";
 export const Route = createFileRoute("/owner-console")({
   head: () => ({
     meta: [
-      { title: "Owner Console — AHOY BOT" },
+      { title: "ADMIN Console — ! HOY BOT" },
       {
         name: "description",
         content:
-          "AHOY BOT command center for platform administration, monitoring, users, servers and moderation.",
+          "! HOY BOT command center for platform administration, monitoring, users, servers and moderation.",
       },
       { property: "og:title", content: "Owner Console — AHOY BOT" },
       {
         property: "og:description",
         content:
-          "Platform command center for monitoring and managing the AHOY BOT ecosystem.",
+          "Platform command center for monitoring and managing the ! HOY BOT ecosystem.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
@@ -115,7 +115,7 @@ function AdminConsole() {
 
   if (!context.role) {
     return (
-      <Gate title="Owner console">
+      <Gate title="ADMIN CONSOLE">
         <p className="max-w-md text-sm leading-6 text-white/50">
           This command center is restricted to authorized AHOY platform
           administrators.
