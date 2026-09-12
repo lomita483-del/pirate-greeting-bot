@@ -386,10 +386,6 @@ export function TicketPanelPublisher({
               label:
                 button.label.trim(),
 
-              description:
-                button.description.trim() ||
-                undefined,
-
               emoji:
                 button.emoji.trim() ||
                 undefined,
