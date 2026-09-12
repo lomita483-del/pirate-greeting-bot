@@ -115,7 +115,7 @@ function LandingPage() {
             Command your Discord server from <span className="text-tide">one helm</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-pretty text-base text-muted-foreground md:text-lg">
-            One bot, two decks: run moderation, AutoMod, levels, economy and tickets from !HOY BOT 
+            One bot, multiple decks: run moderation, AutoMod, levels, economy, sync calendar features, events, server stat and tickets from !HOY BOT 
             control center, or dive into Statahoy for live message, voice and member analytics.
           </p>
         </section>
