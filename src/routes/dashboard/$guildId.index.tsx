@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, BarChart3, FileText, Gauge, Shield, ShieldAlert } from "lucide-react";
+import { Activity, ArrowRight, BarChart3, FileText, Gauge, Shield, ShieldAlert } from "lucide-react";
 
 import { useGuild } from "@/components/dashboard/guild-context";
 import { ModuleHeader } from "@/components/dashboard/module-page";
@@ -112,9 +112,19 @@ function GuildHome() {
 
       <Card className="glass mt-8 border-0">
         <CardContent className="space-y-3 pt-6">
-          <h2 className="flex items-center gap-2 text-lg font-semibold">
-            <Activity className="h-4 w-4 text-primary" /> Recent moderation
-          </h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-semibold">
+              <Activity className="h-4 w-4 text-primary" /> Recent moderation
+            </h2>
+
+            <Button asChild size="sm" variant="ghost" className="gap-1">
+              <Link to="/dashboard/$guildId/moderation" params={{ guildId }}>
+                View all
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          </div>
+
           {overview && overview.recent.length > 0 ? (
             <ul className="space-y-2">
               {overview.recent.map((entry, index) => (
