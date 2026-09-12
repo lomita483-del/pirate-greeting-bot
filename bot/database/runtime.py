@@ -7,19 +7,22 @@ from .client import Database
 
 
 async def bot_runtime_start(db: Database, instance_id: str) -> Optional[dict]:
+    """Start a new persisted runtime session for the live bot process."""
     if not db.connected:
         return None
+
     now = datetime.now(timezone.utc).isoformat()
     result = await db.try_run(
         lambda c: c.table("bot_runtime")
         .upsert(
             {
+                "id": "primary",
                 "instance_id": instance_id,
                 "started_at": now,
-                "last_heartbeat_at": now,
-                "status": "online",
+                "heartbeat_at": now,
+                "stopped_at": None,
             },
-            on_conflict="instance_id",
+            on_conflict="id",
         )
         .execute(),
         default=None,
@@ -28,26 +31,30 @@ async def bot_runtime_start(db: Database, instance_id: str) -> Optional[dict]:
 
 
 async def bot_runtime_heartbeat(db: Database, instance_id: str) -> None:
+    """Refresh the heartbeat while this bot process is alive."""
     if not db.connected:
         return
+
     now = datetime.now(timezone.utc).isoformat()
     await db.try_run(
         lambda c: c.table("bot_runtime")
-        .update({"last_heartbeat_at": now, "status": "online"})
-        .eq("instance_id", instance_id)
+        .update({"heartbeat_at": now, "stopped_at": None, "instance_id": instance_id})
+        .eq("id", "primary")
         .execute(),
         default=None,
     )
 
 
 async def bot_runtime_stop(db: Database, instance_id: str) -> None:
+    """Mark the persisted runtime session offline during graceful shutdown."""
     if not db.connected:
         return
+
     now = datetime.now(timezone.utc).isoformat()
     await db.try_run(
         lambda c: c.table("bot_runtime")
-        .update({"last_heartbeat_at": now, "status": "offline"})
-        .eq("instance_id", instance_id)
+        .update({"heartbeat_at": now, "stopped_at": now, "instance_id": instance_id})
+        .eq("id", "primary")
         .execute(),
         default=None,
     )
