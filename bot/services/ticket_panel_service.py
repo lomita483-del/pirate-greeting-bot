@@ -359,19 +359,21 @@ class TicketPanelService:
         self,
         ticket: dict[str, Any],
     ) -> str:
+        kind = (
+            ticket.get("button_label")
+            or ticket.get("category")
+            or "Support"
+        )
+
+        opener = (
+            ticket.get("opener_name")
+            or ticket.get("opener_id")
+        )
+
         lines = [
             f"Ticket #{ticket.get('ticket_number')}",
-            (
-                "Type: "
-                f"{ticket.get('button_label') "
-                "or ticket.get('category') "
-                "or 'Support'}"
-            ),
-            (
-                "Opened by: "
-                f"{ticket.get('opener_name') "
-                "or ticket.get('opener_id')}"
-            ),
+            f"Type: {kind}",
+            f"Opened by: {opener}",
             "",
         ]
 
