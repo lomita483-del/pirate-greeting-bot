@@ -573,10 +573,13 @@ export function GeneralPanel({
               defaultChannelId={
                 draft.ticket_panel_channel_id
               }
-              defaultTranscriptChannelId={
+              transcriptsEnabled={
+                draft.ticket_transcripts_enabled
+              }
+              transcriptChannelId={
                 draft.ticket_transcript_channel_id
               }
-              defaultDmTranscriptEnabled={
+              dmTranscriptEnabled={
                 draft.ticket_dm_transcript_enabled
               }
             />
