@@ -362,7 +362,7 @@ export function TicketPanelPublisher({
       const button = clean[index];
 
       if (
-        button.formQuestions.some(
+        button?.formQuestions.some(
           (question) =>
             !question.label.trim(),
         )
