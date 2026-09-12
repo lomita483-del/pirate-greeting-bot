@@ -908,7 +908,13 @@ async def post_ticket_panel(
     buttons: list[dict] | None = None,
     created_by: str | None = None,
 ) -> discord.Message:
-    """Persist and post a dashboard-created ticket panel."""
+    """Persist and post a dashboard-created ticket panel.
+
+    The panel embed only ever shows the one shared `description` above —
+    buttons no longer carry their own embed description, so nothing is
+    appended here per-button. Each button's label/emoji on the button
+    itself is enough context for what it's for.
+    """
 
     specs = [
         button
@@ -972,23 +978,6 @@ async def post_ticket_panel(
         "buttons",
         [],
     )
-
-    for spec in rows:
-        if spec.get(
-            "description"
-        ):
-            embed.add_field(
-                name=(
-                    f"{spec.get('emoji') or '🎫'} "
-                    f"{str(spec.get('label') or '')[:80]}"
-                ),
-                value=str(
-                    spec.get(
-                        "description"
-                    )
-                )[:1024],
-                inline=False,
-            )
 
     message = await channel.send(
         embed=embed,
@@ -1284,40 +1273,22 @@ class Tickets(commands.Cog):
         if required_permission not in VALID_PERMISSIONS:
             required_permission = "everyone"
 
-        transcript_enabled = (
-            (button or {}).get(
-                "transcript_enabled"
-            )
+        # Transcripts: one server-wide configuration, no per-button
+        # override anymore. Every ticket, regardless of which button
+        # opened it, uses these same three settings.
+        transcript_enabled = settings.get(
+            "ticket_transcripts_enabled",
+            True,
         )
 
-        if transcript_enabled is None:
-            transcript_enabled = settings.get(
-                "ticket_transcripts_enabled",
-                True,
-            )
-
-        transcript_channel_id = (
-            (button or {}).get(
-                "transcript_channel_id"
-            )
+        transcript_channel_id = settings.get(
+            "ticket_transcript_channel_id"
         )
 
-        if not transcript_channel_id:
-            transcript_channel_id = settings.get(
-                "ticket_transcript_channel_id"
-            )
-
-        dm_transcript_enabled = (
-            (button or {}).get(
-                "dm_transcript_enabled"
-            )
+        dm_transcript_enabled = settings.get(
+            "ticket_dm_transcript_enabled",
+            False,
         )
-
-        if dm_transcript_enabled is None:
-            dm_transcript_enabled = settings.get(
-                "ticket_dm_transcript_enabled",
-                False,
-            )
 
         button_id = (
             str(
