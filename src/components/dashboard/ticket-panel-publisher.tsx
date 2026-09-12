@@ -431,13 +431,11 @@ export function TicketPanelPublisher({
                 ),
 
               transcriptEnabled:
-                button.transcriptEnabled,
+                transcriptsEnabled,
 
-              transcriptChannelId:
-                button.transcriptChannelId,
+              transcriptChannelId: null,
 
-              dmTranscriptEnabled:
-                button.dmTranscriptEnabled,
+              dmTranscriptEnabled,
             }),
           ),
         },
