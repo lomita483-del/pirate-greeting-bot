@@ -123,10 +123,6 @@ function makeQuestion(index: number): Question {
 function makeButton(index: number): PanelButton {
   return {
     label: index === 0 ? "General support" : "",
-    description:
-      index === 0
-        ? "Questions, help and anything else the crew can answer."
-        : "",
     emoji: index === 1 ? "🚩" : "🎫",
     style: index === 1 ? "danger" : "primary",
 
@@ -139,10 +135,6 @@ function makeButton(index: number): PanelButton {
     requiredPermission: "everyone",
 
     formQuestions: [],
-
-    transcriptEnabled: true,
-    transcriptChannelId: null,
-    dmTranscriptEnabled: false,
   };
 }
 
