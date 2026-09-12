@@ -2939,6 +2939,8 @@ export type Database = {
       }
       tickets: {
         Row: {
+          access_role_ids: string[]
+          button_id: string | null
           button_label: string | null
           category: string
           channel_id: string | null
@@ -2955,6 +2957,7 @@ export type Database = {
           opener_name: string | null
           panel_button_id: string | null
           panel_id: string | null
+          required_permission: string
           status: string
           subject: string | null
           support_role_ids: string[]
@@ -2965,6 +2968,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          access_role_ids?: string[]
+          button_id?: string | null
           button_label?: string | null
           category?: string
           channel_id?: string | null
@@ -2981,6 +2986,7 @@ export type Database = {
           opener_name?: string | null
           panel_button_id?: string | null
           panel_id?: string | null
+          required_permission?: string
           status?: string
           subject?: string | null
           support_role_ids?: string[]
@@ -2991,6 +2997,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          access_role_ids?: string[]
+          button_id?: string | null
           button_label?: string | null
           category?: string
           channel_id?: string | null
@@ -3007,6 +3015,7 @@ export type Database = {
           opener_name?: string | null
           panel_button_id?: string | null
           panel_id?: string | null
+          required_permission?: string
           status?: string
           subject?: string | null
           support_role_ids?: string[]
