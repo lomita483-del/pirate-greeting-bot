@@ -43,7 +43,6 @@ type Question = {
 
 type PanelButton = {
   label: string;
-  description: string;
   emoji: string;
   style: "primary" | "secondary" | "success" | "danger";
 
@@ -60,10 +59,6 @@ type PanelButton = {
     | "administrator";
 
   formQuestions: Question[];
-
-  transcriptEnabled: boolean;
-  transcriptChannelId: string | null;
-  dmTranscriptEnabled: boolean;
 };
 
 const STYLES: Array<{
@@ -128,10 +123,6 @@ function makeQuestion(index: number): Question {
 function makeButton(index: number): PanelButton {
   return {
     label: index === 0 ? "General support" : "",
-    description:
-      index === 0
-        ? "Questions, help and anything else the crew can answer."
-        : "",
     emoji: index === 1 ? "🚩" : "🎫",
     style: index === 1 ? "danger" : "primary",
 
@@ -144,10 +135,6 @@ function makeButton(index: number): PanelButton {
     requiredPermission: "everyone",
 
     formQuestions: [],
-
-    transcriptEnabled: true,
-    transcriptChannelId: null,
-    dmTranscriptEnabled: false,
   };
 }
 
@@ -157,16 +144,18 @@ export function TicketPanelPublisher({
   categories,
   roles,
   defaultChannelId,
-  defaultTranscriptChannelId,
-  defaultDmTranscriptEnabled,
+  transcriptsEnabled,
+  transcriptChannelId,
+  dmTranscriptEnabled,
 }: {
   guildId: string;
   channels: Option[];
   categories: Option[];
   roles: Option[];
   defaultChannelId: string | null;
-  defaultTranscriptChannelId: string | null;
-  defaultDmTranscriptEnabled: boolean;
+  transcriptsEnabled: boolean;
+  transcriptChannelId: string | null;
+  dmTranscriptEnabled: boolean;
 }) {
   const post = useServerFn(postTicketPanel);
 
@@ -175,19 +164,6 @@ export function TicketPanelPublisher({
       defaultChannelId,
     );
 
-  const [
-    transcriptChannelId,
-    setTranscriptChannelId,
-  ] = useState<string | null>(
-    defaultTranscriptChannelId,
-  );
-
-  const [
-    dmTranscriptEnabled,
-    setDmTranscriptEnabled,
-  ] = useState(
-    defaultDmTranscriptEnabled,
-  );
 
   const [title, setTitle] =
     useState("Need a hand?");
@@ -399,10 +375,6 @@ export function TicketPanelPublisher({
               label:
                 button.label.trim(),
 
-              description:
-                button.description.trim() ||
-                undefined,
-
               emoji:
                 button.emoji.trim() ||
                 undefined,
@@ -448,13 +420,11 @@ export function TicketPanelPublisher({
                 ),
 
               transcriptEnabled:
-                button.transcriptEnabled,
+                transcriptsEnabled,
 
-              transcriptChannelId:
-                button.transcriptChannelId,
+              transcriptChannelId: null,
 
-              dmTranscriptEnabled:
-                button.dmTranscriptEnabled,
+              dmTranscriptEnabled,
             }),
           ),
         },
@@ -752,28 +722,6 @@ export function TicketPanelPublisher({
                       </Button>
                     </div>
 
-                    <Field label="Description shown in the embed">
-                      <Input
-                        value={
-                          button.description
-                        }
-                        maxLength={200}
-                        placeholder="What this ticket type is for"
-                        onChange={(
-                          event,
-                        ) =>
-                          updateButton(
-                            index,
-                            {
-                              description:
-                                event
-                                  .target
-                                  .value,
-                            },
-                          )
-                        }
-                      />
-                    </Field>
 
                     <div className="rounded-xl border border-border/60 p-4">
                       <p className="mb-4 text-sm font-semibold">
@@ -1133,77 +1081,6 @@ export function TicketPanelPublisher({
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-border/60 p-4">
-                      <p className="mb-4 text-sm font-semibold">
-                        Transcripts
-                      </p>
-
-                      <div className="space-y-4">
-                        <ToggleRow
-                          label="Save transcript"
-                          description="Generate a transcript when this ticket is closed."
-                          checked={
-                            button.transcriptEnabled
-                          }
-                          onChange={(
-                            value,
-                          ) =>
-                            updateButton(
-                              index,
-                              {
-                                transcriptEnabled:
-                                  value,
-                              },
-                            )
-                          }
-                        />
-
-                        <Field
-                          label="Transcript channel"
-                          hint="Leave unset to use the panel/server default."
-                        >
-                          <PickerSelect
-                            value={
-                              button.transcriptChannelId
-                            }
-                            options={
-                              channels
-                            }
-                            onChange={(
-                              value,
-                            ) =>
-                              updateButton(
-                                index,
-                                {
-                                  transcriptChannelId:
-                                    value,
-                                },
-                              )
-                            }
-                            placeholder="Use default transcript channel"
-                          />
-                        </Field>
-
-                        <ToggleRow
-                          label="DM transcript to ticket owner"
-                          description="Send the completed transcript to the member who opened this ticket."
-                          checked={
-                            button.dmTranscriptEnabled
-                          }
-                          onChange={(
-                            value,
-                          ) =>
-                            updateButton(
-                              index,
-                              {
-                                dmTranscriptEnabled:
-                                  value,
-                              },
-                            )
-                          }
-                        />
-                      </div>
-                    </div>
                   </div>
                 )}
               </div>
