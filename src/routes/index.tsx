@@ -180,7 +180,7 @@ function LandingPage() {
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="lg">
-                  <Link to="/stathoy">Enter Stathoy</Link>
+                  <Link to="/statahoy">Enter Stathoy</Link>
                 </Button>
               </div>
             </div>

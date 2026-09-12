@@ -495,14 +495,17 @@ class TicketPanelService:
                     channel,
                     discord.TextChannel,
                 ):
+                    kind = (
+                        ticket.get("button_label")
+                        or ticket.get("category")
+                        or "Support"
+                    )
+
                     await channel.send(
                         content=(
                             "📄 **Ticket transcript**\n"
                             f"Ticket: `#{ticket.get('ticket_number')}`\n"
-                            "Type: "
-                            f"`{ticket.get('button_label') "
-                            "or ticket.get('category') "
-                            "or 'Support'}`\n"
+                            f"Type: `{kind}`\n"
                             "Opened by: "
                             f"<@{ticket.get('opener_id')}>"
                         ),
