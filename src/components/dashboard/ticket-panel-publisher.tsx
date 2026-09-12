@@ -144,16 +144,18 @@ export function TicketPanelPublisher({
   categories,
   roles,
   defaultChannelId,
-  defaultTranscriptChannelId,
-  defaultDmTranscriptEnabled,
+  transcriptsEnabled,
+  transcriptChannelId,
+  dmTranscriptEnabled,
 }: {
   guildId: string;
   channels: Option[];
   categories: Option[];
   roles: Option[];
   defaultChannelId: string | null;
-  defaultTranscriptChannelId: string | null;
-  defaultDmTranscriptEnabled: boolean;
+  transcriptsEnabled: boolean;
+  transcriptChannelId: string | null;
+  dmTranscriptEnabled: boolean;
 }) {
   const post = useServerFn(postTicketPanel);
 
@@ -162,19 +164,6 @@ export function TicketPanelPublisher({
       defaultChannelId,
     );
 
-  const [
-    transcriptChannelId,
-    setTranscriptChannelId,
-  ] = useState<string | null>(
-    defaultTranscriptChannelId,
-  );
-
-  const [
-    dmTranscriptEnabled,
-    setDmTranscriptEnabled,
-  ] = useState(
-    defaultDmTranscriptEnabled,
-  );
 
   const [title, setTitle] =
     useState("Need a hand?");
