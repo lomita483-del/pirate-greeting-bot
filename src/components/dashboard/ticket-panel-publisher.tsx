@@ -164,7 +164,6 @@ export function TicketPanelPublisher({
       defaultChannelId,
     );
 
-
   const [title, setTitle] =
     useState("Need a hand?");
 
@@ -445,19 +444,7 @@ export function TicketPanelPublisher({
   }
 
   return (
-    <div className="space-y-5 rounded-xl border border-border/70 bg-surface-2/40 p-4">
-      <div>
-        <p className="text-sm font-semibold">
-          Post a ticket panel
-        </p>
-
-        <p className="mt-1 text-xs text-muted-foreground">
-          Every button can now have its own
-          category, staff roles, access rules,
-          form and transcript settings.
-        </p>
-      </div>
-
+    <div className="space-y-5">
       <div className="grid gap-4 md:grid-cols-2">
         <Field label="Post to channel">
           <PickerSelect
@@ -493,45 +480,6 @@ export function TicketPanelPublisher({
           maxLength={2000}
         />
       </Field>
-
-      <div className="rounded-xl border border-border/60 bg-background/30 p-4">
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-semibold">
-              Default transcript settings
-            </p>
-
-            <p className="text-xs text-muted-foreground">
-              These are used when a button does
-              not have its own transcript destination.
-            </p>
-          </div>
-
-          <Field label="Transcript channel">
-            <PickerSelect
-              value={
-                transcriptChannelId
-              }
-              options={channels}
-              onChange={
-                setTranscriptChannelId
-              }
-              placeholder="Select transcript channel"
-            />
-          </Field>
-
-          <ToggleRow
-            label="DM transcript to ticket owner"
-            description="Send the closed ticket transcript to the member's Discord DM."
-            checked={
-              dmTranscriptEnabled
-            }
-            onChange={
-              setDmTranscriptEnabled
-            }
-          />
-        </div>
-      </div>
 
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -721,7 +669,6 @@ export function TicketPanelPublisher({
                         <Trash2 className="size-4 text-destructive" />
                       </Button>
                     </div>
-
 
                     <div className="rounded-xl border border-border/60 p-4">
                       <p className="mb-4 text-sm font-semibold">
@@ -1080,7 +1027,6 @@ export function TicketPanelPublisher({
                         )}
                       </div>
                     </div>
-
                   </div>
                 )}
               </div>
