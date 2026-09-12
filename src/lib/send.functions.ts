@@ -184,6 +184,13 @@ export const deleteEmbedTemplate = createServerFn({
 
 /* ---------------------------------------------------------------- */
 /* Ticket panel                                                      */
+/*                                                                    */
+/* There is exactly one transcript configuration for a server — the  */
+/* "Global transcript settings" in the Tickets card — used by every   */
+/* button and the legacy /ticket command alike. Buttons no longer     */
+/* carry their own transcript override, and no longer carry their own */
+/* embed description; the panel's single description (below) is the  */
+/* only description ever shown.                                       */
 /* ---------------------------------------------------------------- */
 
 const snowflake = z
@@ -215,11 +222,6 @@ const ticketPanelButton = z.object({
     .min(1)
     .max(80),
 
-  description: z
-    .string()
-    .max(200)
-    .optional(),
-
   emoji: z
     .string()
     .max(8)
@@ -236,7 +238,8 @@ const ticketPanelButton = z.object({
 
   /*
    * Exact Discord category ID where this button's
-   * tickets must be created.
+   * tickets must be created. Always overrides the
+   * server's default ticket category for this button.
    */
   categoryId: snowflake
     .nullable()
@@ -286,30 +289,6 @@ const ticketPanelButton = z.object({
     .array(ticketFormQuestion)
     .max(5)
     .default([]),
-
-  /*
-   * Whether a transcript should be generated
-   * when this ticket is closed.
-   */
-  transcriptEnabled: z
-    .boolean()
-    .default(true),
-
-  /*
-   * Button-specific transcript channel.
-   * null means use the global transcript channel.
-   */
-  transcriptChannelId: snowflake
-    .nullable()
-    .optional(),
-
-  /*
-   * Whether the completed transcript should also
-   * be sent to the ticket owner's Discord DM.
-   */
-  dmTranscriptEnabled: z
-    .boolean()
-    .default(false),
 });
 
 const ticketPanelPayload = z.object({
@@ -328,14 +307,14 @@ const ticketPanelPayload = z.object({
     .optional(),
 
   /*
-   * Global/default transcript destination.
+   * Global transcript destination — the only one there is.
    */
   transcriptChannelId: snowflake
     .nullable()
     .optional(),
 
   /*
-   * Global/default DM transcript setting.
+   * Global DM-transcript setting — the only one there is.
    */
   dmTranscriptEnabled: z
     .boolean()
@@ -360,7 +339,8 @@ export const postTicketPanel = createServerFn({
     } = await authorize(data.guildId);
 
     /*
-     * Save the global/default transcript settings.
+     * Save the one and only transcript configuration
+     * for this server.
      */
     const {
       error: settingsError,
@@ -407,8 +387,10 @@ export const postTicketPanel = createServerFn({
      * 5. display the correct Discord modal
      * 6. save the submitted form answers
      * 7. send the support-role mention
-     * 8. use the selected transcript channel
-     * 9. DM the ticket owner when enabled
+     *
+     * Transcript delivery (channel + DM) always uses the
+     * server-wide settings saved just above — buttons no
+     * longer carry their own transcript override.
      */
     const payload = {
       channel_id: data.channelId,
@@ -438,10 +420,6 @@ export const postTicketPanel = createServerFn({
 
           label:
             button.label.trim(),
-
-          description:
-            button.description?.trim() ||
-            null,
 
           emoji:
             button.emoji?.trim() ||
@@ -511,23 +489,6 @@ export const postTicketPanel = createServerFn({
                 style:
                   question.style,
               }),
-            ),
-
-          /*
-           * Transcript configuration.
-           */
-          transcript_enabled:
-            Boolean(
-              button.transcriptEnabled,
-            ),
-
-          transcript_channel_id:
-            button.transcriptChannelId ??
-            null,
-
-          dm_transcript_enabled:
-            Boolean(
-              button.dmTranscriptEnabled,
             ),
 
           enabled: true,
