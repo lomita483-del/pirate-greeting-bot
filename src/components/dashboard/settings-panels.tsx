@@ -390,7 +390,12 @@ export function GeneralPanel({
       </Card>
 
       {/* ============================================================
-          TICKETS
+          TICKETS — one card, one flow. "Default ticket category" and
+          "Default support roles" below are only the fallback for the
+          legacy /ticket command; every panel button's own "Discord
+          ticket category" and support roles (further down) always win
+          over these for that button. There is exactly one transcript
+          configuration for the whole server, used by every button.
           ============================================================ */}
 
       <Card className="glass border-0">
@@ -416,7 +421,7 @@ export function GeneralPanel({
           <div className="grid gap-5 md:grid-cols-2">
             <Field
               label="Default ticket category"
-              hint="Used only by legacy/general tickets and buttons without their own category."
+              hint="Fallback only — used by the legacy /ticket command and any button left without its own category."
             >
               <PickerSelect
                 value={
@@ -456,7 +461,7 @@ export function GeneralPanel({
 
           <Field
             label="Default support roles"
-            hint="Used by legacy/general tickets. Per-button support roles override this."
+            hint="Fallback only — each button's own support roles (further down) always override this for that button."
           >
             <MultiPicker
               values={
@@ -492,7 +497,7 @@ export function GeneralPanel({
 
           <ToggleRow
             label="Save transcripts"
-            description="Generate and save a transcript when a ticket is closed."
+            description="Generate and save a transcript when any ticket is closed — applies to every button, there's no per-button override."
             checked={
               draft.ticket_transcripts_enabled
             }
@@ -504,57 +509,42 @@ export function GeneralPanel({
             }
           />
 
-          <div className="rounded-xl border border-border/60 bg-background/30 p-4">
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm font-semibold">
-                  Global transcript settings
-                </p>
-
-                <p className="text-xs text-muted-foreground">
-                  These settings are the fallback
-                  for ticket buttons that do not
-                  specify their own transcript
-                  destination.
-                </p>
-              </div>
-
-              <Field
-                label="Transcript channel"
-                hint="All ticket transcripts can be sent here unless a button has its own transcript channel."
-              >
-                <PickerSelect
-                  value={
-                    draft.ticket_transcript_channel_id
-                  }
-                  options={
-                    channels
-                  }
-                  onChange={(v) =>
-                    set(
-                      "ticket_transcript_channel_id",
-                      v,
-                    )
-                  }
-                  placeholder="Select transcript channel"
-                />
-              </Field>
-
-              <ToggleRow
-                label="DM transcript to ticket owner"
-                description="Send the closed ticket transcript to the member who opened the ticket."
-                checked={
-                  draft.ticket_dm_transcript_enabled
+          <div className="grid gap-5 md:grid-cols-2">
+            <Field
+              label="Transcript channel"
+              hint="Every closed ticket's transcript is sent here, regardless of which button opened it."
+            >
+              <PickerSelect
+                value={
+                  draft.ticket_transcript_channel_id
+                }
+                options={
+                  channels
                 }
                 onChange={(v) =>
                   set(
-                    "ticket_dm_transcript_enabled",
+                    "ticket_transcript_channel_id",
                     v,
                   )
                 }
+                placeholder="Select transcript channel"
               />
-            </div>
+            </Field>
           </div>
+
+          <ToggleRow
+            label="DM transcript to ticket owner"
+            description="Also send the closed ticket's transcript to the Discord DM of whoever opened it."
+            checked={
+              draft.ticket_dm_transcript_enabled
+            }
+            onChange={(v) =>
+              set(
+                "ticket_dm_transcript_enabled",
+                v,
+              )
+            }
+          />
 
           <PremiumGate feature="tickets">
             <TicketPanelPublisher
@@ -572,9 +562,6 @@ export function GeneralPanel({
               }
               defaultChannelId={
                 draft.ticket_panel_channel_id
-              }
-              transcriptsEnabled={
-                draft.ticket_transcripts_enabled
               }
               transcriptChannelId={
                 draft.ticket_transcript_channel_id
