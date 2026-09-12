@@ -739,28 +739,6 @@ export function TicketPanelPublisher({
                       </Button>
                     </div>
 
-                    <Field label="Description shown in the embed">
-                      <Input
-                        value={
-                          button.description
-                        }
-                        maxLength={200}
-                        placeholder="What this ticket type is for"
-                        onChange={(
-                          event,
-                        ) =>
-                          updateButton(
-                            index,
-                            {
-                              description:
-                                event
-                                  .target
-                                  .value,
-                            },
-                          )
-                        }
-                      />
-                    </Field>
 
                     <div className="rounded-xl border border-border/60 p-4">
                       <p className="mb-4 text-sm font-semibold">
