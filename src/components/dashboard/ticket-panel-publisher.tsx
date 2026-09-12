@@ -43,7 +43,6 @@ type Question = {
 
 type PanelButton = {
   label: string;
-  description: string;
   emoji: string;
   style: "primary" | "secondary" | "success" | "danger";
 
@@ -60,10 +59,6 @@ type PanelButton = {
     | "administrator";
 
   formQuestions: Question[];
-
-  transcriptEnabled: boolean;
-  transcriptChannelId: string | null;
-  dmTranscriptEnabled: boolean;
 };
 
 const STYLES: Array<{
