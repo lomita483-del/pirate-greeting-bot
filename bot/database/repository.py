@@ -1560,5 +1560,195 @@ class Repository:
             lambda c: c.table("servers").update(values).eq("guild_id", guild_id).execute()
         )
 
+    # -- roll calls ---------------------------------------------------
+    async def create_roll_call(self, payload: dict[str, Any]) -> dict[str, Any]:
+        rows = await self.db.try_run(lambda c: c.table("roll_calls").insert(payload).execute())
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def set_roll_call_message(self, roll_call_id: str, message_id: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .update({"message_id": message_id})
+            .eq("id", roll_call_id)
+            .execute()
+        )
+
+    async def roll_call_by_message(self, message_id: str) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("message_id", message_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
+
+    async def roll_call(self, roll_call_id: str) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls").select("*").eq("id", roll_call_id).limit(1).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
+
+    async def add_roll_call_response(
+        self, roll_call_id: str, guild_id: str, user_id: str, username: str
+    ) -> bool:
+        """Record a ✅ Present click. Returns False when already recorded."""
+        existing = await self.db.try_run(
+            lambda c: c.table("roll_call_responses")
+            .select("id")
+            .eq("roll_call_id", roll_call_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if getattr(existing, "data", None):
+            return False
+        await self.db.try_run(
+            lambda c: c.table("roll_call_responses")
+            .insert(
+                {
+                    "roll_call_id": roll_call_id,
+                    "guild_id": guild_id,
+                    "user_id": user_id,
+                    "username": username,
+                }
+            )
+            .execute()
+        )
+        return True
+
+    async def roll_call_responses(self, roll_call_id: str) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_call_responses")
+            .select("*")
+            .eq("roll_call_id", roll_call_id)
+            .limit(2000)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def open_roll_calls(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("status", "open")
+            .limit(500)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def due_roll_calls(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("status", "open")
+            .not_.is_("closes_at", "null")
+            .lte("closes_at", _now())
+            .limit(50)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def close_roll_call(self, roll_call_id: str, results: dict[str, Any]) -> None:
+        await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .update({"status": "closed", "closed_at": _now(), "results": results})
+            .eq("id", roll_call_id)
+            .execute()
+        )
+
+    async def recent_roll_calls(self, guild_id: str, limit: int = 25) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def get_roll_call_streak(self, guild_id: str, user_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_call_streaks")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def bump_roll_call_streak(self, guild_id: str, user_id: str) -> dict[str, Any]:
+        """Extend a daily check-in streak; a skipped day resets it to 1."""
+        today = datetime.now(timezone.utc).date()
+        current = await self.get_roll_call_streak(guild_id, user_id)
+        last_day = current.get("last_checked_in_day")
+        streak = int(current.get("current_streak") or 0)
+
+        if last_day:
+            try:
+                previous = datetime.fromisoformat(str(last_day)).date()
+            except ValueError:
+                previous = None
+            if previous == today:
+                return current
+            if previous and (today - previous).days == 1:
+                streak += 1
+            else:
+                streak = 1
+        else:
+            streak = 1
+
+        longest = max(int(current.get("longest_streak") or 0), streak)
+        payload = {
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "current_streak": streak,
+            "longest_streak": longest,
+            "last_checked_in_at": _now(),
+            "last_checked_in_day": today.isoformat(),
+        }
+        await self.db.try_run(
+            lambda c: c.table("roll_call_streaks")
+            .upsert(payload, on_conflict="guild_id,user_id")
+            .execute()
+        )
+        return payload
+
+    async def roll_call_streak_leaderboard(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_call_streaks")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("current_streak", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def daily_roll_call_guilds(self) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("server_settings")
+            .select("guild_id, rollcall_enabled, rollcall_daily_enabled, rollcall_daily_time, rollcall_channel_id, rollcall_daily_last_posted_day, rollcall_manager_roles")
+            .eq("rollcall_enabled", True)
+            .eq("rollcall_daily_enabled", True)
+            .limit(500)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def mark_daily_roll_call_posted(self, guild_id: str, day: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("server_settings")
+            .update({"rollcall_daily_last_posted_day": day})
+            .eq("guild_id", guild_id)
+            .execute()
+        )
+
 
 __all__ = ["Repository", "DatabaseError"]
