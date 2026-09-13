@@ -13,6 +13,7 @@ import asyncio
 import signal
 import sys
 import traceback
+import time
 from datetime import datetime, timezone
 from typing import Optional
 import discord
@@ -45,7 +46,7 @@ class AhoyBot(commands.Bot):
     def __init__(self, config: Config) -> None:
         intents = discord.Intents.default(); intents.members = True; intents.message_content = True; intents.voice_states = True; intents.reactions = True; intents.presences = True
         super().__init__(command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
-        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._health_runner = None; self._synced_guild_ids: set[int] = set()
+        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
 
     async def setup_hook(self) -> None:
         await self.db.connect()
@@ -112,13 +113,38 @@ class AhoyBot(commands.Bot):
             await self.repo.upsert_server(str(guild.id), guild.name, guild.icon.key if guild.icon else None, str(guild.owner_id) if guild.owner_id else None, guild.member_count or 0)
 
     async def _record_error(self, *, source: str, error: BaseException, guild_id: Optional[str] = None, command: Optional[str] = None, user_id: Optional[str] = None, channel_id: Optional[str] = None) -> None:
+        """Persist actionable errors while suppressing expected/noisy repeats.
+
+        CommandNotFound is intentionally not persisted: normal Discord chat often contains
+        text beginning with a bot prefix, and treating every unknown word as an application
+        failure creates a misleading Error Center. Real command failures are still logged.
+        Identical failures are also deduplicated for a short window so a retry loop cannot
+        flood the admin console.
+        """
+        if isinstance(error, commands.CommandNotFound):
+            log.debug("Ignoring expected unknown command: %s", getattr(error, "command", command or "unknown"))
+            return
+
+        error_name = type(error).__name__
+        error_message = str(error) or repr(error)
+        dedupe_key = "|".join((source, error_name, command or "", guild_id or "", channel_id or "", error_message[:500]))
+        now = time.monotonic()
+        previous = self._recent_error_keys.get(dedupe_key)
+        if previous is not None and now - previous < self._error_dedupe_seconds:
+            log.debug("Deduplicated repeated %s error for command %s", error_name, command or "unknown")
+            return
+        self._recent_error_keys[dedupe_key] = now
+        cutoff = now - self._error_dedupe_seconds
+        if len(self._recent_error_keys) > 1000:
+            self._recent_error_keys = {k: v for k, v in self._recent_error_keys.items() if v >= cutoff}
+
         try:
             tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
-            await self.repo.log_error(source=source, error_type=type(error).__name__, message=str(error) or repr(error), guild_id=guild_id, command=command, traceback_text=tb, user_id=user_id, channel_id=channel_id)
+            await self.repo.log_error(source=source, error_type=error_name, message=error_message, guild_id=guild_id, command=command, traceback_text=tb, user_id=user_id, channel_id=channel_id)
         except Exception: log.exception("Failed to record error log entry")
 
     async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
-        await self._record_error(source="command", error=error, guild_id=str(ctx.guild.id) if ctx.guild else None, command=ctx.command.qualified_name if ctx.command else None, user_id=str(ctx.author.id) if ctx.author else None, channel_id=str(ctx.channel.id) if ctx.channel else None)
+        await self._record_error(source="command", error=error, guild_id=str(ctx.guild.id) if ctx.guild else None, command=ctx.command.qualified_name if ctx.command else getattr(error, "command", None), user_id=str(ctx.author.id) if ctx.author else None, channel_id=str(ctx.channel.id) if ctx.channel else None)
 
     async def on_error(self, event_method: str, *args, **kwargs) -> None:
         error = sys.exc_info()[1]
