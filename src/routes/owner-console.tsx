@@ -480,7 +480,7 @@ function Overview({
             value={stat.value}
             delta={stat.delta}
             icon={stat.icon}
-            tone={stat.tone}
+            tone={stat.tone as Parameters<typeof StatCard>[0]["tone"]}
             isString={stat.isString}
           />
         ))}

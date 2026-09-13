@@ -86,7 +86,7 @@ export const getStatahoyOverview = createServerFn({ method: "GET" })
       const totals = new Map<string, number>();
       for (const row of rows ?? []) {
         const r = row as Record<string, unknown>;
-        const day = String(r.day);
+        const day = String(r["day"]);
         totals.set(day, (totals.get(day) ?? 0) + Number(r[field] ?? 0));
       }
       return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, value]) => ({ day, value }));
