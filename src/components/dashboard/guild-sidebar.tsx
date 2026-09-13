@@ -5,6 +5,7 @@ import {
   Bot,
   CalendarClock,
   CalendarDays,
+  ClipboardList,
   FileText,
   Gauge,
   Hand,
@@ -21,12 +22,7 @@ import type { LucideIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-export type ModuleLink = {
-  label: string;
-  to: string;
-  icon: LucideIcon;
-  exact?: boolean;
-};
+export type ModuleLink = { label: string; to: string; icon: LucideIcon; exact?: boolean };
 
 export const SETTINGS_LINKS: ModuleLink[] = [
   { label: "Home", to: "/dashboard/$guildId", icon: Gauge, exact: true },
@@ -41,6 +37,7 @@ export const MODULE_LINKS: ModuleLink[] = [
   { label: "Welcome Messages", to: "/dashboard/$guildId/welcome", icon: Hand },
   { label: "Roles", to: "/dashboard/$guildId/roles", icon: Users },
   { label: "Community", to: "/dashboard/$guildId/community", icon: Sparkles },
+  { label: "Roll Call", to: "/dashboard/$guildId/rollcall", icon: ClipboardList },
   { label: "Send", to: "/dashboard/$guildId/send", icon: Send },
   { label: "Automation", to: "/dashboard/$guildId/automation", icon: CalendarClock },
   { label: "!PIRATE Calendar", to: "/calendar/$guildId", icon: CalendarDays },
@@ -50,47 +47,13 @@ export const MODULE_LINKS: ModuleLink[] = [
   { label: "Activity", to: "/dashboard/$guildId/activity", icon: Activity },
 ];
 
-export function GuildNav({
-  guildId,
-  onNavigate,
-}: {
-  guildId: string;
-  onNavigate?: () => void;
-}) {
+export function GuildNav({ guildId, onNavigate }: { guildId: string; onNavigate?: () => void }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const base = `/dashboard/${guildId}`;
-
   const item = (link: ModuleLink) => {
     const href = link.to.replace("$guildId", guildId);
     const active = link.exact ? pathname === base || pathname === `${base}/` : pathname === href;
-    return (
-      <Link
-        key={link.to}
-        to={link.to}
-        params={{ guildId }}
-        onClick={onNavigate}
-        className={cn(
-          "flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors",
-          active
-            ? "bg-primary/15 text-primary"
-            : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-        )}
-      >
-        <link.icon className="h-4 w-4 shrink-0" />
-        <span className="truncate">{link.label}</span>
-      </Link>
-    );
+    return <Link key={link.to} to={link.to} params={{ guildId }} onClick={onNavigate} className={cn("flex items-center gap-3 rounded-xl px-3 py-2 text-sm transition-colors", active ? "bg-primary/15 text-primary" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground")}><link.icon className="h-4 w-4 shrink-0" /><span className="truncate">{link.label}</span></Link>;
   };
-
-  return (
-    <nav className="space-y-6">
-      <div className="space-y-1">{SETTINGS_LINKS.map(item)}</div>
-      <div className="space-y-1">
-        <p className="px-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">
-          Modules
-        </p>
-        {MODULE_LINKS.map(item)}
-      </div>
-    </nav>
-  );
+  return <nav className="space-y-6"><div className="space-y-1">{SETTINGS_LINKS.map(item)}</div><div className="space-y-1"><p className="px-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground/70">Modules</p>{MODULE_LINKS.map(item)}</div></nav>;
 }
