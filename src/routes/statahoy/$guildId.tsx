@@ -60,6 +60,10 @@ function StatahoyDashboard() {
     queryFn: () => getStatahoyOverview({ data: { guildId, days } }),
   });
 
+  const openUserActivity = () => {
+    window.location.assign(`/statahoy/${encodeURIComponent(guildId)}/activity`);
+  };
+
   return (
     <div className="min-h-screen">
       <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl">
@@ -72,11 +76,9 @@ function StatahoyDashboard() {
             {data?.guild.name && <span className="text-sm text-muted-foreground">/ {data.guild.name}</span>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Button asChild size="sm" className="gap-2">
-              <Link to="/statahoy/$guildId/activity" params={{ guildId }}>
-                <Activity className="h-4 w-4" />
-                User Activity
-              </Link>
+            <Button type="button" size="sm" className="gap-2" onClick={openUserActivity}>
+              <Activity className="h-4 w-4" />
+              User Activity
             </Button>
             <Select value={String(days)} onValueChange={(v) => setDays(Number(v))}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
@@ -106,11 +108,9 @@ function StatahoyDashboard() {
                   </div>
                   <p className="mt-1 text-sm text-muted-foreground">View detailed member activity cards, online status, messages, bot usage, voice history and Roll Call streaks.</p>
                 </div>
-                <Button asChild className="shrink-0 gap-2">
-                  <Link to="/statahoy/$guildId/activity" params={{ guildId }}>
-                    <Activity className="h-4 w-4" />
-                    Open User Activity
-                  </Link>
+                <Button type="button" className="shrink-0 gap-2" onClick={openUserActivity}>
+                  <Activity className="h-4 w-4" />
+                  Open User Activity
                 </Button>
               </div>
             </div>
