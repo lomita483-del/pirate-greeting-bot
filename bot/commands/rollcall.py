@@ -14,9 +14,7 @@ from ..utils.checks import ActionRefused, ensure_guild
 from ..utils.logger import get_logger
 
 log = get_logger("rollcall")
-GOLD = 0xD4AF37
 SEA = 0x20C7B7
-SEA_DARK = 0x0B7285
 MODE_LABEL = {"event": "Event Attendance", "daily": "Daily Check-In", "audit": "Inactivity Audit"}
 MODE_EMOJI = {"event": "🏴‍☠️", "daily": "🔥", "audit": "🔍"}
 DEFAULT_BUTTONS = [{"id": "present", "label": "Present", "emoji": "✅", "style": "success", "purpose": "Record attendance"}]
@@ -182,7 +180,6 @@ async def _called_members(guild: discord.Guild, role_ids: list[str]) -> list[dis
 
 
 def _pack_result_lines(lines: list[str], label: str, *, max_field_chars: int = 1000) -> list[tuple[str, str]]:
-    """Pack long member lists into multiple fields while keeping one Discord embed."""
     if not lines:
         return [(label, "_None_")]
     fields: list[tuple[str, str]] = []
@@ -206,7 +203,7 @@ def _pack_result_lines(lines: list[str], label: str, *, max_field_chars: int = 1
 
 
 async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_call: dict[str, Any]) -> list[discord.Embed]:
-    """Build the complete Roll Call result as a single polished Discord embed."""
+    """Build the complete Roll Call result as one polished sea-glass embed."""
     repo = bot.repo  # type: ignore[attr-defined]
     responses = await repo.roll_call_responses(roll_call["id"])
     buttons = _buttons(roll_call)
@@ -216,20 +213,16 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     mode = str(roll_call.get("mode") or "event")
     counts = {str(button["id"]): sum(1 for row in responses if str(row.get("button_id") or "present") == str(button["id"])) for button in buttons}
 
-    responded_lines: list[str] = []
+    responded_lines = []
     for row in responses:
         user_id = str(row.get("user_id") or "")
         if not user_id:
             continue
-        display_name = str(row.get("display_name") or row.get("username") or "Member")
         action = str(row.get("button_label") or row.get("button_id") or "Present")
         responded_lines.append(f"• <@{user_id}> — **{action}**")
 
     missed_lines = [f"• <@{member.id}>" for member in missed]
 
-    # Discord embeds are effectively a glass card: the sea-teal accent, restrained
-    # typography, compact fields and nautical status marks keep the result readable
-    # while retaining the luxury sea aesthetic requested for the bot.
     embed = discord.Embed(
         title=f"🌊 {roll_call.get('title') or 'Roll Call'} · Attendance Report",
         description=(
@@ -247,11 +240,7 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     embed.add_field(name="⏳ No Response", value=f"**{len(missed)}** members outstanding", inline=True)
 
     for button in buttons:
-        embed.add_field(
-            name=f"{button.get('emoji') or '•'} {button['label']}",
-            value=f"**{counts.get(str(button['id']), 0)}**\n{button['purpose']}",
-            inline=True,
-        )
+        embed.add_field(name=f"{button.get('emoji') or '•'} {button['label']}", value=f"**{counts.get(str(button['id']), 0)}**\n{button['purpose']}", inline=True)
 
     for field_name, field_value in _pack_result_lines(responded_lines, "✅ Responded"):
         embed.add_field(name=field_name, value=field_value, inline=False)
@@ -259,12 +248,6 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     missed_title = "🔎 Never Responded" if mode == "audit" else "⏳ Did Not Respond"
     for field_name, field_value in _pack_result_lines(missed_lines, missed_title):
         embed.add_field(name=field_name, value=field_value, inline=False)
-
-    if not responses:
-        # Keep the result explicit even when nobody answered.
-        embed.add_field(name="✅ Responded", value="_No members responded to this roll call._", inline=False)
-    if not missed:
-        embed.add_field(name=missed_title, value="_Everyone called responded. Excellent attendance._", inline=False)
 
     closes_at = roll_call.get("closes_at")
     if closes_at:
@@ -322,8 +305,21 @@ class RollCall(commands.Cog):
         repo = self.bot.repo  # type: ignore[attr-defined]
         channel = guild.get_channel(int(roll_call["channel_id"]))
         if isinstance(channel, discord.TextChannel):
-            for result_embed in await build_results_embeds(self.bot, guild, roll_call):
+            result_embeds = await build_results_embeds(self.bot, guild, roll_call)
+            for result_embed in result_embeds:
                 await channel.send(embed=result_embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         await repo.close_roll_call(roll_call["id"])
 
     async def restore_persistent_views(self) -> None:
+        rows = await self.bot.repo.active_roll_calls()  # type: ignore[attr-defined]
+        for row in rows:
+            try:
+                self.bot.add_view(RollCallView(self.bot, str(row["id"]), _buttons(row)))
+            except Exception:
+                log.exception("Failed restoring roll call view %s", row.get("id"))
+
+
+async def setup(bot: commands.Bot) -> None:
+    cog = RollCall(bot)
+    await bot.add_cog(cog)
+    await cog.restore_persistent_views()
