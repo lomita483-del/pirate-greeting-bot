@@ -9,6 +9,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SplatRouteImport } from './routes/$'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as OwnerConsoleRouteImport } from './routes/owner-console'
+import { Route as OwnerConsolePlanRequestsRouteImport } from './routes/owner-console.plan-requests'
 import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as AppealGuildIdRouteImport } from './routes/appeal/$guildId'
 import { Route as CalendarIndexRouteImport } from './routes/calendar/index'
@@ -52,6 +53,7 @@ const IndexRoute = make(IndexRouteImport, '/', '/', rootRouteImport)
 const SplatRoute = make(SplatRouteImport, '/$', '/$', rootRouteImport)
 const AdminRoute = make(AdminRouteImport, '/admin', '/admin', rootRouteImport)
 const OwnerConsoleRoute = make(OwnerConsoleRouteImport, '/owner-console', '/owner-console', rootRouteImport)
+const OwnerConsolePlanRequestsRoute = make(OwnerConsolePlanRequestsRouteImport, '/owner-console/plan-requests', '/owner-console/plan-requests', rootRouteImport)
 const PricingRoute = make(PricingRouteImport, '/pricing', '/pricing', rootRouteImport)
 const AppealGuildIdRoute = make(AppealGuildIdRouteImport, '/appeal/$guildId', '/appeal/$guildId', rootRouteImport)
 const CalendarIndexRoute = make(CalendarIndexRouteImport, '/calendar/', '/calendar/', rootRouteImport)
@@ -93,7 +95,7 @@ const ApiPublicAuthGoogleStartRoute = make(ApiPublicAuthGoogleStartRouteImport, 
 const DashboardGuildIdRouteWithChildren = DashboardGuildIdRoute._addFileChildren({ DashboardGuildIdActivityRoute, DashboardGuildIdAutomationRoute, DashboardGuildIdAutomodRoute, DashboardGuildIdCalendarRoute, DashboardGuildIdCommandsRoute, DashboardGuildIdCommunityRoute, DashboardGuildIdCustomCommandsRoute, DashboardGuildIdEngagementRoute, DashboardGuildIdErrorsRoute, DashboardGuildIdGeneralRoute, DashboardGuildIdLoggingRoute, DashboardGuildIdModerationRoute, DashboardGuildIdRolesRoute, DashboardGuildIdRollCallRoute, DashboardGuildIdSendRoute, DashboardGuildIdStatsRoute, DashboardGuildIdWelcomeRoute, DashboardGuildIdIndexRoute, DashboardGuildIdEventEventIdRoute })
 const StatahoyGuildIdRouteWithChildren = StatahoyGuildIdRoute._addFileChildren({ StatahoyGuildIdActivityRoute })
 
-const rootRouteChildren = { IndexRoute, SplatRoute, AdminRoute, OwnerConsoleRoute, PricingRoute, AppealGuildIdRoute, CalendarGuildIdRoute, DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren, StatahoyGuildIdRoute: StatahoyGuildIdRouteWithChildren, CalendarIndexRoute, DashboardIndexRoute, StatahoyIndexRoute, ApiPublicInviteRoute, ApiPublicHooksCalendarSyncRoute, ApiPublicMediaFileNameRoute, ApiPublicMediaUploadRoute, ApiPublicAuthDiscordCallbackRoute, ApiPublicAuthDiscordLogoutRoute, ApiPublicAuthDiscordStartRoute, ApiPublicAuthGoogleCallbackRoute, ApiPublicAuthGoogleStartRoute }
+const rootRouteChildren = { IndexRoute, SplatRoute, AdminRoute, OwnerConsoleRoute, OwnerConsolePlanRequestsRoute, PricingRoute, AppealGuildIdRoute, CalendarGuildIdRoute, DashboardGuildIdRoute: DashboardGuildIdRouteWithChildren, StatahoyGuildIdRoute: StatahoyGuildIdRouteWithChildren, CalendarIndexRoute, DashboardIndexRoute, StatahoyIndexRoute, ApiPublicInviteRoute, ApiPublicHooksCalendarSyncRoute, ApiPublicMediaFileNameRoute, ApiPublicMediaUploadRoute, ApiPublicAuthDiscordCallbackRoute, ApiPublicAuthDiscordLogoutRoute, ApiPublicAuthDiscordStartRoute, ApiPublicAuthGoogleCallbackRoute, ApiPublicAuthGoogleStartRoute }
 
 export interface FileRoutesByFullPath { [key: string]: any }
 export interface FileRoutesByTo { [key: string]: any }
