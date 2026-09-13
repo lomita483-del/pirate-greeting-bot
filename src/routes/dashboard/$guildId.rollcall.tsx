@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { CheckCircle2, ClipboardList, Clock3, Flame, History, Plus, Search, ShieldAlert, Users } from "lucide-react";
+import { ClipboardList, History, Plus, Search, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,111 +9,43 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiPicker, PickerSelect, ToggleRow, Field } from "@/components/dashboard/fields";
-import { getRollCallDashboard, saveRollCallSettings, startRollCall, closeRollCall } from "@/lib/rollcall.functions";
+import { closeRollCall, getRollCallDashboard, saveRollCallSettings, startRollCall } from "@/lib/rollcall.functions";
 
 export const Route = createFileRoute("/dashboard/$guildId/rollcall")({ component: RollCallPage });
-
 type Mode = "event" | "daily" | "audit";
 
-function dateTime(value: string | null | undefined) {
-  if (!value) return "—";
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString();
-}
-
-function modeLabel(mode: string) {
-  if (mode === "daily") return "Daily Check-In";
-  if (mode === "audit") return "Inactivity Audit";
-  return "Event / Raid";
-}
+function dateTime(value: string | null | undefined) { if (!value) return "—"; const date = new Date(value); return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString(); }
+function modeLabel(mode: string) { return mode === "daily" ? "Daily Check-In" : mode === "audit" ? "Inactivity Audit" : "Event / Raid"; }
 
 function RollCallPage() {
-  const { guildId } = Route.useParams();
-  const queryClient = useQueryClient();
-  const [showCreate, setShowCreate] = useState(false);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const { data, isPending, error } = useQuery({
-    queryKey: ["rollcall-dashboard", guildId],
-    queryFn: () => getRollCallDashboard({ data: { guildId } }),
-  });
-
-  const settings = data?.settings;
-  const channels = (data as any)?.structure?.channels ?? [];
+  const { guildId } = Route.useParams(); const queryClient = useQueryClient();
+  const [showCreate, setShowCreate] = useState(false); const [selectedId, setSelectedId] = useState<string | null>(null); const [search, setSearch] = useState("");
+  const { data, isPending, error } = useQuery({ queryKey: ["rollcall-dashboard", guildId], queryFn: () => getRollCallDashboard({ data: { guildId } }) });
+  const settings = data?.settings; const channels = data?.structure?.channels ?? []; const roles = data?.structure?.roles ?? [];
   const selected = data?.rollCalls.find((row) => row.id === selectedId) ?? null;
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data?.rollCalls ?? [];
-    return (data?.rollCalls ?? []).filter((row) => `${row.title} ${row.mode} ${row.status}`.toLowerCase().includes(q));
-  }, [data?.rollCalls, search]);
-
+  const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return !q ? data?.rollCalls ?? [] : (data?.rollCalls ?? []).filter((row) => `${row.title} ${row.mode} ${row.status}`.toLowerCase().includes(q)); }, [data?.rollCalls, search]);
   if (isPending) return <div className="glass rounded-2xl p-8 text-sm text-muted-foreground">Loading Roll Call…</div>;
   if (error) return <Card className="glass border-0"><CardContent className="py-10 text-center text-sm text-destructive">{(error as Error).message}</CardContent></Card>;
   if (!data) return null;
-
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /><h1 className="text-2xl font-semibold">Roll Call</h1></div>
-          <p className="mt-1 text-sm text-muted-foreground">Attendance panels for events, daily streaks and inactivity audits.</p>
-        </div>
-        <Button onClick={() => setShowCreate((v) => !v)}><Plus className="mr-2 h-4 w-4" /> Start Roll Call</Button>
-      </div>
-
-      {showCreate ? <CreateRollCall guildId={guildId} channels={channels} roles={dataStructureRoles(data)} defaultChannelId={settings?.default_channel_id ?? null} onDone={() => { setShowCreate(false); queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); }} /> : null}
-
-      <SettingsCard guildId={guildId} settings={settings} channels={channels} roles={dataStructureRoles(data)} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] })} />
-
-      <Card className="glass border-0">
-        <CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle className="flex items-center gap-2"><History className="h-4 w-4 text-primary" />History & Results</CardTitle><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9 sm:w-64" placeholder="Search roll calls" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div></CardHeader>
-        <CardContent className="space-y-3">
-          {filtered.length === 0 ? <p className="text-sm text-muted-foreground">No roll calls yet.</p> : filtered.map((row) => (
-            <button key={row.id} type="button" onClick={() => setSelectedId(row.id)} className="w-full rounded-xl border border-border/70 bg-background/20 p-4 text-left transition hover:border-primary/40">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{row.title}</span><span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{modeLabel(row.mode)}</span><span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">{row.status}</span></div><p className="mt-1 text-xs text-muted-foreground">Opened {dateTime(row.opens_at)} · closes {dateTime(row.closes_at)}</p></div><div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {row.responseCount} responded</span><span>{row.target_role_ids?.length ?? 0} target roles</span></div></div>
-            </button>
-          ))}
-        </CardContent>
-      </Card>
-
-      {selected ? <ResultsCard guildId={guildId} row={selected} onClosed={() => { setSelectedId(null); queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); }} /> : null}
-    </div>
-  );
+  return <div className="space-y-6">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"><div><div className="flex items-center gap-2"><ClipboardList className="h-5 w-5 text-primary" /><h1 className="text-2xl font-semibold">Roll Call</h1></div><p className="mt-1 text-sm text-muted-foreground">Attendance panels for events, daily streaks and inactivity audits.</p></div><Button onClick={() => setShowCreate((v) => !v)}><Plus className="mr-2 h-4 w-4" /> Start Roll Call</Button></div>
+    {showCreate ? <CreateRollCall guildId={guildId} channels={channels} roles={roles} defaultChannelId={settings?.default_channel_id ?? null} onDone={() => { setShowCreate(false); queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); }} /> : null}
+    <SettingsCard guildId={guildId} settings={settings} channels={channels} roles={roles} onSaved={() => queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] })} />
+    <Card className="glass border-0"><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><CardTitle className="flex items-center gap-2"><History className="h-4 w-4 text-primary" />History & Results</CardTitle><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9 sm:w-64" placeholder="Search roll calls" value={search} onChange={(e) => setSearch(e.target.value)} /></div></div></CardHeader><CardContent className="space-y-3">{filtered.length === 0 ? <p className="text-sm text-muted-foreground">No roll calls yet.</p> : filtered.map((row) => <button key={row.id} type="button" onClick={() => setSelectedId(row.id)} className="w-full rounded-xl border border-border/70 bg-background/20 p-4 text-left transition hover:border-primary/40"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex flex-wrap items-center gap-2"><span className="font-semibold">{row.title}</span><span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] text-primary">{modeLabel(row.mode)}</span><span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">{row.status}</span></div><p className="mt-1 text-xs text-muted-foreground">Opened {dateTime(row.opens_at)} · closes {dateTime(row.closes_at)}</p></div><div className="flex shrink-0 items-center gap-4 text-xs text-muted-foreground"><span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{row.responseCount} responded</span><span>{row.target_role_ids?.length ?? 0} target roles</span></div></div></button>)}</CardContent></Card>
+    {selected ? <ResultsCard guildId={guildId} row={selected} onClosed={() => { setSelectedId(null); queryClient.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); }} /> : null}
+  </div>;
 }
 
-function dataStructureRoles(data: any) { return data?.structure?.roles ?? []; }
-
 function SettingsCard({ guildId, settings, channels, roles, onSaved }: any) {
-  const qc = useQueryClient();
-  const [draft, setDraft] = useState(() => ({
-    enabled: settings?.enabled ?? false,
-    managerRoleIds: settings?.manager_role_ids ?? [],
-    defaultChannelId: settings?.default_channel_id ?? null,
-    dailyEnabled: settings?.daily_enabled ?? false,
-    dailyHourUtc: settings?.daily_hour_utc ?? 9,
-    dailyTargetRoleIds: settings?.daily_target_role_ids ?? [],
-    dailyTitle: settings?.daily_title ?? "Daily Check-In",
-    dailyDescription: settings?.daily_description ?? "Click Present to check in for today.",
-    dailyDurationHours: settings?.daily_duration_hours ?? 20,
-  }));
-  const mutation = useMutation({ mutationFn: () => saveRollCallSettings({ data: { guildId, ...draft } }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); onSaved?.(); } });
-  const set = (key: string, value: any) => setDraft((d) => ({ ...d, [key]: value }));
-  return <Card className="glass border-0"><CardHeader><CardTitle>Roll Call Settings</CardTitle></CardHeader><CardContent className="space-y-5">
-    <ToggleRow label="Enable Roll Call" description="Allow configured managers to start roll calls with /rollcall start." checked={draft.enabled} onChange={(v) => set("enabled", v)} />
-    <div className="grid gap-5 md:grid-cols-2"><Field label="Roll Call Manager roles" hint="Members with any selected role can start roll calls."><MultiPicker values={draft.managerRoleIds} options={roles} onChange={(v) => set("managerRoleIds", v)} /></Field><Field label="Default channel"><PickerSelect value={draft.defaultChannelId} options={channels.filter((c: any) => c.kind === "text")} onChange={(v) => set("defaultChannelId", v)} placeholder="Select a channel" /></Field></div>
-    <div className="rounded-xl border border-border/70 p-4 space-y-4"><ToggleRow label="Daily Check-In" description="Post a daily check-in automatically at the configured UTC hour." checked={draft.dailyEnabled} onChange={(v) => set("dailyEnabled", v)} /><div className="grid gap-4 md:grid-cols-3"><Field label="UTC hour"><Input type="number" min={0} max={23} value={draft.dailyHourUtc} onChange={(e) => set("dailyHourUtc", Number(e.target.value) || 0)} /></Field><Field label="Duration (hours)"><Input type="number" min={1} max={336} value={draft.dailyDurationHours} onChange={(e) => set("dailyDurationHours", Number(e.target.value) || 20)} /></Field><Field label="Daily target roles"><MultiPicker values={draft.dailyTargetRoleIds} options={roles} onChange={(v) => set("dailyTargetRoleIds", v)} /></Field></div><Field label="Daily title"><Input value={draft.dailyTitle} onChange={(e) => set("dailyTitle", e.target.value)} /></Field><Field label="Daily description"><Textarea rows={3} value={draft.dailyDescription} onChange={(e) => set("dailyDescription", e.target.value)} /></Field></div>
-    <div className="flex justify-end"><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "Saving…" : "Save Roll Call Settings"}</Button></div>
-  </CardContent></Card>;
+  const qc = useQueryClient(); const [draft, setDraft] = useState(() => ({ enabled: settings?.enabled ?? false, managerRoleIds: settings?.manager_role_ids ?? [], defaultChannelId: settings?.default_channel_id ?? null, dailyEnabled: settings?.daily_enabled ?? false, dailyHourUtc: settings?.daily_hour_utc ?? 9, dailyTargetRoleIds: settings?.daily_target_role_ids ?? [], dailyTitle: settings?.daily_title ?? "Daily Check-In", dailyDescription: settings?.daily_description ?? "Click Present to check in for today.", dailyDurationHours: settings?.daily_duration_hours ?? 20 }));
+  const mutation = useMutation({ mutationFn: () => saveRollCallSettings({ data: { guildId, ...draft } }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["rollcall-dashboard", guildId] }); onSaved?.(); } }); const set = (key: string, value: any) => setDraft((d) => ({ ...d, [key]: value }));
+  return <Card className="glass border-0"><CardHeader><CardTitle>Roll Call Settings</CardTitle></CardHeader><CardContent className="space-y-5"><ToggleRow label="Enable Roll Call" description="Allow configured managers to start roll calls with /rollcall start." checked={draft.enabled} onChange={(v) => set("enabled", v)} /><div className="grid gap-5 md:grid-cols-2"><Field label="Roll Call Manager roles" hint="Members with any selected role can start roll calls."><MultiPicker values={draft.managerRoleIds} options={roles} onChange={(v) => set("managerRoleIds", v)} emptyLabel="No Discord roles available." /></Field><Field label="Default channel"><PickerSelect value={draft.defaultChannelId} options={channels.filter((c: any) => c.kind === "text")} onChange={(v) => set("defaultChannelId", v)} placeholder="Select a channel" /></Field></div><div className="rounded-xl border border-border/70 p-4 space-y-4"><ToggleRow label="Daily Check-In" description="Post a daily check-in automatically at the configured UTC hour." checked={draft.dailyEnabled} onChange={(v) => set("dailyEnabled", v)} /><div className="grid gap-4 md:grid-cols-3"><Field label="UTC hour"><Input type="number" min={0} max={23} value={draft.dailyHourUtc} onChange={(e) => set("dailyHourUtc", Number(e.target.value) || 0)} /></Field><Field label="Duration (hours)"><Input type="number" min={1} max={336} value={draft.dailyDurationHours} onChange={(e) => set("dailyDurationHours", Number(e.target.value) || 20)} /></Field><Field label="Daily target roles"><MultiPicker values={draft.dailyTargetRoleIds} options={roles} onChange={(v) => set("dailyTargetRoleIds", v)} emptyLabel="No Discord roles available." /></Field></div><Field label="Daily title"><Input value={draft.dailyTitle} onChange={(e) => set("dailyTitle", e.target.value)} /></Field><Field label="Daily description"><Textarea rows={3} value={draft.dailyDescription} onChange={(e) => set("dailyDescription", e.target.value)} /></Field></div><div className="flex justify-end"><Button disabled={mutation.isPending} onClick={() => mutation.mutate()}>{mutation.isPending ? "Saving…" : "Save Roll Call Settings"}</Button></div>{mutation.error ? <p className="text-sm text-destructive">{(mutation.error as Error).message}</p> : null}</CardContent></Card>;
 }
 
 function CreateRollCall({ guildId, channels, roles, defaultChannelId, onDone }: any) {
   const [mode, setMode] = useState<Mode>("event"); const [title, setTitle] = useState(""); const [description, setDescription] = useState(""); const [durationHours, setDurationHours] = useState(2); const [channelId, setChannelId] = useState(defaultChannelId); const [targetRoleIds, setTargetRoleIds] = useState<string[]>([]);
   const mutation = useMutation({ mutationFn: () => startRollCall({ data: { guildId, mode, title, description: description || null, durationHours, channelId, targetRoleIds } }), onSuccess: onDone });
-  return <Card className="glass border-0"><CardHeader><CardTitle>Create Roll Call</CardTitle></CardHeader><CardContent className="space-y-5"><div className="grid gap-5 md:grid-cols-2"><Field label="Mode"><Select value={mode} onValueChange={(v) => setMode(v as Mode)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="event">Event / Raid Attendance</SelectItem><SelectItem value="daily">Daily Check-In Streak</SelectItem><SelectItem value="audit">Inactivity Audit</SelectItem></SelectContent></Select></Field><Field label="Duration (hours)"><Input type="number" min={0.25} max={336} step={0.25} value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value) || 2)} /></Field><Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Raid tonight" /></Field><Field label="Channel"><PickerSelect value={channelId} options={channels.filter((c: any) => c.kind === "text")} onChange={setChannelId} placeholder="Select a channel" /></Field></div><Field label="Target roles" hint="All selected roles are pinged and included in the called-member results."><MultiPicker values={targetRoleIds} options={roles} onChange={setTargetRoleIds} /></Field><Field label="Description"><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Click Present when you are ready…" /></Field><div className="flex justify-end gap-2"><Button variant="outline" onClick={onDone}>Cancel</Button><Button disabled={mutation.isPending || !title || !channelId} onClick={() => mutation.mutate()}>{mutation.isPending ? "Starting…" : "Start Roll Call"}</Button></div>{mutation.error ? <p className="text-sm text-destructive">{(mutation.error as Error).message}</p> : null}</CardContent></Card>;
+  return <Card className="glass border-0"><CardHeader><CardTitle>Create Roll Call</CardTitle></CardHeader><CardContent className="space-y-5"><div className="grid gap-5 md:grid-cols-2"><Field label="Mode"><Select value={mode} onValueChange={(v) => setMode(v as Mode)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="event">Event / Raid Attendance</SelectItem><SelectItem value="daily">Daily Check-In Streak</SelectItem><SelectItem value="audit">Inactivity Audit</SelectItem></SelectContent></Select></Field><Field label="Duration (hours)"><Input type="number" min={0.25} max={336} step={0.25} value={durationHours} onChange={(e) => setDurationHours(Number(e.target.value) || 2)} /></Field><Field label="Title"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Raid tonight" /></Field><Field label="Channel"><PickerSelect value={channelId} options={channels.filter((c: any) => c.kind === "text")} onChange={setChannelId} placeholder="Select a channel" /></Field></div><Field label="Target roles" hint="All selected roles are pinged and included in the called-member results."><MultiPicker values={targetRoleIds} options={roles} onChange={setTargetRoleIds} emptyLabel="No Discord roles available." /></Field><Field label="Description"><Textarea rows={4} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Click Present when you are ready…" /></Field><div className="flex justify-end gap-2"><Button variant="outline" onClick={onDone}>Cancel</Button><Button disabled={mutation.isPending || !title || !channelId} onClick={() => mutation.mutate()}>{mutation.isPending ? "Starting…" : "Start Roll Call"}</Button></div>{mutation.error ? <p className="text-sm text-destructive">{(mutation.error as Error).message}</p> : null}</CardContent></Card>;
 }
 
-function ResultsCard({ guildId, row, onClosed }: any) {
-  const close = useMutation({ mutationFn: () => closeRollCall({ data: { guildId, id: row.id } }), onSuccess: onClosed });
-  const responses = row.responses ?? [];
-  return <Card className="glass border-primary/20"><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>{row.title} — Responders</CardTitle><p className="mt-1 text-xs text-muted-foreground">{modeLabel(row.mode)} · {responses.length} responses</p></div>{row.status === "open" ? <Button variant="outline" onClick={() => close.mutate()} disabled={close.isPending}>{close.isPending ? "Closing…" : "Close & Post Results"}</Button> : null}</div></CardHeader><CardContent className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Responded</div><div className="mt-1 text-2xl font-semibold">{responses.length}</div></div><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Opened</div><div className="mt-1 text-sm font-medium">{dateTime(row.opens_at)}</div></div><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Closes</div><div className="mt-1 text-sm font-medium">{dateTime(row.closes_at)}</div></div></div><div><h4 className="mb-2 text-sm font-semibold">Clicked Present</h4>{responses.length === 0 ? <p className="text-sm text-muted-foreground">Nobody has checked in yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{responses.map((r: any) => <div key={r.id} className="rounded-lg border border-border/70 p-3"><div className="font-medium">{r.display_name || r.username || r.user_id}</div><div className="text-xs text-muted-foreground">@{r.username || "unknown"} · {r.user_id}</div><div className="mt-1 text-[11px] text-muted-foreground">{dateTime(r.responded_at)}</div></div>)}</div>}</div>{row.status !== "open" && row.results?.missed ? <div><h4 className="mb-2 text-sm font-semibold">Missed</h4><div className="space-y-1 text-sm text-muted-foreground">{row.results.missed.map((m: any) => <div key={m.user_id}>{m.display_name || m.username || m.user_id} <span className="text-xs">@{m.username || "unknown"} · {m.user_id}</span></div>)}</div></div> : null}</CardContent></Card>;
-}
+function ResultsCard({ guildId, row, onClosed }: any) { const close = useMutation({ mutationFn: () => closeRollCall({ data: { guildId, id: row.id } }), onSuccess: onClosed }); const responses = row.responses ?? []; return <Card className="glass border-primary/20"><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>{row.title} — Responders</CardTitle><p className="mt-1 text-xs text-muted-foreground">{modeLabel(row.mode)} · {responses.length} responses</p></div>{row.status === "open" ? <Button variant="outline" onClick={() => close.mutate()} disabled={close.isPending}>{close.isPending ? "Closing…" : "Close & Post Results"}</Button> : null}</div></CardHeader><CardContent className="space-y-5"><div className="grid gap-3 sm:grid-cols-3"><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Responded</div><div className="mt-1 text-2xl font-semibold">{responses.length}</div></div><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Opened</div><div className="mt-1 text-sm font-medium">{dateTime(row.opens_at)}</div></div><div className="rounded-xl border p-4"><div className="text-xs text-muted-foreground">Closes</div><div className="mt-1 text-sm font-medium">{dateTime(row.closes_at)}</div></div></div><div><h4 className="mb-2 text-sm font-semibold">Clicked Present</h4>{responses.length === 0 ? <p className="text-sm text-muted-foreground">Nobody has checked in yet.</p> : <div className="grid gap-2 sm:grid-cols-2">{responses.map((r: any) => <div key={r.id} className="rounded-lg border border-border/70 p-3"><div className="font-medium">{r.display_name || r.username || r.user_id}</div><div className="text-xs text-muted-foreground">@{r.username || "unknown"} · {r.user_id}</div><div className="mt-1 text-[11px] text-muted-foreground">{dateTime(r.responded_at)}</div></div>)}</div>}</div>{row.status !== "open" && row.results?.missed ? <div><h4 className="mb-2 text-sm font-semibold">Missed</h4><div className="space-y-1 text-sm text-muted-foreground">{row.results.missed.map((m: any) => <div key={m.user_id}>{m.display_name || m.username || m.user_id} <span className="text-xs">@{m.username || "unknown"} · {m.user_id}</span></div>)}</div></div> : null}</CardContent></Card>; }
