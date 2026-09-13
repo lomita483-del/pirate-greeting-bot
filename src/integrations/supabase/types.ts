@@ -2283,6 +2283,7 @@ export type Database = {
       }
       roll_call_responses: {
         Row: {
+          display_name: string | null
           guild_id: string
           id: string
           responded_at: string
@@ -2291,6 +2292,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          display_name?: string | null
           guild_id: string
           id?: string
           responded_at?: string
@@ -2299,6 +2301,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          display_name?: string | null
           guild_id?: string
           id?: string
           responded_at?: string
@@ -2315,6 +2318,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      roll_call_settings: {
+        Row: {
+          created_at: string
+          daily_description: string | null
+          daily_duration_hours: number
+          daily_enabled: boolean
+          daily_hour_utc: number
+          daily_target_role_ids: string[]
+          daily_title: string | null
+          default_channel_id: string | null
+          enabled: boolean
+          guild_id: string
+          last_daily_posted_day: string | null
+          manager_role_ids: string[]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          daily_description?: string | null
+          daily_duration_hours?: number
+          daily_enabled?: boolean
+          daily_hour_utc?: number
+          daily_target_role_ids?: string[]
+          daily_title?: string | null
+          default_channel_id?: string | null
+          enabled?: boolean
+          guild_id: string
+          last_daily_posted_day?: string | null
+          manager_role_ids?: string[]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          daily_description?: string | null
+          daily_duration_hours?: number
+          daily_enabled?: boolean
+          daily_hour_utc?: number
+          daily_target_role_ids?: string[]
+          daily_title?: string | null
+          default_channel_id?: string | null
+          enabled?: boolean
+          guild_id?: string
+          last_daily_posted_day?: string | null
+          manager_role_ids?: string[]
+          updated_at?: string
+        }
+        Relationships: []
       }
       roll_call_streaks: {
         Row: {
