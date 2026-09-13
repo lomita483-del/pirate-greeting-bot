@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Activity, BarChart3, MessageSquare, Mic, Users } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,20 @@ function RankTable({ title, rows, format, label }: { title: string; rows: Array<
 
 function StatahoyDashboard() {
   const { guildId } = Route.useParams();
+  const location = useLocation();
+
+  // $guildId is the layout/parent route for Statahoy's nested pages.
+  // When /activity is matched, render the child through Outlet instead of
+  // rendering the dashboard underneath it. This is what lets the Activity
+  // page actually replace the main Statahoy dashboard after navigation.
+  if (location.pathname.endsWith("/activity")) {
+    return <Outlet />;
+  }
+
+  return <StatahoyDashboardHome guildId={guildId} />;
+}
+
+function StatahoyDashboardHome({ guildId }: { guildId: string }) {
   const [days, setDays] = useState(14);
   const { data, isLoading, error } = useQuery({
     queryKey: ["statahoy-overview", guildId, days],
