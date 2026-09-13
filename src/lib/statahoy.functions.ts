@@ -86,7 +86,7 @@ export const getStatahoyOverview = createServerFn({ method: "GET" })
       const totals = new Map<string, number>();
       for (const row of rows ?? []) {
         const r = row as Record<string, unknown>;
-        const day = String(r.day);
+        const day = String(r["day"]);
         totals.set(day, (totals.get(day) ?? 0) + Number(r[field] ?? 0));
       }
       return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, value]) => ({ day, value }));
@@ -121,7 +121,7 @@ export const getStatahoyOverview = createServerFn({ method: "GET" })
       totalVoiceSeconds: voiceSeries.reduce((sum, r) => sum + r.value, 0),
       messageSeries,
       voiceSeries,
-      memberSeries: ((members.data ?? []) as Array<Record<string, unknown>>).map((r) => ({ day: String(r.day), value: Number(r.member_count ?? 0) })),
+      memberSeries: ((members.data ?? []) as Array<Record<string, unknown>>).map((r) => ({ day: String(r["day"]), value: Number(r["member_count"] ?? 0) })),
       topUsers: rankedUsers.map((r) => ({ ...r, name: names.get(r.id) ?? r.id })),
       topVoiceUsers: rankedVoice.map((r) => ({ ...r, name: names.get(r.id) ?? r.id })),
       topChannels: rankedChannels,
@@ -153,30 +153,42 @@ export const getStatahoyUserActivity = createServerFn({ method: "GET" })
     const members = new Map<string, Record<string, unknown>>();
     for (const member of memberRows ?? []) members.set(String(member.user_id), member as Record<string, unknown>);
 
-    let users = (rows ?? []).map((row: Record<string, unknown>) => {
-      const id = String(row.user_id);
+    const { data: streakRows } = await db
+      .from("roll_call_streaks")
+      .select("user_id, current_streak, longest_streak, last_checked_in_at")
+      .eq("guild_id", data.guildId)
+      .limit(1000);
+    const streaks = new Map<string, Record<string, unknown>>();
+    for (const s of (streakRows ?? []) as Array<Record<string, unknown>>) streaks.set(String(s["user_id"]), s);
+
+    let users = ((rows ?? []) as Array<Record<string, unknown>>).map((row) => {
+      const id = String(row["user_id"]);
       const member = members.get(id) ?? {};
+      const streak = streaks.get(id) ?? {};
       return {
         userId: id,
-        username: String(row.username || member.username || id),
-        displayName: String(member.display_name || row.username || id),
-        avatar: member.avatar || null,
-        joinedAt: member.joined_at || null,
-        leftAt: member.left_at || null,
-        lastSeenAt: row.last_seen_at || null,
-        lastOnlineAt: row.last_online_at || null,
-        lastOnlineStatus: String(row.last_online_status || "unknown"),
-        messageCount: Number(row.message_count || 0),
-        lastMessageAt: row.last_message_at || null,
-        lastMessageContent: row.last_message_content || null,
-        lastMessageChannelId: row.last_message_channel_id || null,
-        lastCommandAt: row.last_command_at || null,
-        lastCommandName: row.last_command_name || null,
-        commandCount: Number(row.command_count || 0),
-        voiceSeconds: Number(row.voice_seconds || 0),
-        voiceSessions: Number(row.voice_session_count || 0),
-        lastVoiceJoinAt: row.last_voice_join_at || null,
-        lastVoiceLeaveAt: row.last_voice_leave_at || null,
+        username: String(row["username"] || member["username"] || id),
+        displayName: String(member["display_name"] || row["username"] || id),
+        avatar: (member["avatar"] as string | null) || null,
+        joinedAt: (member["joined_at"] as string | null) || null,
+        leftAt: (member["left_at"] as string | null) || null,
+        lastSeenAt: (row["last_seen_at"] as string | null) || null,
+        lastOnlineAt: (row["last_online_at"] as string | null) || null,
+        lastOnlineStatus: String(row["last_online_status"] || "unknown"),
+        messageCount: Number(row["message_count"] || 0),
+        lastMessageAt: (row["last_message_at"] as string | null) || null,
+        lastMessageContent: (row["last_message_content"] as string | null) || null,
+        lastMessageChannelId: (row["last_message_channel_id"] as string | null) || null,
+        lastCommandAt: (row["last_command_at"] as string | null) || null,
+        lastCommandName: (row["last_command_name"] as string | null) || null,
+        commandCount: Number(row["command_count"] || 0),
+        voiceSeconds: Number(row["voice_seconds"] || 0),
+        voiceSessions: Number(row["voice_session_count"] || 0),
+        lastVoiceJoinAt: (row["last_voice_join_at"] as string | null) || null,
+        lastVoiceLeaveAt: (row["last_voice_leave_at"] as string | null) || null,
+        rollCallStreak: Number(streak["current_streak"] || 0),
+        rollCallLongestStreak: Number(streak["longest_streak"] || 0),
+        lastRollCallAt: (streak["last_checked_in_at"] as string | null) || null,
       };
     });
 
