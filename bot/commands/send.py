@@ -1,5 +1,6 @@
 """/send plus website action-queue delivery for messages, reaction panels and Roll Calls."""
 from __future__ import annotations
+import datetime as _dt
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
@@ -20,11 +21,21 @@ def _build_embed(data: dict) -> discord.Embed | None:
     if data.get("footer_text"): embed.set_footer(text=data["footer_text"], icon_url=data.get("footer_icon_url") or None)
     if data.get("image_url"): embed.set_image(url=data["image_url"])
     if data.get("thumbnail_url"): embed.set_thumbnail(url=data["thumbnail_url"])
-    if data.get("timestamp"):
-        import datetime as _dt
-        embed.timestamp = _dt.datetime.now(_dt.timezone.utc)
+    if data.get("timestamp"): embed.timestamp = _dt.datetime.now(_dt.timezone.utc)
     for field in (data.get("fields") or [])[:25]: embed.add_field(name=(field.get("name") or "\u200b")[:256], value=(field.get("value") or "\u200b")[:1024], inline=bool(field.get("inline")))
     return embed if any([embed.title, embed.description, embed.fields, embed.image, embed.thumbnail, embed.author, embed.footer]) else None
+
+def _build_link_view(data: dict) -> discord.ui.View | None:
+    buttons = data.get("buttons") or []
+    if not buttons: return None
+    view = discord.ui.View(timeout=None)
+    for item in buttons[:5]:
+        label = str(item.get("label") or "Open")[:80]
+        target = str(item.get("url") or "").strip()
+        if not target: continue
+        emoji = item.get("emoji") or None
+        view.add_item(discord.ui.Button(label=label, emoji=emoji, style=discord.ButtonStyle.link, url=target, row=min(4, len(view.children) // 5)))
+    return view if view.children else None
 
 class SendCommands(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
@@ -45,28 +56,28 @@ class SendCommands(commands.Cog):
             content_parts.append(message_content)
         try: await channel.send(content=" ".join(content_parts) if content_parts else None, embed=rich_embed, allowed_mentions=discord.AllowedMentions(everyone=False, roles=bool(mention_role), users=True))
         except discord.HTTPException as exc: raise ActionRefused(f"Discord rejected that message: {exc}") from exc
-        await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"{interaction.user} sent a message to #{channel.name} via /send", "metadata": {"channel_id": str(channel.id)}})  # type: ignore[attr-defined]
+        await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"{interaction.user} sent a message to #{channel.name} via /send", "metadata": {"channel_id": str(channel.id)}})
         await interaction.response.send_message(embed=embeds.success("Message sent", f"Posted to {channel.mention}."), ephemeral=True)
     @tasks.loop(seconds=10)
     async def _poll_queue(self) -> None:
-        try: actions = await self.bot.repo.pending_bot_actions()  # type: ignore[attr-defined]
+        try: actions = await self.bot.repo.pending_bot_actions()
         except Exception: log.exception("Failed to poll bot_action_queue"); return
         supported = {"send_message", "reaction_role_panel", "rollcall_start", "rollcall_close"}
         for action in actions:
             kind = action.get("action")
             if kind not in supported: continue
-            claimed = await self.bot.repo.db.try_run(lambda c: c.table("bot_action_queue").update({"status": "processing"}).eq("id", action["id"]).eq("status", "pending").select("id").execute())  # type: ignore[attr-defined]
+            claimed = await self.bot.repo.db.try_run(lambda c: c.table("bot_action_queue").update({"status": "processing"}).eq("id", action["id"]).eq("status", "pending").select("id").execute())
             if not (getattr(claimed, "data", None) or []): continue
             try:
                 if kind == "send_message": await self._process_send_action(action)
                 elif kind == "reaction_role_panel": await self._process_reaction_role_panel(action)
                 elif kind == "rollcall_start": await self._process_rollcall_start(action)
                 elif kind == "rollcall_close": await self._process_rollcall_close(action)
-            except Exception as exc:
-                log.exception("Dashboard action %s failed", kind); await self.bot.repo.finish_bot_action(action["id"], "failed", str(exc)[:400])  # type: ignore[attr-defined]
+            except Exception:
+                log.exception("Dashboard action %s failed", kind); await self.bot.repo.finish_bot_action(action["id"], "failed", "Action failed")
     async def _process_rollcall_start(self, action: dict) -> None:
         from .rollcall import RollCallView, _open_embed, _buttons
-        repo = self.bot.repo  # type: ignore[attr-defined]; payload = action.get("payload") or {}
+        repo = self.bot.repo; payload = action.get("payload") or {}
         roll_call = await repo.get_roll_call(str(payload.get("roll_call_id") or action.get("target_id")))
         if not roll_call or roll_call.get("status") != "open": raise ActionRefused("Roll call no longer exists or is already closed.")
         guild = self.bot.get_guild(int(action["guild_id"]))
@@ -79,7 +90,7 @@ class SendCommands(commands.Cog):
         await repo.set_roll_call_message(roll_call["id"], str(message.id)); await repo.finish_bot_action(action["id"], "done")
     async def _process_rollcall_close(self, action: dict) -> None:
         from .rollcall import RollCall
-        repo = self.bot.repo  # type: ignore[attr-defined]; roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id")); roll_call = await repo.get_roll_call(roll_call_id)
+        repo = self.bot.repo; roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id")); roll_call = await repo.get_roll_call(roll_call_id)
         if not roll_call or roll_call.get("status") != "open": await repo.finish_bot_action(action["id"], "done"); return
         guild = self.bot.get_guild(int(action["guild_id"]))
         if guild is None: raise ActionRefused("AHOY is not in that server.")
@@ -90,7 +101,7 @@ class SendCommands(commands.Cog):
         payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error = None
         try:
             guild = self.bot.get_guild(int(guild_id)) if guild_id else None
-            if guild is None: raise ActionRefused("!PIRATE is not in that server (or lost access).")
+            if guild is None: raise ActionRefused("AHOY is not in that server (or lost access).")
             channel = guild.get_channel(int(payload["channel_id"]))
             if not isinstance(channel, discord.TextChannel): raise ActionRefused("That channel no longer exists or isn't a text channel.")
             options = payload.get("options") or []
@@ -102,11 +113,11 @@ class SendCommands(commands.Cog):
             for opt in options:
                 try: await message.add_reaction(opt["emoji"])
                 except discord.HTTPException: continue
-                await self.bot.repo.add_reaction_role({"guild_id": str(guild.id), "channel_id": str(channel.id), "message_id": str(message.id), "emoji": opt["emoji"], "role_id": str(opt["role_id"]), "description": opt.get("description") or None})  # type: ignore[attr-defined]
+                await self.bot.repo.add_reaction_role({"guild_id": str(guild.id), "channel_id": str(channel.id), "message_id": str(message.id), "emoji": opt["emoji"], "role_id": str(opt["role_id"]), "description": opt.get("description") or None})
         except ActionRefused as exc: error = str(exc)
         except discord.HTTPException as exc: error = f"Discord rejected that panel: {exc}"
         except Exception as exc: log.exception("reaction_role_panel action failed"); error = str(exc)
-        await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
+        await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)
     async def _process_send_action(self, action: dict) -> None:
         payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error = None
         try:
@@ -115,15 +126,16 @@ class SendCommands(commands.Cog):
             channel = guild.get_channel(int(payload["channel_id"]))
             if not isinstance(channel, (discord.TextChannel, discord.Thread)): raise ActionRefused("That channel no longer exists or isn't a text channel.")
             mention_role = guild.get_role(int(payload["mention_role_id"])) if payload.get("mention_role_id") else None; everyone = bool(payload.get("mention_everyone")); content = payload.get("content") or ""; prefix = "@everyone" if everyone else (mention_role.mention if mention_role else ""); content = f"{prefix} {content}".strip() if prefix else content
-            embed = _build_embed(payload.get("embed") or {}); allowed_mentions = discord.AllowedMentions(everyone=everyone, roles=[mention_role] if mention_role else [])
+            embed_data = payload.get("embed") or {}; embed = _build_embed(embed_data); view = _build_link_view(embed_data)
+            allowed_mentions = discord.AllowedMentions(everyone=everyone, roles=[mention_role] if mention_role else [])
             if not content and embed is None: raise ActionRefused("Empty message — nothing to send.")
             if not channel.permissions_for(guild.me).send_messages: raise ActionRefused(f"AHOY can't send messages in #{channel.name}.")
-            await channel.send(content=content or None, embed=embed, allowed_mentions=allowed_mentions)
-            await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"Message sent to #{channel.name} from the website", "metadata": {"channel_id": str(channel.id)}})  # type: ignore[attr-defined]
+            await channel.send(content=content or None, embed=embed, view=view, allowed_mentions=allowed_mentions)
+            await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"Message sent to #{channel.name} from the website", "metadata": {"channel_id": str(channel.id), "button_count": len(embed_data.get("buttons") or [])}})
         except ActionRefused as exc: error = str(exc)
         except discord.HTTPException as exc: error = f"Discord rejected that message: {exc}"
         except Exception as exc: log.exception("send_message action failed"); error = str(exc)
-        await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
+        await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)
     @_poll_queue.before_loop
     async def _before_poll(self) -> None: await self.bot.wait_until_ready()
 
