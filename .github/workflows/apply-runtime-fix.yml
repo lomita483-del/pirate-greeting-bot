@@ -1,0 +1,125 @@
+name: Apply Admin Runtime Fix
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply runtime-backed uptime
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess
+
+          path = Path("src/routes/owner-console.tsx")
+          text = path.read_text(encoding="utf-8")
+
+          old = '''  const { data, isPending } = useQuery({
+    queryKey: ["admin", "overview"],
+    queryFn: () => getAdminOverview(),
+    refetchInterval: 30_000,
+  });
+
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [uptimeSeconds, setUptimeSeconds] = useState(() => {
+    if (typeof window === "undefined") return 0;
+
+    const storageKey = "ahoy-owner-console-uptime-start";
+    const existing = window.localStorage.getItem(storageKey);
+
+    if (existing) {
+      const parsed = Number(existing);
+
+      if (Number.isFinite(parsed) && parsed > 0) {
+        return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
+      }
+    }
+
+    const now = Date.now();
+    window.localStorage.setItem(storageKey, String(now));
+    return 0;
+  });
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setUptimeSeconds((value) => value + 1);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);'''
+
+          new = '''  const { data, isPending } = useQuery({
+    queryKey: ["admin", "overview"],
+    queryFn: () => getAdminOverview(),
+    refetchInterval: 15_000,
+  });
+
+  const [activityOpen, setActivityOpen] = useState(false);
+  const [clockNow, setClockNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const heartbeatMs = data?.botRuntime?.heartbeatAt
+    ? Date.parse(data.botRuntime.heartbeatAt)
+    : Number.NaN;
+  const startedMs = data?.botRuntime?.startedAt
+    ? Date.parse(data.botRuntime.startedAt)
+    : Number.NaN;
+  const stoppedMs = data?.botRuntime?.stoppedAt
+    ? Date.parse(data.botRuntime.stoppedAt)
+    : Number.NaN;
+
+  const heartbeatFresh =
+    Number.isFinite(heartbeatMs) &&
+    clockNow >= heartbeatMs - 5_000 &&
+    clockNow - heartbeatMs <= 45_000;
+
+  const isBotOnline =
+    data?.botRuntime?.status === "online" &&
+    !Number.isFinite(stoppedMs) &&
+    Number.isFinite(startedMs) &&
+    heartbeatFresh;
+
+  const uptimeSeconds = isBotOnline
+    ? Math.max(0, Math.floor((clockNow - startedMs) / 1000))
+    : 0;'''
+
+          if old not in text:
+              raise SystemExit("Expected localStorage uptime block was not found")
+          text = text.replace(old, new, 1)
+          text = text.replace(
+              'const uptime = formatUptime(uptimeSeconds);',
+              'const uptime = isBotOnline ? formatUptime(uptimeSeconds) : "Offline";',
+              1,
+          )
+          text = text.replace('hint: "This dashboard session",', 'hint: "Actual bot runtime",', 1)
+          text = text.replace(
+              'delta: "+0.02%",\n      icon: Gauge,',
+              'delta: isBotOnline ? "+0.02%" : "Offline",\n      icon: Gauge,',
+              1,
+          )
+
+          path.write_text(text, encoding="utf-8")
+
+          subprocess.run(["git", "config", "user.name", "github-actions[bot]"], check=True)
+          subprocess.run(["git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com"], check=True)
+          subprocess.run(["git", "rm", "UPTIME_FIX_TRIGGER.txt"], check=True)
+          subprocess.run(["git", "rm", ".github/workflows/apply-runtime-fix.yml"], check=True)
+          subprocess.run(["git", "rm", ".github/workflows/fix-admin-uptime.yml"], check=True)
+          subprocess.run(["git", "add", "src/routes/owner-console.tsx"], check=True)
+          subprocess.run(["git", "commit", "-m", "fix: use bot runtime for admin uptime"], check=True)
+          subprocess.run(["git", "push", "--force-with-lease", "origin", "HEAD:main"], check=True)
