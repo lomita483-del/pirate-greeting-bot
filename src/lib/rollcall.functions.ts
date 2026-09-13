@@ -123,7 +123,7 @@ export const startRollCall = createServerFn({ method: "POST" }).inputValidator((
   await assertRollCallManager(data.guildId, session.userId, supabaseAdmin, guild);
   const opensAt = new Date();
   const closesAt = new Date(opensAt.getTime() + data.durationMinutes * 60_000);
-  const { data: rollCall, error } = await supabaseAdmin.from("roll_calls").insert({ guild_id: data.guildId, mode: data.mode, title: data.title, description: data.description || null, channel_id: data.channelId, target_role_ids: data.targetRoleIds, duration_minutes: data.durationMinutes, opens_at: opensAt.toISOString(), closes_at: closesAt.toISOString(), status: "open", created_by: session.userId }).select("*").single();
+  const { data: rollCall, error } = await supabaseAdmin.from("roll_calls").insert({ guild_id: data.guildId, mode: data.mode, title: data.title, description: data.description || null, channel_id: data.channelId, target_role_ids: data.targetRoleIds, opens_at: opensAt.toISOString(), closes_at: closesAt.toISOString(), status: "open", created_by: session.userId }).select("*").single();
   if (error || !rollCall) throw new Error(error?.message ?? "Could not create the roll call.");
   const { error: queueError } = await supabaseAdmin.from("bot_action_queue").insert({ guild_id: data.guildId, action: "rollcall_start", target_id: String(rollCall.id), payload: { roll_call_id: rollCall.id }, requested_by: session.userId, requested_by_name: session.username, status: "pending" });
   if (queueError) {
