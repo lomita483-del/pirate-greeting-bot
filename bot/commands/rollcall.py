@@ -206,12 +206,10 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     """Build the complete Roll Call result as one polished sea-glass embed."""
     repo = bot.repo  # type: ignore[attr-defined]
     responses = await repo.roll_call_responses(roll_call["id"])
-    buttons = _buttons(roll_call)
     called = await _called_members(guild, [str(x) for x in roll_call.get("target_role_ids") or []])
     response_users = {str(r["user_id"]) for r in responses}
     missed = [m for m in called if str(m.id) not in response_users]
     mode = str(roll_call.get("mode") or "event")
-    counts = {str(button["id"]): sum(1 for row in responses if str(row.get("button_id") or "present") == str(button["id"])) for button in buttons}
 
     present_lines = []
     for row in responses:
@@ -219,14 +217,10 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
         if not user_id:
             continue
         display_name = str(row.get("display_name") or row.get("username") or "Unknown User")
-        username = str(row.get("username") or "").strip()
-        action = str(row.get("button_label") or row.get("button_id") or "Present")
-        tag = f"@{username}" if username else f"<@{user_id}>"
-        present_lines.append(f"• **{display_name}** • {tag} — {action} ✅")
+        # Discord resolves this mention into the member's current clickable username/tag.
+        present_lines.append(f"• **{display_name}** • <@{user_id}> — ✅")
 
-    missed_lines = []
-    for member in missed:
-        missed_lines.append(f"• **{member.display_name}** • @{member.name} ❌")
+    missed_lines = [f"• **{member.display_name}** • <@{member.id}> ❌" for member in missed]
 
     embed = discord.Embed(
         title=f"🌊 {roll_call.get('title') or 'Roll Call'} · Attendance Report",
@@ -250,8 +244,11 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
         try:
             closed_at = datetime.fromisoformat(str(closes_at).replace("Z", "+00:00"))
             stamp = int(closed_at.timestamp())
-            duration_text = "<t:{0}:R>".format(stamp)
-            embed.add_field(name="⏱️ CLOSED", value=f"**Date:** <t:{stamp}:D>\n**Time:** <t:{stamp}:t}\n**Duration:** {duration_text}", inline=False)
+            embed.add_field(
+                name="⏱️ CLOSED",
+                value=f"**Date:** <t:{stamp}:D>\n**Time:** <t:{stamp}:t>\n**Duration:** <t:{stamp}:R>",
+                inline=False,
+            )
         except ValueError:
             pass
 
