@@ -30,7 +30,6 @@ class SendCommands(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot; self._poll_queue.start()
     def cog_unload(self) -> None: self._poll_queue.cancel()
-
     @app_commands.command(name="send", description="Send a message to a channel as AHOY.")
     @app_commands.describe(channel="Channel to send the message to", message_title="Title shown at the top of the embed", message_content="Message text or embed description", mention_role="Role to ping alongside the message", embed="Send the title and content as a rich embed", embed_color="Color used when embed is enabled")
     @app_commands.choices(embed_color=[app_commands.Choice(name="AHOY Gold", value="D4AF37"), app_commands.Choice(name="Discord Blurple", value="5865F2"), app_commands.Choice(name="Ocean Blue", value="3498DB"), app_commands.Choice(name="Emerald Green", value="2ECC71"), app_commands.Choice(name="Sunset Orange", value="E67E22"), app_commands.Choice(name="Signal Red", value="E74C3C")])
@@ -48,7 +47,6 @@ class SendCommands(commands.Cog):
         except discord.HTTPException as exc: raise ActionRefused(f"Discord rejected that message: {exc}") from exc
         await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"{interaction.user} sent a message to #{channel.name} via /send", "metadata": {"channel_id": str(channel.id)}})  # type: ignore[attr-defined]
         await interaction.response.send_message(embed=embeds.success("Message sent", f"Posted to {channel.mention}."), ephemeral=True)
-
     @tasks.loop(seconds=10)
     async def _poll_queue(self) -> None:
         try: actions = await self.bot.repo.pending_bot_actions()  # type: ignore[attr-defined]
@@ -66,11 +64,9 @@ class SendCommands(commands.Cog):
                 elif kind == "rollcall_close": await self._process_rollcall_close(action)
             except Exception as exc:
                 log.exception("Dashboard action %s failed", kind); await self.bot.repo.finish_bot_action(action["id"], "failed", str(exc)[:400])  # type: ignore[attr-defined]
-
     async def _process_rollcall_start(self, action: dict) -> None:
-        from .rollcall import RollCallView, _open_embed
-        repo = self.bot.repo  # type: ignore[attr-defined]
-        payload = action.get("payload") or {}
+        from .rollcall import RollCallView, _open_embed, _buttons
+        repo = self.bot.repo  # type: ignore[attr-defined]; payload = action.get("payload") or {}
         roll_call = await repo.get_roll_call(str(payload.get("roll_call_id") or action.get("target_id")))
         if not roll_call or roll_call.get("status") != "open": raise ActionRefused("Roll call no longer exists or is already closed.")
         guild = self.bot.get_guild(int(action["guild_id"]))
@@ -78,22 +74,18 @@ class SendCommands(commands.Cog):
         channel = guild.get_channel(int(roll_call["channel_id"]))
         if not isinstance(channel, discord.TextChannel): raise ActionRefused("Roll call channel no longer exists.")
         roles = [guild.get_role(int(x)) for x in roll_call.get("target_role_ids") or []]; roles = [r for r in roles if r is not None]
-        view = RollCallView(self.bot, str(roll_call["id"])); self.bot.add_view(view)
+        view = RollCallView(self.bot, str(roll_call["id"]), _buttons(roll_call)); self.bot.add_view(view)
         message = await channel.send(content=" ".join(r.mention for r in roles) or None, embed=_open_embed(roll_call, roles), view=view, allowed_mentions=discord.AllowedMentions(roles=True, users=False, everyone=False))
         await repo.set_roll_call_message(roll_call["id"], str(message.id)); await repo.finish_bot_action(action["id"], "done")
-
     async def _process_rollcall_close(self, action: dict) -> None:
         from .rollcall import RollCall
-        repo = self.bot.repo  # type: ignore[attr-defined]
-        roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id"))
-        roll_call = await repo.get_roll_call(roll_call_id)
+        repo = self.bot.repo  # type: ignore[attr-defined]; roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id")); roll_call = await repo.get_roll_call(roll_call_id)
         if not roll_call or roll_call.get("status") != "open": await repo.finish_bot_action(action["id"], "done"); return
         guild = self.bot.get_guild(int(action["guild_id"]))
         if guild is None: raise ActionRefused("AHOY is not in that server.")
         cog = self.bot.get_cog("RollCall")
         if not isinstance(cog, RollCall): raise ActionRefused("Roll Call service is not ready.")
         await cog._close_roll_call(guild, roll_call); await repo.finish_bot_action(action["id"], "done")
-
     async def _process_reaction_role_panel(self, action: dict) -> None:
         payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error = None
         try:
@@ -115,7 +107,6 @@ class SendCommands(commands.Cog):
         except discord.HTTPException as exc: error = f"Discord rejected that panel: {exc}"
         except Exception as exc: log.exception("reaction_role_panel action failed"); error = str(exc)
         await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
-
     async def _process_send_action(self, action: dict) -> None:
         payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error = None
         try:
@@ -133,7 +124,6 @@ class SendCommands(commands.Cog):
         except discord.HTTPException as exc: error = f"Discord rejected that message: {exc}"
         except Exception as exc: log.exception("send_message action failed"); error = str(exc)
         await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
-
     @_poll_queue.before_loop
     async def _before_poll(self) -> None: await self.bot.wait_until_ready()
 
