@@ -309,128 +309,6 @@ class Repository:
         )
         return getattr(rows, "data", None) or []
 
-   # -- ticket panels -------------------------------------------------
-
-    async def create_ticket_panel(
-        self,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        result = await self.db.run(
-            lambda c: c.table("ticket_panels")
-            .insert(payload)
-            .execute()
-        )
-
-        rows = getattr(
-            result,
-            "data",
-            None,
-        ) or []
-
-        return rows[0] if rows else {}
-
-    async def create_ticket_panel_button(
-        self,
-        payload: dict[str, Any],
-    ) -> dict[str, Any]:
-        result = await self.db.run(
-            lambda c: c.table(
-                "ticket_panel_buttons"
-            )
-            .insert(payload)
-            .execute()
-        )
-
-        rows = getattr(
-            result,
-            "data",
-            None,
-        ) or []
-
-        return rows[0] if rows else {}
-
-    async def get_ticket_panel_button(
-        self,
-        button_id: str,
-    ) -> dict[str, Any]:
-        rows = await self.db.try_run(
-            lambda c: c.table(
-                "ticket_panel_buttons"
-            )
-            .select("*")
-            .eq("id", button_id)
-            .limit(1)
-            .execute()
-        )
-
-        data = getattr(
-            rows,
-            "data",
-            None,
-        ) or []
-
-        return data[0] if data else {}
-
-    async def update_ticket_panel_message(
-        self,
-        panel_id: str,
-        message_id: str,
-    ) -> None:
-        await self.db.try_run(
-            lambda c: c.table("ticket_panels")
-            .update(
-                {
-                    "message_id": message_id,
-                }
-            )
-            .eq("id", panel_id)
-            .execute()
-        )
-
-    async def ticket_panel_buttons(
-        self,
-        panel_id: str,
-    ) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table(
-                "ticket_panel_buttons"
-            )
-            .select("*")
-            .eq("panel_id", panel_id)
-            .order("position")
-            .limit(20)
-            .execute()
-        )
-
-        return getattr(
-            rows,
-            "data",
-            None,
-        ) or []
-
-    async def active_ticket_panels(self) -> list[dict[str, Any]]:
-        """Every enabled panel — used to rebuild persistent views on startup."""
-        rows = await self.db.try_run(
-            lambda c: c.table("ticket_panels")
-            .select("*")
-            .eq("enabled", True)
-            .limit(500)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def active_ticket_panel_buttons(self) -> list[dict[str, Any]]:
-        """Every enabled panel button, ordered so views rebuild identically."""
-        rows = await self.db.try_run(
-            lambda c: c.table("ticket_panel_buttons")
-            .select("*")
-            .eq("enabled", True)
-            .order("position")
-            .limit(2000)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
     # -- reminders ----------------------------------------------------
     async def add_reminder(self, payload: dict[str, Any]) -> None:
         await self.db.run(lambda c: c.table("reminders").insert(payload).execute())
@@ -1560,11 +1438,142 @@ class Repository:
             lambda c: c.table("servers").update(values).eq("guild_id", guild_id).execute()
         )
 
-    # -- roll calls ---------------------------------------------------
-    async def create_roll_call(self, payload: dict[str, Any]) -> dict[str, Any]:
-        rows = await self.db.try_run(lambda c: c.table("roll_calls").insert(payload).execute())
+    # -- user activity ("last active" tracking) ----------------------------
+    async def get_user_activity(self, guild_id: str, user_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("user_activity")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
         data = getattr(rows, "data", None) or []
         return data[0] if data else {}
+
+    async def list_user_activity(self, guild_id: str, limit: int = 200) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("user_activity")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("last_seen_at", desc=True, nullsfirst=False)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    async def touch_user_activity(
+        self, guild_id: str, user_id: str, username: str, fields: dict[str, Any]
+    ) -> None:
+        """Merge `fields` into this member's user_activity row, always
+        bumping last_seen_at + username. This is the single write path for
+        every "last active" signal — message, voice, slash command, and
+        (when the Presence intent is enabled) online-status changes."""
+        payload = {
+            "guild_id": guild_id,
+            "user_id": user_id,
+            "username": username,
+            "last_seen_at": _now(),
+            "updated_at": _now(),
+            **fields,
+        }
+        await self.db.try_run(
+            lambda c: c.table("user_activity")
+            .upsert(payload, on_conflict="guild_id,user_id")
+            .execute()
+        )
+
+    async def touch_user_message(
+        self, guild_id: str, user_id: str, username: str, channel_id: str, content: str
+    ) -> None:
+        await self.touch_user_activity(
+            guild_id,
+            user_id,
+            username,
+            {
+                "last_message_at": _now(),
+                "last_message_content": content[:500],
+                "last_message_channel_id": channel_id,
+            },
+        )
+
+    async def touch_user_voice(
+        self, guild_id: str, user_id: str, username: str, *, joined: bool
+    ) -> None:
+        field = "last_voice_join_at" if joined else "last_voice_leave_at"
+        await self.touch_user_activity(guild_id, user_id, username, {field: _now()})
+
+    async def touch_user_presence(
+        self, guild_id: str, user_id: str, username: str, status: str
+    ) -> None:
+        await self.touch_user_activity(
+            guild_id, user_id, username, {"last_online_status": status}
+        )
+
+    async def touch_user_command(
+        self, guild_id: str, user_id: str, username: str, command_name: str
+    ) -> None:
+        current = await self.get_user_activity(guild_id, user_id)
+        count = int(current.get("command_count") or 0) + 1
+        await self.touch_user_activity(
+            guild_id,
+            user_id,
+            username,
+            {
+                "last_command_at": _now(),
+                "last_command_name": command_name,
+                "command_count": count,
+            },
+        )
+
+
+    # -- roll call ------------------------------------------------------
+    async def roll_call_settings(self, guild_id: str) -> dict[str, Any]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_call_settings")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else {}
+
+    async def save_roll_call_settings(self, guild_id: str, fields: dict[str, Any]) -> None:
+        payload = {"guild_id": guild_id, "updated_at": _now(), **fields}
+        await self.db.try_run(
+            lambda c: c.table("roll_call_settings")
+            .upsert(payload, on_conflict="guild_id")
+            .execute()
+        )
+
+    async def create_roll_call(self, payload: dict[str, Any]) -> dict[str, Any]:
+        result = await self.db.try_run(
+            lambda c: c.table("roll_calls").insert(payload).execute()
+        )
+        rows = getattr(result, "data", None) or [{}]
+        return rows[0]
+
+    async def get_roll_call(self, roll_call_id: str) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls").select("*").eq("id", roll_call_id).limit(1).execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
+
+    async def get_roll_call_by_message(
+        self, guild_id: str, message_id: str
+    ) -> Optional[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .eq("message_id", message_id)
+            .limit(1)
+            .execute()
+        )
+        data = getattr(rows, "data", None) or []
+        return data[0] if data else None
 
     async def set_roll_call_message(self, roll_call_id: str, message_id: str) -> None:
         await self.db.try_run(
@@ -1574,28 +1583,50 @@ class Repository:
             .execute()
         )
 
-    async def roll_call_by_message(self, message_id: str) -> Optional[dict[str, Any]]:
+    async def close_roll_call(self, roll_call_id: str) -> None:
+        await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .update({"status": "closed", "updated_at": _now()})
+            .eq("id", roll_call_id)
+            .execute()
+        )
+
+    async def due_roll_calls(self) -> list[dict[str, Any]]:
         rows = await self.db.try_run(
             lambda c: c.table("roll_calls")
             .select("*")
-            .eq("message_id", message_id)
-            .limit(1)
+            .eq("status", "open")
+            .lte("closes_at", _now())
+            .limit(50)
             .execute()
         )
-        data = getattr(rows, "data", None) or []
-        return data[0] if data else None
+        return getattr(rows, "data", None) or []
 
-    async def roll_call(self, roll_call_id: str) -> Optional[dict[str, Any]]:
+    async def active_roll_calls(self) -> list[dict[str, Any]]:
+        """Every currently-open roll call across all guilds — used to
+        re-register persistent Present-button views after a bot restart."""
         rows = await self.db.try_run(
-            lambda c: c.table("roll_calls").select("*").eq("id", roll_call_id).limit(1).execute()
+            lambda c: c.table("roll_calls").select("*").eq("status", "open").limit(500).execute()
         )
-        data = getattr(rows, "data", None) or []
-        return data[0] if data else None
+        return getattr(rows, "data", None) or []
+
+    async def list_roll_calls(self, guild_id: str, limit: int = 25) -> list[dict[str, Any]]:
+        rows = await self.db.try_run(
+            lambda c: c.table("roll_calls")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
 
     async def add_roll_call_response(
-        self, roll_call_id: str, guild_id: str, user_id: str, username: str
+        self, roll_call_id: str, user_id: str, username: str
     ) -> bool:
-        """Record a ✅ Present click. Returns False when already recorded."""
+        """Insert a response row. Returns False (no-op) if this member had
+        already checked in — the unique (roll_call_id, user_id) constraint
+        makes this safe against double-clicks."""
         existing = await self.db.try_run(
             lambda c: c.table("roll_call_responses")
             .select("id")
@@ -1608,14 +1639,7 @@ class Repository:
             return False
         await self.db.try_run(
             lambda c: c.table("roll_call_responses")
-            .insert(
-                {
-                    "roll_call_id": roll_call_id,
-                    "guild_id": guild_id,
-                    "user_id": user_id,
-                    "username": username,
-                }
-            )
+            .insert({"roll_call_id": roll_call_id, "user_id": user_id, "username": username})
             .execute()
         )
         return True
@@ -1625,53 +1649,12 @@ class Repository:
             lambda c: c.table("roll_call_responses")
             .select("*")
             .eq("roll_call_id", roll_call_id)
-            .limit(2000)
+            .limit(5000)
             .execute()
         )
         return getattr(rows, "data", None) or []
 
-    async def open_roll_calls(self) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("roll_calls")
-            .select("*")
-            .eq("status", "open")
-            .limit(500)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def due_roll_calls(self) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("roll_calls")
-            .select("*")
-            .eq("status", "open")
-            .not_.is_("closes_at", "null")
-            .lte("closes_at", _now())
-            .limit(50)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def close_roll_call(self, roll_call_id: str, results: dict[str, Any]) -> None:
-        await self.db.try_run(
-            lambda c: c.table("roll_calls")
-            .update({"status": "closed", "closed_at": _now(), "results": results})
-            .eq("id", roll_call_id)
-            .execute()
-        )
-
-    async def recent_roll_calls(self, guild_id: str, limit: int = 25) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("roll_calls")
-            .select("*")
-            .eq("guild_id", guild_id)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def get_roll_call_streak(self, guild_id: str, user_id: str) -> dict[str, Any]:
+    async def get_streak(self, guild_id: str, user_id: str) -> dict[str, Any]:
         rows = await self.db.try_run(
             lambda c: c.table("roll_call_streaks")
             .select("*")
@@ -1683,44 +1666,14 @@ class Repository:
         data = getattr(rows, "data", None) or []
         return data[0] if data else {}
 
-    async def bump_roll_call_streak(self, guild_id: str, user_id: str) -> dict[str, Any]:
-        """Extend a daily check-in streak; a skipped day resets it to 1."""
-        today = datetime.now(timezone.utc).date()
-        current = await self.get_roll_call_streak(guild_id, user_id)
-        last_day = current.get("last_checked_in_day")
-        streak = int(current.get("current_streak") or 0)
-
-        if last_day:
-            try:
-                previous = datetime.fromisoformat(str(last_day)).date()
-            except ValueError:
-                previous = None
-            if previous == today:
-                return current
-            if previous and (today - previous).days == 1:
-                streak += 1
-            else:
-                streak = 1
-        else:
-            streak = 1
-
-        longest = max(int(current.get("longest_streak") or 0), streak)
-        payload = {
-            "guild_id": guild_id,
-            "user_id": user_id,
-            "current_streak": streak,
-            "longest_streak": longest,
-            "last_checked_in_at": _now(),
-            "last_checked_in_day": today.isoformat(),
-        }
+    async def save_streak(self, payload: dict[str, Any]) -> None:
         await self.db.try_run(
             lambda c: c.table("roll_call_streaks")
             .upsert(payload, on_conflict="guild_id,user_id")
             .execute()
         )
-        return payload
 
-    async def roll_call_streak_leaderboard(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
+    async def top_streaks(self, guild_id: str, limit: int = 10) -> list[dict[str, Any]]:
         rows = await self.db.try_run(
             lambda c: c.table("roll_call_streaks")
             .select("*")
@@ -1730,25 +1683,6 @@ class Repository:
             .execute()
         )
         return getattr(rows, "data", None) or []
-
-    async def daily_roll_call_guilds(self) -> list[dict[str, Any]]:
-        rows = await self.db.try_run(
-            lambda c: c.table("server_settings")
-            .select("guild_id, rollcall_enabled, rollcall_daily_enabled, rollcall_daily_time, rollcall_channel_id, rollcall_daily_last_posted_day, rollcall_manager_roles")
-            .eq("rollcall_enabled", True)
-            .eq("rollcall_daily_enabled", True)
-            .limit(500)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    async def mark_daily_roll_call_posted(self, guild_id: str, day: str) -> None:
-        await self.db.try_run(
-            lambda c: c.table("server_settings")
-            .update({"rollcall_daily_last_posted_day": day})
-            .eq("guild_id", guild_id)
-            .execute()
-        )
 
 
 __all__ = ["Repository", "DatabaseError"]
