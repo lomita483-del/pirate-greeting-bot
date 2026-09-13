@@ -16,7 +16,10 @@ async function authorize(guildId: string) {
   return { session, guild, supabaseAdmin };
 }
 
-async function assertRollCallManager(guildId: string, userId: string, supabaseAdmin: any) {
+async function assertRollCallManager(guildId: string, userId: string, supabaseAdmin: any, guild: any) {
+  const { canManage } = await import("@/lib/discord.server");
+  if (guild && canManage(guild)) return;
+
   const { data: settings } = await supabaseAdmin.from("roll_call_settings").select("enabled, manager_role_ids").eq("guild_id", guildId).maybeSingle();
   if (!settings?.enabled) throw new Error("Roll Call is disabled for this server.");
   const allowed = new Set<string>((settings.manager_role_ids ?? []).map(String));
@@ -108,7 +111,7 @@ export const saveRollCallSettings = createServerFn({ method: "POST" }).inputVali
 
 const startInput = z.object({ guildId: snowflake, mode: z.enum(["event", "daily", "audit"]), title: z.string().min(1).max(200), description: z.string().max(1500).nullable(), durationHours: z.number().min(0.25).max(336), channelId: snowflake, targetRoleIds: z.array(snowflake).max(25) });
 export const startRollCall = createServerFn({ method: "POST" }).inputValidator((data: unknown) => startInput.parse(data)).handler(async ({ data }) => {
-  const { session, supabaseAdmin } = await authorize(data.guildId); await assertRollCallManager(data.guildId, session.userId, supabaseAdmin);
+  const { session, guild, supabaseAdmin } = await authorize(data.guildId); await assertRollCallManager(data.guildId, session.userId, supabaseAdmin, guild);
   const opensAt = new Date(); const closesAt = new Date(opensAt.getTime() + data.durationHours * 3600_000);
   const { data: rollCall, error } = await supabaseAdmin.from("roll_calls").insert({ guild_id: data.guildId, mode: data.mode, title: data.title, description: data.description || null, channel_id: data.channelId, target_role_ids: data.targetRoleIds, opens_at: opensAt.toISOString(), closes_at: closesAt.toISOString(), status: "open", created_by: session.userId }).select("*").single();
   if (error || !rollCall) throw new Error(error?.message ?? "Could not create the roll call.");
@@ -118,7 +121,7 @@ export const startRollCall = createServerFn({ method: "POST" }).inputValidator((
 });
 
 export const closeRollCall = createServerFn({ method: "POST" }).inputValidator((data: unknown) => z.object({ guildId: snowflake, id: z.string().uuid() }).parse(data)).handler(async ({ data }) => {
-  const { session, supabaseAdmin } = await authorize(data.guildId); await assertRollCallManager(data.guildId, session.userId, supabaseAdmin);
+  const { session, guild, supabaseAdmin } = await authorize(data.guildId); await assertRollCallManager(data.guildId, session.userId, supabaseAdmin, guild);
   const { data: row } = await supabaseAdmin.from("roll_calls").select("id, status, channel_id").eq("id", data.id).eq("guild_id", data.guildId).maybeSingle(); if (!row) throw new Error("Roll call not found."); if (row.status !== "open") return { ok: true };
   const { error } = await supabaseAdmin.from("bot_action_queue").insert({ guild_id: data.guildId, action: "rollcall_close", target_id: data.id, payload: { roll_call_id: data.id }, requested_by: session.userId, requested_by_name: session.username, status: "pending" }); if (error) throw new Error(error.message); return { ok: true };
 });
