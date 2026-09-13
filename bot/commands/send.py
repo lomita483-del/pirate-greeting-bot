@@ -53,16 +53,17 @@ class SendCommands(commands.Cog):
     async def _poll_queue(self) -> None:
         try: actions = await self.bot.repo.pending_bot_actions()  # type: ignore[attr-defined]
         except Exception: log.exception("Failed to poll bot_action_queue"); return
+        supported = {"send_message", "reaction_role_panel", "rollcall_start", "rollcall_close"}
         for action in actions:
+            kind = action.get("action")
+            if kind not in supported: continue
             claimed = await self.bot.repo.db.try_run(lambda c: c.table("bot_action_queue").update({"status": "processing"}).eq("id", action["id"]).eq("status", "pending").select("id").execute())  # type: ignore[attr-defined]
             if not (getattr(claimed, "data", None) or []): continue
-            kind = action.get("action")
             try:
                 if kind == "send_message": await self._process_send_action(action)
                 elif kind == "reaction_role_panel": await self._process_reaction_role_panel(action)
                 elif kind == "rollcall_start": await self._process_rollcall_start(action)
                 elif kind == "rollcall_close": await self._process_rollcall_close(action)
-                else: await self.bot.repo.finish_bot_action(action["id"], "failed", f"Unsupported queued action: {kind}")  # type: ignore[attr-defined]
             except Exception as exc:
                 log.exception("Dashboard action %s failed", kind); await self.bot.repo.finish_bot_action(action["id"], "failed", str(exc)[:400])  # type: ignore[attr-defined]
 
