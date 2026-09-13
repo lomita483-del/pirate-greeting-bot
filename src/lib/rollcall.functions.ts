@@ -5,6 +5,26 @@ import { z } from "zod";
 const snowflake = z.string().regex(/^\d{5,25}$/);
 const guildInput = z.object({ guildId: snowflake });
 
+const buttonSchema = z.object({
+  id: z.string().regex(/^[a-z0-9_-]{1,32}$/),
+  label: z.string().min(1).max(80),
+  emoji: z.string().max(32).nullable().optional(),
+  style: z.enum(["primary", "secondary", "success", "danger"]),
+  purpose: z.string().min(1).max(200),
+});
+
+export type RollCallButton = z.infer<typeof buttonSchema>;
+
+function normalizeButtons(buttons: RollCallButton[] | undefined): RollCallButton[] {
+  const source = buttons?.length ? buttons : [{ id: "present", label: "Present", emoji: "✅", style: "success" as const, purpose: "Record attendance" }];
+  const seen = new Set<string>();
+  return source.filter((button) => {
+    if (seen.has(button.id)) return false;
+    seen.add(button.id);
+    return true;
+  }).slice(0, 5);
+}
+
 async function authorize(guildId: string) {
   const { sessionFromHeader, assertGuildAccess } = await import("@/lib/discord.server");
   const session = await sessionFromHeader(getRequestHeader("cookie") ?? null);
@@ -35,10 +55,16 @@ async function fetchStructure(guildId: string) {
   const token = process.env["DISCORD_TOKEN"];
   if (!token) return { channels: [], roles: [] };
   const headers = { authorization: `Bot ${token}` };
-  const [channelsRes, rolesRes] = await Promise.all([fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }), fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers })]);
+  const [channelsRes, rolesRes] = await Promise.all([
+    fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
+    fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
+  ]);
   const channels = channelsRes.ok ? await channelsRes.json() as Array<{ id: string; name: string; type: number }> : [];
   const roles = rolesRes.ok ? await rolesRes.json() as Array<{ id: string; name: string; managed: boolean; position: number }> : [];
-  return { channels: channels.filter((c) => c.type === 0 || c.type === 4).map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })), roles: roles.filter((r) => !r.managed && r.name !== "@everyone").sort((a, b) => b.position - a.position).map((r) => ({ id: r.id, name: r.name })) };
+  return {
+    channels: channels.filter((c) => c.type === 0 || c.type === 4).map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })),
+    roles: roles.filter((r) => !r.managed && r.name !== "@everyone").sort((a, b) => b.position - a.position).map((r) => ({ id: r.id, name: r.name })),
+  };
 }
 
 type DiscordMember = { user: { id: string; username: string; global_name?: string | null; bot?: boolean }; nick?: string | null; roles?: string[] };
@@ -85,7 +111,9 @@ export const getRollCallDashboard = createServerFn({ method: "GET" }).inputValid
   if (calls.error) throw new Error(calls.error.message);
   const rows = calls.data ?? [];
   const ids = rows.map((r) => r.id);
-  const { data: responses, error: responseError } = ids.length ? await supabaseAdmin.from("roll_call_responses").select("*").in("roll_call_id", ids).order("responded_at", { ascending: true }) : { data: [], error: null };
+  const { data: responses, error: responseError } = ids.length
+    ? await supabaseAdmin.from("roll_call_responses").select("*").in("roll_call_id", ids).order("responded_at", { ascending: true })
+    : { data: [], error: null };
   if (responseError) throw new Error(responseError.message);
   const grouped = new Map<string, Array<Record<string, unknown>>>();
   for (const row of responses ?? []) {
@@ -102,10 +130,35 @@ export const getRollCallDashboard = createServerFn({ method: "GET" }).inputValid
     return [String(row.id), { missedMembers, memberFetchError: result.error, targetMemberCount: result.members.length }] as const;
   }));
   const memberMap = new Map(memberResults);
-  return { guild: { id: guild.id, name: guild.name, icon: guild.icon }, structure, settings: settings.data ?? null, rollCalls: rows.map((row) => ({ ...row, responses: grouped.get(String(row.id)) ?? [], responseCount: (grouped.get(String(row.id)) ?? []).length, missedMembers: memberMap.get(String(row.id))?.missedMembers ?? [], memberFetchError: memberMap.get(String(row.id))?.memberFetchError ?? null, targetMemberCount: memberMap.get(String(row.id))?.targetMemberCount ?? null })) };
+  return {
+    guild: { id: guild.id, name: guild.name, icon: guild.icon },
+    structure,
+    settings: settings.data ?? null,
+    rollCalls: rows.map((row) => ({
+      ...row,
+      buttons: normalizeButtons((row as any).buttons as RollCallButton[] | undefined),
+      responses: grouped.get(String(row.id)) ?? [],
+      responseCount: (grouped.get(String(row.id)) ?? []).length,
+      missedMembers: memberMap.get(String(row.id))?.missedMembers ?? [],
+      memberFetchError: memberMap.get(String(row.id))?.memberFetchError ?? null,
+      targetMemberCount: memberMap.get(String(row.id))?.targetMemberCount ?? null,
+    })),
+  };
 });
 
-const settingsInput = z.object({ guildId: snowflake, enabled: z.boolean(), managerRoleIds: z.array(snowflake).max(25), defaultChannelId: snowflake.nullable(), dailyEnabled: z.boolean(), dailyHourUtc: z.number().int().min(0).max(23), dailyTargetRoleIds: z.array(snowflake).max(25), dailyTitle: z.string().max(200), dailyDescription: z.string().max(1500), dailyDurationMinutes: z.number().int().min(1).max(336 * 60) });
+const settingsInput = z.object({
+  guildId: snowflake,
+  enabled: z.boolean(),
+  managerRoleIds: z.array(snowflake).max(25),
+  defaultChannelId: snowflake.nullable(),
+  dailyEnabled: z.boolean(),
+  dailyHourUtc: z.number().int().min(0).max(23),
+  dailyTargetRoleIds: z.array(snowflake).max(25),
+  dailyTitle: z.string().max(200),
+  dailyDescription: z.string().max(1500),
+  dailyDurationMinutes: z.number().int().min(1).max(336 * 60),
+});
+
 export const saveRollCallSettings = createServerFn({ method: "POST" }).inputValidator((data: unknown) => settingsInput.parse(data)).handler(async ({ data }) => {
   const { session, supabaseAdmin } = await authorize(data.guildId);
   const dailyDurationHours = data.dailyDurationMinutes / 60;
@@ -117,13 +170,24 @@ export const saveRollCallSettings = createServerFn({ method: "POST" }).inputVali
   return { ok: true };
 });
 
-const startInput = z.object({ guildId: snowflake, mode: z.enum(["event", "daily", "audit"]), title: z.string().min(1).max(200), description: z.string().max(1500).nullable(), durationMinutes: z.number().int().min(1).max(336 * 60), channelId: snowflake, targetRoleIds: z.array(snowflake).max(25) });
+const startInput = z.object({
+  guildId: snowflake,
+  mode: z.enum(["event", "daily", "audit"]),
+  title: z.string().min(1).max(200),
+  description: z.string().max(1500).nullable(),
+  durationMinutes: z.number().int().min(1).max(336 * 60),
+  channelId: snowflake,
+  targetRoleIds: z.array(snowflake).max(25),
+  buttons: z.array(buttonSchema).min(1).max(5),
+});
+
 export const startRollCall = createServerFn({ method: "POST" }).inputValidator((data: unknown) => startInput.parse(data)).handler(async ({ data }) => {
   const { session, guild, supabaseAdmin } = await authorize(data.guildId);
   await assertRollCallManager(data.guildId, session.userId, supabaseAdmin, guild);
   const opensAt = new Date();
   const closesAt = new Date(opensAt.getTime() + data.durationMinutes * 60_000);
-  const { data: rollCall, error } = await supabaseAdmin.from("roll_calls").insert({ guild_id: data.guildId, mode: data.mode, title: data.title, description: data.description || null, channel_id: data.channelId, target_role_ids: data.targetRoleIds, opens_at: opensAt.toISOString(), closes_at: closesAt.toISOString(), status: "open", created_by: session.userId }).select("*").single();
+  const buttons = normalizeButtons(data.buttons);
+  const { data: rollCall, error } = await (supabaseAdmin as any).from("roll_calls").insert({ guild_id: data.guildId, mode: data.mode, title: data.title, description: data.description || null, channel_id: data.channelId, target_role_ids: data.targetRoleIds, buttons, opens_at: opensAt.toISOString(), closes_at: closesAt.toISOString(), status: "open", created_by: session.userId }).select("*").single();
   if (error || !rollCall) throw new Error(error?.message ?? "Could not create the roll call.");
   const { error: queueError } = await supabaseAdmin.from("bot_action_queue").insert({ guild_id: data.guildId, action: "rollcall_start", target_id: String(rollCall.id), payload: { roll_call_id: rollCall.id }, requested_by: session.userId, requested_by_name: session.username, status: "pending" });
   if (queueError) {
