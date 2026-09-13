@@ -2281,6 +2281,134 @@ export type Database = {
           },
         ]
       }
+      roll_call_responses: {
+        Row: {
+          guild_id: string
+          id: string
+          responded_at: string
+          roll_call_id: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          guild_id: string
+          id?: string
+          responded_at?: string
+          roll_call_id: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          guild_id?: string
+          id?: string
+          responded_at?: string
+          roll_call_id?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roll_call_responses_roll_call_id_fkey"
+            columns: ["roll_call_id"]
+            isOneToOne: false
+            referencedRelation: "roll_calls"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      roll_call_streaks: {
+        Row: {
+          created_at: string
+          current_streak: number
+          guild_id: string
+          id: string
+          last_checked_in_at: string | null
+          last_checked_in_day: string | null
+          longest_streak: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          current_streak?: number
+          guild_id: string
+          id?: string
+          last_checked_in_at?: string | null
+          last_checked_in_day?: string | null
+          longest_streak?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          current_streak?: number
+          guild_id?: string
+          id?: string
+          last_checked_in_at?: string | null
+          last_checked_in_day?: string | null
+          longest_streak?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      roll_calls: {
+        Row: {
+          channel_id: string | null
+          closed_at: string | null
+          closes_at: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          guild_id: string
+          id: string
+          message_id: string | null
+          mode: string
+          opens_at: string
+          results: Json | null
+          status: string
+          target_role_ids: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          channel_id?: string | null
+          closed_at?: string | null
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          guild_id: string
+          id?: string
+          message_id?: string | null
+          mode?: string
+          opens_at?: string
+          results?: Json | null
+          status?: string
+          target_role_ids?: string[]
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          channel_id?: string | null
+          closed_at?: string | null
+          closes_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          guild_id?: string
+          id?: string
+          message_id?: string | null
+          mode?: string
+          opens_at?: string
+          results?: Json | null
+          status?: string
+          target_role_ids?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       scheduled_announcements: {
         Row: {
           channel_id: string
@@ -2431,6 +2559,12 @@ export type Database = {
           manager_role_ids: string[]
           mod_log_channel_id: string | null
           prefix: string
+          rollcall_channel_id: string | null
+          rollcall_daily_enabled: boolean
+          rollcall_daily_last_posted_day: string | null
+          rollcall_daily_time: string
+          rollcall_enabled: boolean
+          rollcall_manager_roles: string[]
           starting_balance: number
           ticket_category_id: string | null
           ticket_dm_transcript_enabled: boolean
@@ -2459,6 +2593,12 @@ export type Database = {
           manager_role_ids?: string[]
           mod_log_channel_id?: string | null
           prefix?: string
+          rollcall_channel_id?: string | null
+          rollcall_daily_enabled?: boolean
+          rollcall_daily_last_posted_day?: string | null
+          rollcall_daily_time?: string
+          rollcall_enabled?: boolean
+          rollcall_manager_roles?: string[]
           starting_balance?: number
           ticket_category_id?: string | null
           ticket_dm_transcript_enabled?: boolean
@@ -2487,6 +2627,12 @@ export type Database = {
           manager_role_ids?: string[]
           mod_log_channel_id?: string | null
           prefix?: string
+          rollcall_channel_id?: string | null
+          rollcall_daily_enabled?: boolean
+          rollcall_daily_last_posted_day?: string | null
+          rollcall_daily_time?: string
+          rollcall_enabled?: boolean
+          rollcall_manager_roles?: string[]
           starting_balance?: number
           ticket_category_id?: string | null
           ticket_dm_transcript_enabled?: boolean
