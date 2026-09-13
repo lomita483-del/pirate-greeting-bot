@@ -24,8 +24,8 @@ async function fetchStructure(guildId: string) {
     fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, { headers }),
     fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, { headers }),
   ]);
-  const channels = channelsRes.ok ? (await channelsRes.json()) as Array<{ id: string; name: string; type: number }> : [];
-  const roles = rolesRes.ok ? (await rolesRes.json()) as Array<{ id: string; name: string; managed: boolean; position: number }> : [];
+  const channels = channelsRes.ok ? await channelsRes.json() as Array<{ id: string; name: string; type: number }> : [];
+  const roles = rolesRes.ok ? await rolesRes.json() as Array<{ id: string; name: string; managed: boolean; position: number }> : [];
   return {
     channels: channels.filter((c) => c.type === 0 || c.type === 4).map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })),
     roles: roles.filter((r) => !r.managed && r.name !== "@everyone").sort((a, b) => b.position - a.position).map((r) => ({ id: r.id, name: r.name })),
@@ -46,7 +46,7 @@ export const getRollCallDashboard = createServerFn({ method: "GET" })
     const rows = calls.data ?? [];
     const ids = rows.map((r) => r.id);
     const { data: responses, error: responseError } = ids.length
-      ? await supabaseAdmin.from("roll_call_responses").select("id, roll_call_id, user_id, username, display_name, responded_at").in("roll_call_id", ids).order("responded_at", { ascending: true })
+      ? await supabaseAdmin.from("roll_call_responses").select("*").in("roll_call_id", ids).order("responded_at", { ascending: true })
       : { data: [], error: null };
     if (responseError) throw new Error(responseError.message);
     const grouped = new Map<string, Array<Record<string, unknown>>>();
@@ -75,6 +75,8 @@ export const saveRollCallSettings = createServerFn({ method: "POST" })
     const payload = { guild_id: data.guildId, enabled: data.enabled, manager_role_ids: data.managerRoleIds, default_channel_id: data.defaultChannelId, daily_enabled: data.dailyEnabled, daily_hour_utc: data.dailyHourUtc, daily_target_role_ids: data.dailyTargetRoleIds, daily_title: data.dailyTitle, daily_description: data.dailyDescription, daily_duration_hours: data.dailyDurationHours, updated_at: new Date().toISOString() };
     const { error } = await supabaseAdmin.from("roll_call_settings").upsert(payload, { onConflict: "guild_id" });
     if (error) throw new Error(error.message);
+    // Keep the legacy server_settings roll-call fields synchronized because older bot builds read them.
+    await supabaseAdmin.from("server_settings").upsert({ guild_id: data.guildId, rollcall_enabled: data.enabled, rollcall_manager_roles: data.managerRoleIds, rollcall_channel_id: data.defaultChannelId, rollcall_daily_enabled: data.dailyEnabled, rollcall_daily_time: `${String(data.dailyHourUtc).padStart(2, "0")}:00` }, { onConflict: "guild_id" });
     await supabaseAdmin.from("dashboard_access_log").insert({ discord_user_id: session.userId, discord_username: session.username, guild_id: data.guildId, action: "update:rollcall" });
     return { ok: true };
   });
