@@ -35,8 +35,6 @@ PERMISSION_LABELS = {
 
 
 class _ConfirmView(discord.ui.View):
-    """Two-button confirmation, usable only by the member who ran the command."""
-
     def __init__(self, owner_id: str, timeout: float = 30.0) -> None:
         super().__init__(timeout=timeout)
         self.owner_id = owner_id
@@ -151,7 +149,7 @@ class FeatureService:
     @staticmethod
     def _fill(template: str, interaction: discord.Interaction, command: str, value: Optional[str]) -> str:
         guild_name = interaction.guild.name if interaction.guild else "this server"
-        return str(template).replace("{user}", interaction.user.mention).replace("{server}", guild_name).replace("{command}", f"/{command}").replace("{value}", value or "")
+        return str(template).replace("{user}", interaction.user.mention).replace("{server}", guild_name).replace("{command}", f"/{command}").replace("{value}", value or "")[:4000]
 
     async def _confirm(self, interaction: discord.Interaction, command: str, target: str) -> bool:
         view = _ConfirmView(str(interaction.user.id))
@@ -160,7 +158,6 @@ class FeatureService:
         return view.confirmed
 
     async def _record(self, interaction: discord.Interaction, guild: discord.Guild, *, command: str, category: str, kind: str, member: Optional[discord.Member], value: Optional[str], config: dict[str, Any], outcome: str, detail: str) -> None:
-        """Emit database audit data and a complete human-readable audit-channel entry."""
         if not config.get("log_event", True):
             return
         guild_id = str(guild.id)
@@ -170,31 +167,16 @@ class FeatureService:
         actor = interaction.user
         actor_tag = str(actor)
         actor_display = getattr(actor, "display_name", None) or getattr(actor, "global_name", None) or actor_tag
-        target_display = None
-        target_tag = None
-        if member:
-            target_display = getattr(member, "display_name", None) or str(member)
-            target_tag = str(member)
-        category_name = getattr(source_channel, "category", None)
+        target_display = (getattr(member, "display_name", None) or str(member)) if member else None
+        category_obj = getattr(source_channel, "category", None)
         metadata = {
-            "command": command,
-            "category": category,
-            "kind": kind,
-            "outcome": outcome,
-            "actor_name": actor_tag,
-            "actor_display_name": actor_display,
-            "target_name": target_tag,
-            "target_display_name": target_display,
-            "value": value,
-            "summary": detail,
-            "guild_name": guild.name,
-            "guild_id": guild_id,
-            "channel_name": channel_name,
-            "channel_id": channel_id,
-            "channel_category": getattr(category_name, "name", None),
-            "actor_id": str(actor.id),
-            "target_id": str(member.id) if member else None,
-            "timestamp": _now(),
+            "command": command, "category": category, "kind": kind, "outcome": outcome,
+            "actor_name": actor_tag, "actor_display_name": actor_display,
+            "target_name": str(member) if member else None, "target_display_name": target_display,
+            "value": value, "summary": detail, "guild_name": guild.name, "guild_id": guild_id,
+            "channel_name": channel_name, "channel_id": channel_id,
+            "channel_category": getattr(category_obj, "name", None), "actor_id": str(actor.id),
+            "target_id": str(member.id) if member else None, "timestamp": _now(),
         }
         try:
             event_id = await self.repo.emit_event({
@@ -213,11 +195,12 @@ class FeatureService:
         log_id = config.get("log_channel_id")
         notify_id = config.get("notify_channel_id")
         role_id = config.get("notify_role_id")
+        now = datetime.now(timezone.utc)
         entry = discord.Embed(
             title=f"⚓ /{command} · {outcome.upper()}",
-            description=f"{detail}",
+            description=detail[:4000],
             colour=discord.Colour.from_rgb(32, 199, 183),
-            timestamp=datetime.now(timezone.utc),
+            timestamp=now,
         )
         entry.add_field(name="👤 Actor", value=f"{actor_display} • {actor.mention}\nID: `{actor.id}`", inline=True)
         entry.add_field(name="🏴 Server", value=f"{guild.name}\nID: `{guild.id}`", inline=True)
@@ -226,9 +209,8 @@ class FeatureService:
         entry.add_field(name="🧭 Category / Kind", value=f"{category} / {kind}", inline=True)
         entry.add_field(name="📝 Value / Reason", value=(value or "None")[:1024], inline=True)
         entry.add_field(name="📌 Details", value=detail[:1024], inline=False)
-        entry.add_field(name="🕒 Timestamp", value=f"<t:{int(datetime.now(timezone.utc).timestamp())}:F>\n<t:{int(datetime.now(timezone.utc).timestamp())}:R>", inline=False)
+        entry.add_field(name="🕒 Timestamp", value=f"<t:{int(now.timestamp())}:F>\n<t:{int(now.timestamp())}:R>", inline=False)
         entry.set_footer(text="!HOY BOT • Detailed Audit Trail")
-
         for target_id, mention in ((log_id, None), (notify_id, role_id)):
             if not target_id:
                 continue
@@ -266,21 +248,117 @@ class FeatureService:
             template = (config or {}).get("error_response")
             message = self._fill(template, interaction, command, value) if template else str(exc)
             await interaction.followup.send(embed=embeds.error(f"/{command}", message), ephemeral=True)
-            await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="blocked", detail=message)
+            await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="refused", detail=str(exc))
             return
-        except Exception as exc:
-            log.exception("Feature command /%s failed", command)
-            await interaction.followup.send(embed=embeds.error(f"/{command}", f"The command failed: {type(exc).__name__}: {exc}"), ephemeral=True)
-            await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="error", detail=f"{type(exc).__name__}: {exc}")
-            return
-        await interaction.followup.send(embed=self.apply_custom_response(interaction, embed, config, command=command, value=value), ephemeral=ephemeral)
-        await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="success", detail=embed.description or "Command completed successfully.")
+        embed = self.apply_custom_response(interaction, embed, config, command=command, value=value)
+        if int(config.get("cooldown_seconds") or 0) > 0:
+            await self.repo.touch_command_cooldown(guild_id, command, str(interaction.user.id))
+        output_id = config.get("output_channel_id")
+        if output_id:
+            channel = guild.get_channel(int(output_id))
+            if channel is not None and hasattr(channel, "send"):
+                try:
+                    await channel.send(embed=embed)
+                    await interaction.followup.send(embed=embeds.success(f"/{command}", f"Result posted in <#{output_id}>."), ephemeral=True)
+                    await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="success", detail=f"Ran `/{command}` and posted the result in <#{output_id}>.")
+                    return
+                except discord.HTTPException:
+                    log.warning("Could not deliver /%s output to %s", command, output_id, exc_info=True)
+        await interaction.followup.send(embed=embed, ephemeral=ephemeral)
+        await self._record(interaction, guild, command=command, category=category, kind=kind, member=member, value=value, config=config, outcome="success", detail=f"Ran `/{command}`" + (f" with `{value}`" if value else "") + ".")
 
-    async def execute(self, interaction: discord.Interaction, *, command: str, category: str, category_title: str, sub: str, kind: str, description: str, member: Optional[discord.Member], value: Optional[str], config: dict[str, Any]) -> discord.Embed:
-        """Dispatch into the generated command implementation."""
-        return await self._execute_generated(interaction, command=command, category=category, category_title=category_title, sub=sub, kind=kind, description=description, member=member, value=value, config=config)
+    async def execute(self, interaction: discord.Interaction, *, command: str, category: str, category_title: str, sub: str, kind: str, description: str, member: Optional[discord.Member], value: Optional[str], config: Optional[dict[str, Any]] = None) -> discord.Embed:
+        guild = interaction.guild
+        if guild is None:
+            raise ActionRefused("This command only works inside a server.")
+        guild_id = str(guild.id)
+        if config is None:
+            config = await self.config(guild_id, command)
+            await self.enforce(interaction, command, config)
+        key = self.state_key(category, sub)
+        actor = str(interaction.user.id)
+        payload: dict[str, Any] = {"value": value, "target_id": str(member.id) if member else None, "target_name": member.display_name if member else None}
+        await self.repo.log_command_usage(guild_id, command, category, actor)
+        headline: Optional[str] = None
+        if kind in ("enable", "disable"):
+            enabled = kind == "enable"
+            await self.repo.set_feature_state(guild_id, key, {"enabled": enabled, "by": actor, "at": _now(), "value": value})
+            headline = f"**{key}** is now **{'enabled' if enabled else 'disabled'}** for this server."
+        elif kind == "reset":
+            await self.repo.set_feature_state(guild_id, key, {"reset_at": _now(), "by": actor})
+            await self.repo.delete_command_records(guild_id, key)
+            headline = f"**{key}** has been reset to its defaults."
+        elif kind == "config":
+            state = await self.repo.get_feature_state(guild_id, key)
+            feature_cfg = dict(state.get("config") or {})
+            if value:
+                field, _, raw = value.partition("=")
+                if raw:
+                    feature_cfg[field.strip()] = raw.strip()
+                else:
+                    feature_cfg["value"] = value.strip()
+            await self.repo.set_feature_state(guild_id, key, {**state, "config": feature_cfg, "by": actor, "at": _now()})
+            headline = f"Configuration saved for **{key}**." if value else f"Current configuration for **{key}** — pass `field=value` to change a setting."
+        elif kind == "create":
+            if not value and member is None:
+                raise ActionRefused("Provide a `value` (or a `member`) to create this entry.")
+            label = value or (member.display_name if member else "entry")
+            await self.repo.add_command_record({"guild_id": guild_id, "namespace": key, "command": command, "label": label[:200], "payload": payload, "created_by": actor})
+            headline = f"Added **{label[:200]}** to **{key}**."
+        elif kind == "edit":
+            if not value:
+                raise ActionRefused("Provide a `value` describing the change.")
+            updated = await self.repo.edit_command_record(guild_id, key, value)
+            if not updated:
+                raise ActionRefused(f"No matching entry in **{key}** to edit.")
+            headline = f"Updated the latest entry in **{key}**."
+        elif kind == "delete":
+            removed = await self.repo.delete_command_records(guild_id, key, label=value)
+            if not removed:
+                raise ActionRefused(f"Nothing to remove from **{key}**.")
+            headline = f"Removed **{removed}** entr(y/ies) from **{key}**."
+        elif kind == "action":
+            label = value or (member.display_name if member else description)
+            await self.repo.add_command_record({"guild_id": guild_id, "namespace": key, "command": command, "label": label[:200], "payload": payload, "created_by": actor})
+            headline = f"**{description}**" + (f"\n{value}" if value else "")
 
-    async def _execute_generated(self, interaction: discord.Interaction, *, command: str, category: str, category_title: str, sub: str, kind: str, description: str, member: Optional[discord.Member], value: Optional[str], config: dict[str, Any]) -> discord.Embed:
-        # The generated implementation is loaded by the command library at runtime.
-        # This method is intentionally kept as the service boundary.
-        return embeds.info(f"/{command}", description)
+        state = await self.repo.get_feature_state(guild_id, key)
+        records = await self.repo.list_command_records(guild_id, key, limit=10)
+        usage = await self.repo.command_usage_count(guild_id, command)
+        embed = embeds.brand(f"/{command}", f"{headline}\n\n{description}" if headline else description)
+        embed.add_field(name="Area", value=category_title, inline=True)
+        embed.add_field(name="State", value="🟢 Enabled" if state.get("enabled", True) else "🔴 Disabled", inline=True)
+        embed.add_field(name="Times used", value=str(usage), inline=True)
+        feature_config = state.get("config") or {}
+        if feature_config:
+            embed.add_field(name="Configuration", value="\n".join(f"• **{k}** — {v}" for k, v in list(feature_config.items())[:8]), inline=False)
+        access: list[str] = []
+        if config.get("allowed_role_ids"):
+            access.append("Allowed roles: " + ", ".join(f"<@&{r}>" for r in config["allowed_role_ids"][:5]))
+        if config.get("denied_role_ids"):
+            access.append("Blocked roles: " + ", ".join(f"<@&{r}>" for r in config["denied_role_ids"][:5]))
+        if (config.get("required_permission") or "none") != "none":
+            access.append("Permission: " + PERMISSION_LABELS.get(config["required_permission"], config["required_permission"]))
+        if config.get("allowed_channel_ids"):
+            access.append("Channels: " + ", ".join(f"<#{c}>" for c in config["allowed_channel_ids"][:5]))
+        if config.get("output_channel_id"):
+            access.append(f"Output channel: <#{config['output_channel_id']}>")
+        if int(config.get("cooldown_seconds") or 0) > 0:
+            access.append(f"Cooldown: {config['cooldown_seconds']}s")
+        if config.get("notes"):
+            access.append(f"Purpose: {config['notes']}")
+        if access:
+            embed.add_field(name="Access & routing", value="\n".join(access)[:1000], inline=False)
+        for opt_key, opt_value in list((config.get("options") or {}).items())[:8]:
+            embed.add_field(name=str(opt_key)[:64], value=str(opt_value)[:200], inline=True)
+        if records:
+            embed.add_field(name=f"Entries ({len(records)})", value="\n".join(f"• {r.get('label') or '—'} · <t:{int(datetime.fromisoformat(str(r['created_at']).replace('Z', '+00:00')).timestamp())}:R>" for r in records[:8])[:1000], inline=False)
+        elif not feature_config:
+            embed.add_field(name="No data yet", value="Nothing has been stored for this feature yet. Use the matching `create`/`config`/`enable` command, or configure it from the AHOY dashboard.", inline=False)
+        if kind == "export":
+            snapshot = json.dumps({"state": state, "records": records}, default=str)[:1500]
+            embed.add_field(name="Export", value=f"```json\n{snapshot}\n```", inline=False)
+        return embed
+
+
+__all__ = ["FeatureService"]
