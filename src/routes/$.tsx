@@ -1,7 +1,17 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, Navigate, useLocation } from "@tanstack/react-router";
+import { StatahoyUserActivityContent } from "./statahoy/$guildId.activity";
 
 export const Route = createFileRoute("/$")({
-  beforeLoad: () => {
-    throw redirect({ to: "/", replace: true });
-  },
+  component: CatchAllRoute,
 });
+
+function CatchAllRoute() {
+  const location = useLocation();
+  const match = location.pathname.match(/^\/statahoy\/([^/]+)\/activity\/?$/);
+
+  if (match) {
+    return <StatahoyUserActivityContent guildId={match[1]} />;
+  }
+
+  return <Navigate to="/" replace />;
+}
