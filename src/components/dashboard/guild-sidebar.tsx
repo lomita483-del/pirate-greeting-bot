@@ -15,11 +15,12 @@ import {
   Shield,
   ShieldAlert,
   Sparkles,
+  Ticket,
   Trophy,
   Users,
+  LifeBuoy,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
-
 import { cn } from "@/lib/utils";
 
 export type ModuleLink = { label: string; to: string; icon: LucideIcon; exact?: boolean };
@@ -36,11 +37,13 @@ export const MODULE_LINKS: ModuleLink[] = [
   { label: "Moderation", to: "/dashboard/$guildId/moderation", icon: Shield },
   { label: "Welcome Messages", to: "/dashboard/$guildId/welcome", icon: Hand },
   { label: "Roles", to: "/dashboard/$guildId/roles", icon: Users },
+  { label: "Tickets", to: "/dashboard/$guildId/tickets", icon: Ticket },
+  { label: "Support & Feedback", to: "/dashboard/$guildId/support", icon: LifeBuoy },
   { label: "Community", to: "/dashboard/$guildId/community", icon: Sparkles },
   { label: "Roll Call", to: "/dashboard/$guildId/rollcall", icon: ClipboardList },
   { label: "Send", to: "/dashboard/$guildId/send", icon: Send },
   { label: "Automation", to: "/dashboard/$guildId/automation", icon: CalendarClock },
-  { label: "!PIRATE Calendar", to: "/calendar/$guildId", icon: CalendarDays },
+  { label: "Calendar", to: "/calendar/$guildId", icon: CalendarDays },
   { label: "Engagement", to: "/dashboard/$guildId/engagement", icon: Trophy },
   { label: "Stats", to: "/dashboard/$guildId/stats", icon: BarChart3 },
   { label: "Logging", to: "/dashboard/$guildId/logging", icon: ScrollText },
