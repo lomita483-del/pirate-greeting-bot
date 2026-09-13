@@ -57,7 +57,7 @@ export const getAdminOverview = createServerFn({ method: "GET" }).handler(async 
   const dayAgo = new Date(Date.now() - 86400_000).toISOString();
   const weekAgo = new Date(Date.now() - 7 * 86400_000).toISOString();
 
-  const [users, banned, active24h, servers, serverRows, mods, tickets, xp, recent, notifs] =
+  const [users, banned, active24h, servers, serverRows, mods, tickets, xp, recent, notifs, botRuntime] =
     await Promise.all([
       supabaseAdmin.from("platform_users").select("discord_user_id", { count: "exact", head: true }),
       supabaseAdmin
@@ -88,6 +88,11 @@ export const getAdminOverview = createServerFn({ method: "GET" }).handler(async 
         .from("platform_notifications")
         .select("id", { count: "exact", head: true })
         .eq("delivery_status", "pending"),
+      supabaseAdmin
+        .from("bot_runtime")
+        .select("id, instance_id, started_at, heartbeat_at, stopped_at")
+        .eq("id", "primary")
+        .maybeSingle(),
     ]);
 
   const rows = serverRows.data ?? [];
@@ -103,6 +108,14 @@ export const getAdminOverview = createServerFn({ method: "GET" }).handler(async 
     trackedProfiles: xp.count ?? 0,
     pendingNotifications: notifs.count ?? 0,
     recentActivity: recent.data ?? [],
+    botRuntime: botRuntime.data
+      ? {
+          instanceId: botRuntime.data.instance_id,
+          startedAt: botRuntime.data.started_at,
+          heartbeatAt: botRuntime.data.heartbeat_at,
+          stoppedAt: botRuntime.data.stopped_at,
+        }
+      : null,
   };
 });
 
@@ -173,8 +186,6 @@ export const updatePlatformUser = createServerFn({ method: "POST" })
       ...(data.notes === undefined ? {} : { notes: data.notes }),
       ...(data.feature_flags === undefined ? {} : { feature_flags: data.feature_flags }),
     };
-
-
 
     const { error } = await supabaseAdmin
       .from("platform_users")
@@ -399,7 +410,6 @@ export const markNotificationRead = createServerFn({ method: "POST" })
       );
     return { ok: true };
   });
-
 
 /* ---------------------------------------------------------------- */
 /* Entitlements for the signed-in user                               */
