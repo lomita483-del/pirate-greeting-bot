@@ -1,9 +1,9 @@
 """Background loops for scheduled announcements, live stat channels, the
-dashboard action queue, and calendar event reminder delivery."""
+dashboard action queue, calendar event reminder delivery, and roll calls."""
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import discord
 from discord.ext import commands, tasks
@@ -25,12 +25,14 @@ class Scheduler(commands.Cog):
         self.refresh_stat_channels.start()
         self.run_dashboard_actions.start()
         self.run_event_reminders.start()
+        self.run_roll_calls.start()
 
     async def cog_unload(self) -> None:
         self.run_announcements.cancel()
         self.refresh_stat_channels.cancel()
         self.run_dashboard_actions.cancel()
         self.run_event_reminders.cancel()
+        self.run_roll_calls.cancel()
 
     def _ready(self) -> bool:
         repo = getattr(self.bot, "repo", None)
@@ -247,6 +249,95 @@ class Scheduler(commands.Cog):
         except discord.HTTPException as exc:
             log.warning("Failed to deliver event reminder %s: %s", reminder_id, exc)
             await repo.mark_event_reminder_failed(reminder_id, str(exc)[:400], attempts)
+
+    # -- roll call: auto-close due panels + daily auto-post ----------------
+    @tasks.loop(seconds=30)
+    async def run_roll_calls(self) -> None:
+        if not self._ready():
+            return
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        from ..commands.rollcall import RollCall, RollCallView, _open_embed  # local import: avoids a startup import cycle with commands.rollcall
+
+        try:
+            for row in await repo.due_roll_calls():
+                guild = self.bot.get_guild(int(row["guild_id"]))
+                if guild is None:
+                    await repo.close_roll_call(row["id"])
+                    continue
+                cog = self.bot.get_cog("RollCall")
+                if isinstance(cog, RollCall):
+                    await cog._close_roll_call(guild, row)  # noqa: SLF001 - same package
+                else:
+                    await repo.close_roll_call(row["id"])
+        except Exception as exc:  # pragma: no cover - keep the loop alive
+            log.exception("Roll call auto-close failed: %s", exc)
+
+        try:
+            now = datetime.now(timezone.utc)
+            today = now.date().isoformat()
+            for guild in self.bot.guilds:
+                settings = await repo.roll_call_settings(str(guild.id))
+                if not settings.get("enabled") or not settings.get("daily_enabled"):
+                    continue
+                if int(settings.get("daily_hour_utc", 9)) != now.hour:
+                    continue
+                if settings.get("last_daily_posted_day") == today:
+                    continue
+
+                channel_id = settings.get("default_channel_id")
+                channel = guild.get_channel(int(channel_id)) if channel_id else None
+                if not isinstance(channel, discord.TextChannel):
+                    continue
+
+                target_role_ids = settings.get("daily_target_role_ids") or []
+                target_roles = [guild.get_role(int(rid)) for rid in target_role_ids]
+                target_roles = [r for r in target_roles if r is not None]
+
+                duration_hours = int(settings.get("daily_duration_hours", 20))
+                opens_at = now
+                closes_at = opens_at + timedelta(hours=duration_hours)
+
+                roll_call = await repo.create_roll_call(
+                    {
+                        "guild_id": str(guild.id),
+                        "mode": "daily",
+                        "title": settings.get("daily_title") or "Daily Check-In",
+                        "description": settings.get("daily_description"),
+                        "channel_id": str(channel.id),
+                        "target_role_ids": target_role_ids,
+                        "opens_at": opens_at.isoformat(),
+                        "closes_at": closes_at.isoformat(),
+                        "status": "open",
+                        "created_by": "scheduler",
+                    }
+                )
+
+                embed = _open_embed(roll_call, target_roles)
+                view = RollCallView(self.bot, roll_call["id"])
+                self.bot.add_view(view)
+                content = " ".join(r.mention for r in target_roles) or None
+                try:
+                    message = await channel.send(
+                        content=content,
+                        embed=embed,
+                        view=view,
+                        allowed_mentions=discord.AllowedMentions(
+                            roles=True, everyone=False, users=False
+                        ),
+                    )
+                    await repo.set_roll_call_message(roll_call["id"], str(message.id))
+                except discord.HTTPException as exc:
+                    log.warning("Failed to post daily roll call in %s: %s", guild.id, exc)
+
+                await repo.save_roll_call_settings(
+                    str(guild.id), {"last_daily_posted_day": today}
+                )
+        except Exception as exc:  # pragma: no cover - keep the loop alive
+            log.exception("Daily roll call auto-post failed: %s", exc)
+
+    @run_roll_calls.before_loop
+    async def before_roll_calls(self) -> None:
+        await self.bot.wait_until_ready()
 
     # -- dashboard action queue -------------------------------------------
     @tasks.loop(seconds=20)
