@@ -1,92 +1,23 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { BarChart3 } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { BarChart3, Loader2 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { getStatahoyGuilds } from "@/lib/statahoy.functions";
 
 export const Route = createFileRoute("/statahoy/")({
-  head: () => ({
-    meta: [
-      { title: "Statahoy — Live Discord Analytics" },
-      {
-        name: "description",
-        content: "Message, voice and member analytics for your Discord server, powered by !PIRATE.",
-      },
-    ],
-  }),
-  component: StatahoyPicker,
+  head: () => ({ meta: [{ title: "Statahoy — !HOY BOT Analytics" }, { name: "description", content: "Live server analytics, member profiles and activity powered by !HOY BOT." }] }),
+  component: StatahoyEntry,
 });
 
-function StatahoyPicker() {
-  const { data, isLoading } = useQuery({
-    queryKey: ["statahoy-guilds"],
-    queryFn: () => getStatahoyGuilds(),
-  });
+function StatahoyEntry() {
+  const navigate = useNavigate();
+  const { data, isLoading, error } = useQuery({ queryKey: ["statahoy-guilds"], queryFn: () => getStatahoyGuilds() });
 
-  return (
-    <div className="min-h-screen">
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <Link to="/" className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em]">
-          <BarChart3 className="h-4 w-4 text-primary" />
-          Statahoy
-        </Link>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/">Back to !PIRATE</Link>
-        </Button>
-      </header>
+  useEffect(() => {
+    const guild = data?.guilds?.[0];
+    if (data?.signedIn && guild) void navigate({ to: "/statahoy/$guildId", params: { guildId: guild.id }, replace: true });
+  }, [data, navigate]);
 
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-10">
-        <h1 className="text-3xl font-semibold">Pick a server</h1>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          Statahoy shows live message, voice and member analytics for any server where !PIRATE is
-          installed and you have manage-server permission.
-        </p>
-
-        {!data?.signedIn && !isLoading && (
-          <div className="glass mt-8 rounded-2xl p-6 text-sm">
-            <p className="text-muted-foreground">Sign in with Discord to see your servers.</p>
-            <Button asChild size="sm" className="mt-4">
-              <a href="/api/public/auth/discord/start">Sign in with Discord</a>
-            </Button>
-          </div>
-        )}
-
-        {isLoading && <p className="mt-8 text-sm text-muted-foreground">Loading your servers…</p>}
-
-        {data?.signedIn && data.guilds.length === 0 && !isLoading && (
-          <div className="glass mt-8 rounded-2xl p-6 text-sm text-muted-foreground">
-            None of your servers have !PIRATE installed yet.{" "}
-            <a className="text-primary underline" href="/api/public/invite">
-              Invite !PIRATE
-            </a>{" "}
-            to get started.
-          </div>
-        )}
-
-        <div className="mt-8 grid gap-3 sm:grid-cols-2">
-          {(data?.guilds ?? []).map((guild) => (
-            <Link
-              key={guild.id}
-              to="/statahoy/$guildId"
-              params={{ guildId: guild.id }}
-              className="glass flex items-center gap-3 rounded-2xl p-4 transition hover:border-primary/40"
-            >
-              {guild.iconUrl ? (
-                <img src={guild.iconUrl} alt="" className="h-10 w-10 rounded-full" />
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold">
-                  {guild.name.slice(0, 2).toUpperCase()}
-                </div>
-              )}
-              <div>
-                <p className="font-medium">{guild.name}</p>
-                <p className="text-xs text-muted-foreground">Enter Statahoy</p>
-              </div>
-            </Link>
-          ))}
-        </div>
-      </main>
-    </div>
-  );
+  return <div className="flex min-h-screen items-center justify-center bg-[#020914] text-white"><div className="text-center"><div className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10"><BarChart3 className="size-6 text-primary" /></div><Loader2 className="mx-auto mt-5 size-5 animate-spin text-white/40" aria-hidden="true" /><p className="mt-3 text-sm text-white/55">Opening Statahoy analytics…</p>{!isLoading && error ? <p role="alert" className="mt-2 text-xs text-red-300">{(error as Error).message}</p> : null}{!isLoading && data?.signedIn && !data.guilds.length ? <p className="mt-2 text-xs text-white/40">No connected server is available for analytics.</p> : null}{!isLoading && !data?.signedIn ? <a className="mt-4 inline-block text-sm text-primary underline" href="/api/public/auth/discord/start">Sign in with Discord</a> : null}</div></div>;
 }
