@@ -15,6 +15,8 @@ from ..utils.logger import get_logger
 
 log = get_logger("rollcall")
 GOLD = 0xD4AF37
+SEA = 0x20C7B7
+SEA_DARK = 0x0B7285
 MODE_LABEL = {"event": "Event Attendance", "daily": "Daily Check-In", "audit": "Inactivity Audit"}
 MODE_EMOJI = {"event": "🏴‍☠️", "daily": "🔥", "audit": "🔍"}
 DEFAULT_BUTTONS = [{"id": "present", "label": "Present", "emoji": "✅", "style": "success", "purpose": "Record attendance"}]
@@ -78,8 +80,8 @@ def _open_embed(roll_call: dict[str, Any], roles: list[discord.Role]) -> discord
             lines += ["", f"⏰ Closes <t:{stamp}:R> (<t:{stamp}:f>)"]
         except ValueError:
             pass
-    embed = discord.Embed(title=f"{MODE_EMOJI.get(mode, '📋')} {roll_call.get('title') or 'Roll Call'}", description="\n".join(lines), color=GOLD, timestamp=datetime.now(timezone.utc))
-    embed.set_footer(text=f"AHOY Roll Call · {MODE_LABEL.get(mode, mode.title())}")
+    embed = discord.Embed(title=f"{MODE_EMOJI.get(mode, '📋')} {roll_call.get('title') or 'Roll Call'}", description="\n".join(lines), color=SEA, timestamp=datetime.now(timezone.utc))
+    embed.set_footer(text=f"!HOY BOT · {MODE_LABEL.get(mode, mode.title())}")
     return embed
 
 
@@ -179,7 +181,32 @@ async def _called_members(guild: discord.Guild, role_ids: list[str]) -> list[dis
     return sorted(members.values(), key=lambda m: m.display_name.casefold())
 
 
+def _pack_result_lines(lines: list[str], label: str, *, max_field_chars: int = 1000) -> list[tuple[str, str]]:
+    """Pack long member lists into multiple fields while keeping one Discord embed."""
+    if not lines:
+        return [(label, "_None_")]
+    fields: list[tuple[str, str]] = []
+    current: list[str] = []
+    current_len = 0
+    part = 1
+    for line in lines:
+        extra = len(line) + (1 if current else 0)
+        if current and current_len + extra > max_field_chars:
+            suffix = f" · {part}" if part > 1 else ""
+            fields.append((f"{label}{suffix}", "\n".join(current)))
+            part += 1
+            current = []
+            current_len = 0
+        current.append(line)
+        current_len += len(line) + (1 if len(current) > 1 else 0)
+    if current:
+        suffix = f" · {part}" if part > 1 else ""
+        fields.append((f"{label}{suffix}", "\n".join(current)))
+    return fields
+
+
 async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_call: dict[str, Any]) -> list[discord.Embed]:
+    """Build the complete Roll Call result as a single polished Discord embed."""
     repo = bot.repo  # type: ignore[attr-defined]
     responses = await repo.roll_call_responses(roll_call["id"])
     buttons = _buttons(roll_call)
@@ -188,33 +215,74 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     missed = [m for m in called if str(m.id) not in response_users]
     mode = str(roll_call.get("mode") or "event")
     counts = {str(button["id"]): sum(1 for row in responses if str(row.get("button_id") or "present") == str(button["id"])) for button in buttons}
-    base = discord.Embed(title=f"📊 {roll_call.get('title')} — Results", color=GOLD, timestamp=datetime.now(timezone.utc))
-    base.add_field(name="Total responses", value=f"**{len(responses)}**", inline=True)
-    base.add_field(name="Called", value=f"**{len(called)}**", inline=True)
-    base.add_field(name="Members with no response", value=f"**{len(missed)}**", inline=True)
-    for button in buttons:
-        base.add_field(name=f"{button.get('emoji') or ''} {button['label']}", value=f"**{counts.get(str(button['id']), 0)}**\n{button['purpose']}", inline=True)
-    base.set_footer(text=f"AHOY Roll Call · {MODE_LABEL.get(mode, mode.title())}")
-    embeds_out = [base]
 
-    def identity(row: dict[str, Any]) -> str:
-        return f"• {row.get('display_name') or row.get('username') or row.get('user_id')} (@{row.get('username') or 'unknown'}) · **{row.get('button_label') or row.get('button_id') or 'Present'}** · `{row.get('user_id')}`"
-    responder_lines = [identity(r) for r in responses]
-    missed_lines = [f"• {m.display_name} (@{m.name}) · `{m.id}`" for m in missed]
-    def chunks(lines: list[str], size: int = 10) -> list[list[str]]: return [lines[i:i + size] for i in range(0, len(lines), size)] or [[]]
-    response_chunks = chunks(responder_lines)
-    for index, chunk in enumerate(response_chunks):
-        embeds_out.append(discord.Embed(title=f"Responses · {index + 1}/{len(response_chunks)}", description="\n".join(chunk) or "Nobody responded.", color=GOLD))
-    missed_chunks = chunks(missed_lines)
-    for index, chunk in enumerate(missed_chunks):
-        title = "Never responded" if mode == "audit" else "Did not respond"
-        embeds_out.append(discord.Embed(title=f"{title} · {index + 1}/{len(missed_chunks)}", description="\n".join(chunk) or "Everyone responded. 🎉", color=GOLD))
+    responded_lines: list[str] = []
+    for row in responses:
+        user_id = str(row.get("user_id") or "")
+        if not user_id:
+            continue
+        display_name = str(row.get("display_name") or row.get("username") or "Member")
+        action = str(row.get("button_label") or row.get("button_id") or "Present")
+        responded_lines.append(f"• <@{user_id}> — **{action}**")
+
+    missed_lines = [f"• <@{member.id}>" for member in missed]
+
+    # Discord embeds are effectively a glass card: the sea-teal accent, restrained
+    # typography, compact fields and nautical status marks keep the result readable
+    # while retaining the luxury sea aesthetic requested for the bot.
+    embed = discord.Embed(
+        title=f"🌊 {roll_call.get('title') or 'Roll Call'} · Attendance Report",
+        description=(
+            f"**{MODE_LABEL.get(mode, mode.title())}**\n"
+            "A complete attendance summary has been compiled below.\n\n"
+            "╭─────────────── ⚓ ───────────────╮\n"
+            "  **SEA GLASS · ROLL CALL REPORT**\n"
+            "╰──────────────────────────────────╯"
+        ),
+        color=SEA,
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="📋 Responses", value=f"**{len(responses)}** members responded", inline=True)
+    embed.add_field(name="👥 Called", value=f"**{len(called)}** members called", inline=True)
+    embed.add_field(name="⏳ No Response", value=f"**{len(missed)}** members outstanding", inline=True)
+
+    for button in buttons:
+        embed.add_field(
+            name=f"{button.get('emoji') or '•'} {button['label']}",
+            value=f"**{counts.get(str(button['id']), 0)}**\n{button['purpose']}",
+            inline=True,
+        )
+
+    for field_name, field_value in _pack_result_lines(responded_lines, "✅ Responded"):
+        embed.add_field(name=field_name, value=field_value, inline=False)
+
+    missed_title = "🔎 Never Responded" if mode == "audit" else "⏳ Did Not Respond"
+    for field_name, field_value in _pack_result_lines(missed_lines, missed_title):
+        embed.add_field(name=field_name, value=field_value, inline=False)
+
+    if not responses:
+        # Keep the result explicit even when nobody answered.
+        embed.add_field(name="✅ Responded", value="_No members responded to this roll call._", inline=False)
+    if not missed:
+        embed.add_field(name=missed_title, value="_Everyone called responded. Excellent attendance._", inline=False)
+
+    closes_at = roll_call.get("closes_at")
+    if closes_at:
+        try:
+            stamp = int(datetime.fromisoformat(str(closes_at).replace("Z", "+00:00")).timestamp())
+            embed.add_field(name="🕒 Closed", value=f"<t:{stamp}:F> · <t:{stamp}:R>", inline=False)
+        except ValueError:
+            pass
+
+    embed.set_footer(text=f"!HOY BOT  •  {MODE_LABEL.get(mode, mode.title())}  •  Secure attendance report")
+
     if mode == "daily" and missed:
         for member in missed:
             current = await repo.get_streak(str(guild.id), str(member.id))
             if int(current.get("current_streak") or 0) > 0:
                 await repo.save_streak({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "current_streak": 0, "longest_streak": int(current.get("longest_streak") or 0), "last_checked_in_at": current.get("last_checked_in_at"), "last_checked_in_day": current.get("last_checked_in_day")})
-    return embeds_out
+
+    return [embed]
 
 
 class RollCall(commands.Cog):
@@ -231,7 +299,7 @@ class RollCall(commands.Cog):
         guild = ensure_guild(interaction)
         if not isinstance(interaction.user, discord.Member) or not await _is_manager(self.bot, interaction.user): raise ActionRefused("You need a configured Roll Call Manager role to do that.")
         settings = await self.bot.repo.roll_call_settings(str(guild.id))  # type: ignore[attr-defined]
-        if not settings.get("enabled"): raise ActionRefused("Roll Call is disabled here. Enable it in the AHOY Control Center first.")
+        if not settings.get("enabled"): raise ActionRefused("Roll Call is disabled here. Enable it in the !HOY BOT Control Center first.")
         target_channel = channel or interaction.channel
         if not isinstance(target_channel, discord.TextChannel): target_channel = guild.get_channel(int(settings.get("default_channel_id") or 0))
         if not isinstance(target_channel, discord.TextChannel): raise ActionRefused("Select a text channel for the roll call.")
@@ -254,15 +322,8 @@ class RollCall(commands.Cog):
         repo = self.bot.repo  # type: ignore[attr-defined]
         channel = guild.get_channel(int(roll_call["channel_id"]))
         if isinstance(channel, discord.TextChannel):
-            for result_embed in await build_results_embeds(self.bot, guild, roll_call): await channel.send(embed=result_embed)
+            for result_embed in await build_results_embeds(self.bot, guild, roll_call):
+                await channel.send(embed=result_embed, allowed_mentions=discord.AllowedMentions(users=True, roles=False, everyone=False))
         await repo.close_roll_call(roll_call["id"])
 
     async def restore_persistent_views(self) -> None:
-        rows = await self.bot.repo.active_roll_calls()  # type: ignore[attr-defined]
-        for row in rows:
-            try: self.bot.add_view(RollCallView(self.bot, str(row["id"]), _buttons(row)))
-            except Exception: log.exception("Failed restoring roll call view %s", row.get("id"))
-
-
-async def setup(bot: commands.Bot) -> None:
-    cog = RollCall(bot); await bot.add_cog(cog); await cog.restore_persistent_views()
