@@ -1,6 +1,7 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarDays } from "lucide-react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { CalendarDays, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { getViewer } from "@/lib/ahoy.functions";
@@ -8,91 +9,53 @@ import { getViewer } from "@/lib/ahoy.functions";
 export const Route = createFileRoute("/calendar/")({
   head: () => ({
     meta: [
-      { title: "!PIRATE Calendar — Discord event reminders" },
-      {
-        name: "description",
-        content:
-          "Sync Google Calendar and iCalendar feeds to Discord, then send automatic event reminders, RSVPs and daily summaries.",
-      },
-      { property: "og:title", content: "!PIRATE Calendar — Discord event reminders" },
-      {
-        property: "og:description",
-        content: "Sync calendars to Discord and automate event reminders with !PIRATE Calendar.",
-      },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
+      { title: "!HOY Calendar — Discord event reminders" },
+      { name: "description", content: "Premium calendar sync, events, reminders and Discord automation for !HOY BOT." },
+      { property: "og:title", content: "!HOY Calendar — Discord event reminders" },
+      { property: "og:description", content: "Manage calendars, events and Discord reminders from the !HOY Calendar dashboard." },
     ],
   }),
-  component: CalendarPicker,
+  component: CalendarEntry,
 });
 
-function guildIcon(id: string, icon: string | null) {
-  return icon ? `https://cdn.discordapp.com/icons/${id}/${icon}.png?size=64` : null;
-}
-
-function CalendarPicker() {
+function CalendarEntry() {
+  const navigate = useNavigate();
   const { data, isLoading } = useQuery({ queryKey: ["viewer"], queryFn: () => getViewer() });
   const guilds = data?.signedIn && !data.guildsError ? data.guilds : [];
 
-  return (
-    <div className="min-h-screen">
-      <header className="mx-auto flex max-w-5xl items-center justify-between px-6 py-6">
-        <Link
-          to="/"
-          className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em]"
-        >
-          <CalendarDays className="h-4 w-4 text-primary" />
-          !PIRATE Calendar
-        </Link>
-        <Button asChild size="sm" variant="outline">
-          <Link to="/">Back to !PIRATE</Link>
-        </Button>
-      </header>
+  useEffect(() => {
+    if (guilds.length > 0) {
+      void navigate({ to: "/calendar/$guildId", params: { guildId: guilds[0].id }, replace: true });
+    }
+  }, [guilds, navigate]);
 
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-10">
-        <h1 className="text-3xl font-semibold">Pick a server</h1>
-        <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-          !PIRATE Calendar keeps your Google and iCalendar feeds in sync with Discord — reminders,
-          RSVPs, daily summaries and event announcements, all in one place.
-        </p>
-
-        {!data?.signedIn && !isLoading ? (
-          <div className="glass mt-8 rounded-2xl p-6 text-sm">
-            <p className="text-muted-foreground">Sign in with Discord to see your servers.</p>
-            <Button asChild size="sm" className="mt-4">
-              <a href="/api/public/auth/discord/start">Sign in with Discord</a>
-            </Button>
-          </div>
-        ) : (
-          <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {guilds.map((guild) => {
-              const icon = guildIcon(guild.id, guild.icon);
-              return (
-                <Link
-                  key={guild.id}
-                  to="/calendar/$guildId"
-                  params={{ guildId: guild.id }}
-                  className="glass flex items-center gap-3 rounded-2xl p-4 transition-colors hover:bg-surface-2/60"
-                >
-                  {icon ? (
-                    <img src={icon} alt="" className="size-10 rounded-xl" />
-                  ) : (
-                    <span className="flex size-10 items-center justify-center rounded-xl bg-secondary text-xs">
-                      {guild.name.slice(0, 2).toUpperCase()}
-                    </span>
-                  )}
-                  <span className="truncate text-sm font-medium">{guild.name}</span>
-                </Link>
-              );
-            })}
-            {guilds.length === 0 && !isLoading ? (
-              <p className="text-sm text-muted-foreground">
-                No servers found where you can manage !PIRATE.
-              </p>
-            ) : null}
-          </div>
-        )}
+  if (isLoading || guilds.length > 0) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#02070d] px-6">
+        <div className="glass w-full max-w-md rounded-[28px] p-8 text-center shadow-2xl">
+          <span className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
+            <CalendarDays className="size-7" />
+          </span>
+          <h1 className="mt-5 text-2xl font-black">Opening !HOY Calendar</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Preparing your calendar workspace…</p>
+          <Loader2 className="mx-auto mt-5 size-5 animate-spin text-primary" />
+        </div>
       </main>
-    </div>
+    );
+  }
+
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-[#02070d] px-6">
+      <div className="glass w-full max-w-md rounded-[28px] p-8 text-center shadow-2xl">
+        <span className="mx-auto flex size-14 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary">
+          <CalendarDays className="size-7" />
+        </span>
+        <h1 className="mt-5 text-2xl font-black">Sign in to !HOY Calendar</h1>
+        <p className="mt-2 text-sm leading-6 text-muted-foreground">Sign in with Discord so we can load the servers you manage and open your calendar dashboard.</p>
+        <Button asChild className="mt-6">
+          <a href="/api/public/auth/discord/start">Sign in with Discord</a>
+        </Button>
+      </div>
+    </main>
   );
 }
