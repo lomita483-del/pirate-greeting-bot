@@ -1,4 +1,4 @@
-"""AHOY embed helpers - one consistent, premium visual identity."""
+"""!HOY BOT embed helpers - one consistent visual identity."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from typing import Optional
 
 import discord
 
-BRAND = "AHOY"
+BRAND = "!HOY BOT"
 TEAL = 0x1FB6A6
 GOLD = 0xE0B15C
 RED = 0xE05252
@@ -15,12 +15,7 @@ SLATE = 0x1B2733
 
 
 def _base(title: str, description: str, color: int) -> discord.Embed:
-    embed = discord.Embed(
-        title=title,
-        description=description,
-        color=color,
-        timestamp=datetime.now(timezone.utc),
-    )
+    embed = discord.Embed(title=title, description=description, color=color, timestamp=datetime.now(timezone.utc))
     embed.set_footer(text=f"{BRAND} ⚓")
     return embed
 
