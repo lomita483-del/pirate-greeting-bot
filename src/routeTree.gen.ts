@@ -36,6 +36,7 @@ import { Route as DashboardGuildIdGeneralRouteImport } from './routes/dashboard/
 import { Route as DashboardGuildIdLoggingRouteImport } from './routes/dashboard/$guildId.logging'
 import { Route as DashboardGuildIdModerationRouteImport } from './routes/dashboard/$guildId.moderation'
 import { Route as DashboardGuildIdRolesRouteImport } from './routes/dashboard/$guildId.roles'
+import { Route as DashboardGuildIdRollCallRouteImport } from './routes/dashboard/$guildId.rollcall'
 import { Route as DashboardGuildIdSendRouteImport } from './routes/dashboard/$guildId.send'
 import { Route as DashboardGuildIdStatsRouteImport } from './routes/dashboard/$guildId.stats'
 import { Route as DashboardGuildIdWelcomeRouteImport } from './routes/dashboard/$guildId.welcome'
@@ -192,6 +193,11 @@ const DashboardGuildIdRolesRoute = DashboardGuildIdRolesRouteImport.update({
   path: '/roles',
   getParentRoute: () => DashboardGuildIdRoute,
 } as any)
+const DashboardGuildIdRollCallRoute = DashboardGuildIdRollCallRouteImport.update({
+  id: '/rollcall',
+  path: '/rollcall',
+  getParentRoute: () => DashboardGuildIdRoute,
+} as any)
 const DashboardGuildIdSendRoute = DashboardGuildIdSendRouteImport.update({
   id: '/send',
   path: '/send',
@@ -287,6 +293,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/rollcall': typeof DashboardGuildIdRollCallRoute
   '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
@@ -327,6 +334,7 @@ export interface FileRoutesByTo {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/rollcall': typeof DashboardGuildIdRollCallRoute
   '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
@@ -369,6 +377,7 @@ export interface FileRoutesById {
   '/dashboard/$guildId/logging': typeof DashboardGuildIdLoggingRoute
   '/dashboard/$guildId/moderation': typeof DashboardGuildIdModerationRoute
   '/dashboard/$guildId/roles': typeof DashboardGuildIdRolesRoute
+  '/dashboard/$guildId/rollcall': typeof DashboardGuildIdRollCallRoute
   '/dashboard/$guildId/send': typeof DashboardGuildIdSendRoute
   '/dashboard/$guildId/stats': typeof DashboardGuildIdStatsRoute
   '/dashboard/$guildId/welcome': typeof DashboardGuildIdWelcomeRoute
@@ -412,6 +421,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/rollcall'
     | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
@@ -452,6 +462,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/rollcall'
     | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
@@ -493,6 +504,7 @@ export interface FileRouteTypes {
     | '/dashboard/$guildId/logging'
     | '/dashboard/$guildId/moderation'
     | '/dashboard/$guildId/roles'
+    | '/dashboard/$guildId/rollcall'
     | '/dashboard/$guildId/send'
     | '/dashboard/$guildId/stats'
     | '/dashboard/$guildId/welcome'
@@ -723,6 +735,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardGuildIdRolesRouteImport
       parentRoute: typeof DashboardGuildIdRoute
     }
+    '/dashboard/$guildId/rollcall': {
+      id: '/dashboard/$guildId/rollcall'
+      path: '/rollcall'
+      fullPath: '/dashboard/$guildId/rollcall'
+      preLoaderRoute: typeof DashboardGuildIdRollCallRouteImport
+      parentRoute: typeof DashboardGuildIdRoute
+    }
     '/dashboard/$guildId/send': {
       id: '/dashboard/$guildId/send'
       path: '/send'
@@ -824,6 +843,7 @@ interface DashboardGuildIdRouteChildren {
   DashboardGuildIdLoggingRoute: typeof DashboardGuildIdLoggingRoute
   DashboardGuildIdModerationRoute: typeof DashboardGuildIdModerationRoute
   DashboardGuildIdRolesRoute: typeof DashboardGuildIdRolesRoute
+  DashboardGuildIdRollCallRoute: typeof DashboardGuildIdRollCallRoute
   DashboardGuildIdSendRoute: typeof DashboardGuildIdSendRoute
   DashboardGuildIdStatsRoute: typeof DashboardGuildIdStatsRoute
   DashboardGuildIdWelcomeRoute: typeof DashboardGuildIdWelcomeRoute
@@ -845,6 +865,7 @@ const DashboardGuildIdRouteChildren: DashboardGuildIdRouteChildren = {
   DashboardGuildIdLoggingRoute: DashboardGuildIdLoggingRoute,
   DashboardGuildIdModerationRoute: DashboardGuildIdModerationRoute,
   DashboardGuildIdRolesRoute: DashboardGuildIdRolesRoute,
+  DashboardGuildIdRollCallRoute: DashboardGuildIdRollCallRoute,
   DashboardGuildIdSendRoute: DashboardGuildIdSendRoute,
   DashboardGuildIdStatsRoute: DashboardGuildIdStatsRoute,
   DashboardGuildIdWelcomeRoute: DashboardGuildIdWelcomeRoute,
