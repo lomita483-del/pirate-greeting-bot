@@ -1,0 +1,72 @@
+name: Apply Admin Uptime Fix
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update owner console runtime timer
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/routes/owner-console.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          old_query = '''    refetchInterval: 30_000,\n  });\n\n  const [activityOpen, setActivityOpen] = useState(false);\n  const [uptimeSeconds, setUptimeSeconds] = useState(() => {\n    if (typeof window === "undefined") return 0;\n\n    const storageKey = "ahoy-owner-console-uptime-start";\n    const existing = window.localStorage.getItem(storageKey);\n\n    if (existing) {\n      const parsed = Number(existing);\n\n      if (Number.isFinite(parsed) && parsed > 0) {\n        return Math.max(0, Math.floor((Date.now() - parsed) / 1000));\n      }\n    }\n\n    const now = Date.now();\n    window.localStorage.setItem(storageKey, String(now));\n    return 0;\n  });\n\n  useEffect(() => {\n    const timer = window.setInterval(() => {\n      setUptimeSeconds((value) => value + 1);\n    }, 1000);\n\n    return () => window.clearInterval(timer);\n  }, []);'''
+
+          new_query = '''    refetchInterval: 15_000,\n  });\n\n  const [activityOpen, setActivityOpen] = useState(false);\n  const [clockNow, setClockNow] = useState(() => Date.now());\n\n  useEffect(() => {\n    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);\n    return () => window.clearInterval(timer);\n  }, []);'''
+
+          if old_query not in text:
+              raise SystemExit('Expected localStorage uptime block was not found; refusing to modify the file.')
+          text = text.replace(old_query, new_query, 1)
+
+          old_uptime = '''  const uptime = formatUptime(uptimeSeconds);'''
+          new_uptime = '''  const heartbeatMs = data.botRuntime?.heartbeatAt\n    ? Date.parse(data.botRuntime.heartbeatAt)\n    : Number.NaN;\n  const startedMs = data.botRuntime?.startedAt\n    ? Date.parse(data.botRuntime.startedAt)\n    : Number.NaN;\n  const stoppedMs = data.botRuntime?.stoppedAt\n    ? Date.parse(data.botRuntime.stoppedAt)\n    : Number.NaN;\n\n  const heartbeatFresh =\n    Number.isFinite(heartbeatMs) &&\n    clockNow - heartbeatMs <= 45_000;\n  const isBotOnline =\n    !Number.isFinite(stoppedMs) &&\n    Number.isFinite(startedMs) &&\n    heartbeatFresh;\n  const uptimeSeconds = isBotOnline\n    ? Math.max(0, Math.floor((clockNow - startedMs) / 1000))\n    : 0;\n  const uptime = isBotOnline ? formatUptime(uptimeSeconds) : "Offline";'''
+
+          if old_uptime not in text:
+              raise SystemExit('Expected uptime calculation was not found; refusing to modify the file.')
+          text = text.replace(old_uptime, new_uptime, 1)
+
+          text = text.replace('hint: "This dashboard session",', 'hint: "Actual bot runtime",', 1)
+
+          old_status = '''            <span className="size-2 rounded-full bg-[#00e5a0] shadow-[0_0_10px_rgba(0,229,160,0.9)]" />\n            <span className="text-[9px] font-medium uppercase tracking-[0.22em] text-white/75">\n              Bot Active For\n            </span>'''
+          new_status = '''            <span\n              className={`size-2 rounded-full shadow-[0_0_10px_rgba(0,229,160,0.9)] ${\n                isBotOnline ? "bg-[#00e5a0]" : "bg-[#ff315f]"\n              }`}\n            />\n            <span className="text-[9px] font-medium uppercase tracking-[0.22em] text-white/75">\n              {isBotOnline ? "Bot Active For" : "Bot Offline"}\n            </span>'''
+
+          if old_status not in text:
+              raise SystemExit('Expected Command Deck status block was not found; refusing to modify the file.')
+          text = text.replace(old_status, new_status, 1)
+
+          old_props = '''      <CommandDeck\n        context={context}\n        uptime={uptime}\n      />'''
+          new_props = '''      <CommandDeck\n        context={context}\n        uptime={uptime}\n        isBotOnline={isBotOnline}\n      />'''
+          if old_props not in text:
+              raise SystemExit('Expected CommandDeck call was not found; refusing to modify the file.')
+          text = text.replace(old_props, new_props, 1)
+
+          old_signature = '''function CommandDeck({\n  context,\n  uptime,\n}: {\n  context: Awaited<ReturnType<typeof getAdminContext>>;\n  uptime: string;\n}) {'''
+          new_signature = '''function CommandDeck({\n  context,\n  uptime,\n  isBotOnline,\n}: {\n  context: Awaited<ReturnType<typeof getAdminContext>>;\n  uptime: string;\n  isBotOnline: boolean;\n}) {'''
+          if old_signature not in text:
+              raise SystemExit('Expected CommandDeck signature was not found; refusing to modify the file.')
+          text = text.replace(old_signature, new_signature, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Remove temporary workflow and commit changes
+        shell: bash
+        run: |
+          rm -f .github/workflows/temporary-admin-uptime-fix.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/routes/owner-console.tsx .github/workflows/temporary-admin-uptime-fix.yml
+          git diff --cached --check
+          git commit -m "Fix Admin Console bot uptime timer"
+          git push origin main
