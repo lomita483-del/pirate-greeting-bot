@@ -25,7 +25,6 @@ from discord.ext import commands
 from .config import Config, ConfigError, load_config
 from .database.client import Database, DatabaseError
 from .database.repository import Repository
-from .database.runtime import bot_runtime_heartbeat, bot_runtime_start, bot_runtime_stop
 from .services.automod_service import AutoModService
 from .services.level_service import LevelService
 from .services.log_service import LogService
@@ -57,6 +56,8 @@ EXTENSIONS = (
     "bot.commands.calendar",
     "bot.commands.send",
     "bot.commands.reports",
+    "bot.commands.activity",
+    "bot.commands.rollcall",
     "bot.commands.library",
     "bot.events.guild_events",
     "bot.events.member_events",
@@ -78,6 +79,7 @@ class AhoyBot(commands.Bot):
         intents.message_content = True
         intents.voice_states = True
         intents.reactions = True
+        intents.presences = True
 
         super().__init__(
             command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "),
@@ -102,18 +104,11 @@ class AhoyBot(commands.Bot):
         self.activity_log = ActivityService(self.repo, self.logs)
         self.features = FeatureService(self.repo)
         self._notification_task: Optional[asyncio.Task[None]] = None
-        self._runtime_heartbeat_task: Optional[asyncio.Task[None]] = None
-        self._runtime_instance_id = "primary"
         self._health_runner = None
         self._synced_guild_ids: set[int] = set()
 
     async def setup_hook(self) -> None:
         await self.db.connect()
-
-        # Persist the beginning of this actual bot process. The dashboard
-        # reads this value instead of creating a browser/localStorage timer.
-        await bot_runtime_start(self.db, self._runtime_instance_id)
-        self._runtime_heartbeat_task = asyncio.create_task(self._runtime_heartbeat_loop())
 
         for extension in EXTENSIONS:
             try:
@@ -148,15 +143,23 @@ class AhoyBot(commands.Bot):
 
         self._health_runner = await start_health_server(self)
 
-    async def _runtime_heartbeat_loop(self) -> None:
-        """Keep the persisted runtime record fresh while this process is alive."""
-        await self.wait_until_ready()
-        while not self.is_closed():
-            try:
-                await bot_runtime_heartbeat(self.db, self._runtime_instance_id)
-            except Exception as exc:
-                log.warning("Bot runtime heartbeat failed: %s", exc)
-            await asyncio.sleep(15)
+    async def sync_guild_commands(self, guild: discord.Guild) -> None:
+        """Copy the global command tree into one guild and sync it.
+
+        Called from on_ready (for every guild already known at startup) and
+        from on_guild_join (for a guild the bot is invited to mid-session) —
+        on_guild_join never fires on startup, and on_ready never fires again
+        for a guild you join while already connected, so both call sites are
+        needed for every guild to actually get its commands.
+        """
+        if guild.id in self._synced_guild_ids:
+            return
+        try:
+            self.tree.copy_global_to(guild=guild)
+            await self.tree.sync(guild=guild)
+            self._synced_guild_ids.add(guild.id)
+        except discord.HTTPException as exc:
+            log.warning("Command sync failed for %s: %s", guild.id, exc)
 
     async def _platform_gate(self, interaction: discord.Interaction) -> bool:
         """Owner-level access control: runs before every slash command."""
@@ -168,6 +171,21 @@ class AhoyBot(commands.Bot):
         except DatabaseError:
             # Never lock the whole bot out because the database blipped.
             return True
+
+        # "Last active" tracking: every slash command is a strong activity
+        # signal. Best-effort — a database hiccup here must never block the
+        # command itself from running.
+        if interaction.guild_id and command_name:
+            try:
+                await self.repo.touch_user_command(
+                    str(interaction.guild_id),
+                    str(interaction.user.id),
+                    str(interaction.user),
+                    command_name,
+                )
+            except Exception as exc:  # noqa: BLE001
+                log.warning("Activity command touch failed: %s", exc)
+
         return True
 
     # -- owner notification delivery ------------------------------------
@@ -241,18 +259,11 @@ class AhoyBot(commands.Bot):
 
         for guild in self.guilds:
             # Guild-scoped sync makes commands appear instantly instead of
-            # waiting on Discord's global command propagation. Skip guilds
-            # we've already synced this session — re-copying and re-syncing
-            # on every reconnect is unnecessary API traffic, not just a
-            # cosmetic issue, since Discord rate-limits command syncs.
-            if guild.id in self._synced_guild_ids:
-                continue
-            try:
-                self.tree.copy_global_to(guild=guild)
-                await self.tree.sync(guild=guild)
-                self._synced_guild_ids.add(guild.id)
-            except discord.HTTPException as exc:
-                log.warning("Command sync failed for %s: %s", guild.id, exc)
+            # waiting on Discord's global command propagation. sync_guild_commands
+            # skips guilds already synced this session — re-copying and
+            # re-syncing on every reconnect is unnecessary API traffic, not
+            # just cosmetic, since Discord rate-limits command syncs.
+            await self.sync_guild_commands(guild)
             await self.repo.upsert_server(
                 str(guild.id),
                 guild.name,
@@ -378,20 +389,6 @@ class AhoyBot(commands.Bot):
 
     async def close(self) -> None:
         log.info("AHOY is shutting down gracefully…")
-
-        if self._runtime_heartbeat_task is not None:
-            self._runtime_heartbeat_task.cancel()
-            try:
-                await self._runtime_heartbeat_task
-            except asyncio.CancelledError:
-                pass
-            self._runtime_heartbeat_task = None
-
-        try:
-            await bot_runtime_stop(self.db, self._runtime_instance_id)
-        except Exception as exc:
-            log.warning("Failed to mark bot runtime offline: %s", exc)
-
         if self._health_runner is not None:
             try:
                 await self._health_runner.cleanup()
