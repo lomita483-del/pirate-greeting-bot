@@ -1,13 +1,11 @@
 """/send plus website action-queue delivery for messages, reaction panels and Roll Calls."""
 from __future__ import annotations
-
 import discord
 from discord import app_commands
 from discord.ext import commands, tasks
 from ..utils import embeds
 from ..utils.checks import ActionRefused
 from ..utils.logger import get_logger
-
 log = get_logger("send")
 
 def _parse_color(value: str | None) -> discord.Color | None:
@@ -70,10 +68,11 @@ class SendCommands(commands.Cog):
 
     async def _process_rollcall_start(self, action: dict) -> None:
         from .rollcall import RollCallView, _open_embed
-        repo = self.bot.repo  # type: ignore[attr-defined]; payload = action.get("payload") or {}
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        payload = action.get("payload") or {}
         roll_call = await repo.get_roll_call(str(payload.get("roll_call_id") or action.get("target_id")))
         if not roll_call or roll_call.get("status") != "open": raise ActionRefused("Roll call no longer exists or is already closed.")
-        guild = self.bot.get_guild(int(action["guild_id"]));
+        guild = self.bot.get_guild(int(action["guild_id"]))
         if guild is None: raise ActionRefused("AHOY is not in that server.")
         channel = guild.get_channel(int(roll_call["channel_id"]))
         if not isinstance(channel, discord.TextChannel): raise ActionRefused("Roll call channel no longer exists.")
@@ -84,10 +83,11 @@ class SendCommands(commands.Cog):
 
     async def _process_rollcall_close(self, action: dict) -> None:
         from .rollcall import RollCall
-        repo = self.bot.repo  # type: ignore[attr-defined]; roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id"))
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        roll_call_id = str((action.get("payload") or {}).get("roll_call_id") or action.get("target_id"))
         roll_call = await repo.get_roll_call(roll_call_id)
         if not roll_call or roll_call.get("status") != "open": await repo.finish_bot_action(action["id"], "done"); return
-        guild = self.bot.get_guild(int(action["guild_id"]));
+        guild = self.bot.get_guild(int(action["guild_id"]))
         if guild is None: raise ActionRefused("AHOY is not in that server.")
         cog = self.bot.get_cog("RollCall")
         if not isinstance(cog, RollCall): raise ActionRefused("Roll Call service is not ready.")
