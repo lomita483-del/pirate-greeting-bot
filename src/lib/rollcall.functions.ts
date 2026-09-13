@@ -25,7 +25,7 @@ async function assertRollCallManager(guildId: string, userId: string, supabaseAd
   if (!token) throw new Error("The bot token is not configured.");
   const response = await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${userId}`, { headers: { authorization: `Bot ${token}` } });
   if (!response.ok) throw new Error("Could not verify your Discord server roles.");
-  const member = await response.json() as { roles?: string[]; user?: { id?: string } };
+  const member = await response.json() as { roles?: string[] };
   if (!(member.roles ?? []).some((roleId) => allowed.has(String(roleId)))) throw new Error("You do not have a configured Roll Call Manager role.");
 }
 
@@ -39,6 +39,42 @@ async function fetchStructure(guildId: string) {
   return { channels: channels.filter((c) => c.type === 0 || c.type === 4).map((c) => ({ id: c.id, name: c.name, kind: c.type === 4 ? "category" : "text" })), roles: roles.filter((r) => !r.managed && r.name !== "@everyone").sort((a, b) => b.position - a.position).map((r) => ({ id: r.id, name: r.name })) };
 }
 
+type DiscordMember = { user: { id: string; username: string; global_name?: string | null; bot?: boolean }; nick?: string | null; roles?: string[] };
+
+async function fetchGuildMembers(guildId: string, targetRoleIds: string[]) {
+  const token = process.env["DISCORD_TOKEN"];
+  if (!token) return { members: [] as DiscordMember[], error: "The bot token is not configured." };
+  const headers = { authorization: `Bot ${token}` };
+  const target = new Set(targetRoleIds.map(String));
+  const members: DiscordMember[] = [];
+  let after = "0";
+  try {
+    for (let page = 0; page < 1000; page += 1) {
+      const url = new URL(`https://discord.com/api/v10/guilds/${guildId}/members`);
+      url.searchParams.set("limit", "1000");
+      if (after !== "0") url.searchParams.set("after", after);
+      const response = await fetch(url, { headers });
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return { members: [], error: `Discord member list unavailable (${response.status}). ${body.slice(0, 180)}` };
+      }
+      const pageMembers = await response.json() as DiscordMember[];
+      if (!pageMembers.length) break;
+      for (const member of pageMembers) {
+        if (member.user.bot) continue;
+        if (!target.size || (member.roles ?? []).some((roleId) => target.has(String(roleId)))) members.push(member);
+      }
+      if (pageMembers.length < 1000) break;
+      const last = pageMembers[pageMembers.length - 1];
+      if (!last?.user?.id || last.user.id === after) break;
+      after = last.user.id;
+    }
+    return { members, error: null };
+  } catch (error) {
+    return { members: [], error: error instanceof Error ? error.message : "Could not load Discord members." };
+  }
+}
+
 export const getRollCallDashboard = createServerFn({ method: "GET" }).inputValidator((data: unknown) => guildInput.parse(data)).handler(async ({ data }) => {
   const { guild, supabaseAdmin } = await authorize(data.guildId);
   const [settings, calls, structure] = await Promise.all([supabaseAdmin.from("roll_call_settings").select("*").eq("guild_id", data.guildId).maybeSingle(), supabaseAdmin.from("roll_calls").select("*").eq("guild_id", data.guildId).order("created_at", { ascending: false }).limit(100), fetchStructure(data.guildId)]);
@@ -48,7 +84,17 @@ export const getRollCallDashboard = createServerFn({ method: "GET" }).inputValid
   if (responseError) throw new Error(responseError.message);
   const grouped = new Map<string, Array<Record<string, unknown>>>();
   for (const row of responses ?? []) { const key = String(row.roll_call_id); const list = grouped.get(key) ?? []; list.push(row as Record<string, unknown>); grouped.set(key, list); }
-  return { guild: { id: guild.id, name: guild.name, icon: guild.icon }, structure, settings: settings.data ?? null, rollCalls: rows.map((row) => ({ ...row, responses: grouped.get(String(row.id)) ?? [], responseCount: (grouped.get(String(row.id)) ?? []).length })) };
+
+  const memberResults = await Promise.all(rows.filter((row) => row.status !== "open" || row.mode === "audit").map(async (row) => {
+    const targetRoleIds = (row.target_role_ids ?? []).map(String);
+    const result = await fetchGuildMembers(data.guildId, targetRoleIds);
+    const responseIds = new Set((grouped.get(String(row.id)) ?? []).map((response) => String(response.user_id)));
+    const missedMembers = result.members.filter((member) => !responseIds.has(String(member.user.id))).map((member) => ({ user_id: member.user.id, username: member.user.username, display_name: member.nick || member.user.global_name || member.user.username }));
+    return [String(row.id), { missedMembers, memberFetchError: result.error, targetMemberCount: result.members.length }] as const;
+  }));
+  const memberMap = new Map(memberResults);
+
+  return { guild: { id: guild.id, name: guild.name, icon: guild.icon }, structure, settings: settings.data ?? null, rollCalls: rows.map((row) => ({ ...row, responses: grouped.get(String(row.id)) ?? [], responseCount: (grouped.get(String(row.id)) ?? []).length, missedMembers: memberMap.get(String(row.id))?.missedMembers ?? [], memberFetchError: memberMap.get(String(row.id))?.memberFetchError ?? null, targetMemberCount: memberMap.get(String(row.id))?.targetMemberCount ?? null })) };
 });
 
 const settingsInput = z.object({ guildId: snowflake, enabled: z.boolean(), managerRoleIds: z.array(snowflake).max(25), defaultChannelId: snowflake.nullable(), dailyEnabled: z.boolean(), dailyHourUtc: z.number().int().min(0).max(23), dailyTargetRoleIds: z.array(snowflake).max(25), dailyTitle: z.string().max(200), dailyDescription: z.string().max(1500), dailyDurationHours: z.number().int().min(1).max(336) });
