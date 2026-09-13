@@ -1,21 +1,11 @@
-"""Roll call — one system, three modes.
-
-* ``event``  — one-off attendance check that auto-closes and reports who
-  answered and who (from the pinged roles) did not.
-* ``daily``  — recurring check-in; each click extends a per-member streak
-  (a skipped day resets it). Streaks surface on Statahoy user cards.
-* ``audit``  — long-running inactivity presence check; the closing report
-  lists exactly who in the target role(s) never clicked.
-
-The ✅ Present button uses one static custom_id and resolves the roll call
-from the message it lives on, so buttons keep working after a restart the
-same way ticket panels do.
-"""
+"""Roll Call — role-gated attendance panels covering event pings, daily
+check-in streaks, and inactivity audits, all built on the same
+"post an embed with a Present button" mechanic."""
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from typing import Any
 
 import discord
 from discord import app_commands
@@ -27,241 +17,240 @@ from ..utils.logger import get_logger
 
 log = get_logger("rollcall")
 
-PRESENT_CUSTOM_ID = "ahoy:rollcall:present"
-
-MODE_LABELS = {
-    "event": "Event attendance",
-    "daily": "Daily check-in",
-    "audit": "Inactivity audit",
-}
-MODE_DEFAULT_HOURS = {"event": 2, "daily": 20, "audit": 168}
+GOLD = 0xD4AF37
+MODE_LABEL = {"event": "Event Attendance", "daily": "Daily Check-In", "audit": "Inactivity Audit"}
+MODE_EMOJI = {"event": "🏴‍☠️", "daily": "🔥", "audit": "🔍"}
 
 
-def _parse_iso(value: Any) -> Optional[datetime]:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+def _button_custom_id(roll_call_id: str) -> str:
+    return f"ahoy:rollcall:present:{roll_call_id}"
 
 
-def roll_call_embed(row: dict[str, Any], *, responses: int = 0) -> discord.Embed:
-    mode = str(row.get("mode") or "event")
-    closes = _parse_iso(row.get("closes_at"))
-    embed = embeds.brand(
-        f"📣 ROLL CALL · {MODE_LABELS.get(mode, 'Roll call')}",
-        row.get("description") or "Tap **✅ Present** below to be counted.",
+async def _is_roll_call_manager(bot: commands.Bot, member: discord.Member) -> bool:
+    if member.guild_permissions.manage_guild or member.guild_permissions.administrator:
+        return True
+    settings = await bot.repo.roll_call_settings(str(member.guild.id))  # type: ignore[attr-defined]
+    manager_role_ids = set(settings.get("manager_role_ids") or [])
+    if not manager_role_ids:
+        return False
+    member_role_ids = {str(r.id) for r in member.roles}
+    return bool(member_role_ids.intersection(manager_role_ids))
+
+
+def _open_embed(roll_call: dict[str, Any], target_roles: list[discord.Role]) -> discord.Embed:
+    mode = str(roll_call.get("mode") or "event")
+    closes_at = roll_call.get("closes_at")
+    stamp = None
+    if closes_at:
+        try:
+            stamp = int(datetime.fromisoformat(str(closes_at).replace("Z", "+00:00")).timestamp())
+        except ValueError:
+            stamp = None
+
+    lines = [roll_call.get("description") or "Click **Present** to check in."]
+    if target_roles:
+        lines.append("")
+        lines.append("**Called:** " + ", ".join(r.mention for r in target_roles))
+    if stamp:
+        lines.append("")
+        lines.append(f"⏰ Closes <t:{stamp}:R> (<t:{stamp}:f>)")
+
+    embed = discord.Embed(
+        title=f"{MODE_EMOJI.get(mode, '📋')} {roll_call.get('title') or MODE_LABEL.get(mode, 'Roll Call')}",
+        description="\n".join(lines),
+        color=GOLD,
+        timestamp=datetime.now(timezone.utc),
     )
-    embed.add_field(name="Roll call", value=str(row.get("title") or "Roll call"), inline=False)
-    if closes:
-        embed.add_field(
-            name="Closes",
-            value=f"<t:{int(closes.timestamp())}:R> · <t:{int(closes.timestamp())}:f>",
-            inline=False,
-        )
-    roles = row.get("target_role_ids") or []
-    if roles:
-        embed.add_field(
-            name="Called", value=" ".join(f"<@&{rid}>" for rid in roles[:10]), inline=False
-        )
-    embed.add_field(name="Present so far", value=f"**{responses}**", inline=False)
-    return embed
-
-
-def results_embed(
-    row: dict[str, Any],
-    present: list[str],
-    missing: list[str],
-) -> discord.Embed:
-    mode = str(row.get("mode") or "event")
-    embed = embeds.brand(
-        f"📋 ROLL CALL RESULTS · {MODE_LABELS.get(mode, 'Roll call')}",
-        str(row.get("title") or "Roll call"),
-    )
-    embed.add_field(name="Present", value=f"**{len(present)}**")
-    if mode != "daily":
-        embed.add_field(name="No response", value=f"**{len(missing)}**")
-
-    def _names(ids: list[str]) -> str:
-        if not ids:
-            return "Nobody."
-        shown = " ".join(f"<@{i}>" for i in ids[:40])
-        extra = len(ids) - 40
-        return shown + (f" … and {extra} more" if extra > 0 else "")
-
-    embed.add_field(name="Answered", value=_names(present), inline=False)
-    if mode != "daily":
-        embed.add_field(name="Never answered", value=_names(missing), inline=False)
+    embed.set_footer(text=f"AHOY Roll Call · {MODE_LABEL.get(mode, mode.title())}")
     return embed
 
 
 class RollCallView(discord.ui.View):
-    """Persistent ✅ Present button."""
+    """Persistent 'Present' button. One instance per open roll call, keyed
+    by roll_call_id in the custom_id so it survives a bot restart via
+    restore_persistent_views()."""
 
-    def __init__(self) -> None:
+    def __init__(self, bot: commands.Bot, roll_call_id: str) -> None:
         super().__init__(timeout=None)
-
-    @discord.ui.button(
-        label="Present",
-        emoji="✅",
-        style=discord.ButtonStyle.success,
-        custom_id=PRESENT_CUSTOM_ID,
-    )
-    async def present(
-        self, interaction: discord.Interaction, _button: discord.ui.Button
-    ) -> None:
-        bot = interaction.client
-        repo = getattr(bot, "repo", None)
-        if repo is None or interaction.message is None or interaction.guild is None:
-            await interaction.response.send_message(
-                "This roll call is unavailable right now.", ephemeral=True
-            )
-            return
-
-        row = await repo.roll_call_by_message(str(interaction.message.id))
-        if not row:
-            await interaction.response.send_message(
-                "I can no longer find this roll call.", ephemeral=True
-            )
-            return
-        if str(row.get("status")) != "open":
-            await interaction.response.send_message(
-                "This roll call is already closed.", ephemeral=True
-            )
-            return
-
-        recorded = await repo.add_roll_call_response(
-            str(row["id"]),
-            str(interaction.guild.id),
-            str(interaction.user.id),
-            str(interaction.user),
+        self.bot = bot
+        self.roll_call_id = roll_call_id
+        button: discord.ui.Button = discord.ui.Button(
+            label="Present",
+            emoji="✅",
+            style=discord.ButtonStyle.success,
+            custom_id=_button_custom_id(roll_call_id),
         )
-        note = "You're marked present ✅" if recorded else "You were already marked present."
+        button.callback = self._on_click  # type: ignore[assignment]
+        self.add_item(button)
 
-        if str(row.get("mode")) == "daily" and recorded:
-            streak = await repo.bump_roll_call_streak(
-                str(interaction.guild.id), str(interaction.user.id)
+    async def _on_click(self, interaction: discord.Interaction) -> None:
+        repo = self.bot.repo  # type: ignore[attr-defined]
+        roll_call = await repo.get_roll_call(self.roll_call_id)
+        if not roll_call:
+            raise ActionRefused("This roll call no longer exists.")
+        if roll_call.get("status") != "open":
+            raise ActionRefused("This roll call has already closed.")
+
+        member = interaction.user
+        created = await repo.add_roll_call_response(
+            self.roll_call_id, str(member.id), str(member)
+        )
+
+        if not created:
+            await interaction.response.send_message(
+                embed=embeds.info("Already checked in", "You've already been marked present here."),
+                ephemeral=True,
             )
-            note += f"\nCheck-in streak: **{int(streak.get('current_streak') or 1)}** day(s)."
+            return
 
-        await interaction.response.send_message(note, ephemeral=True)
-
-        try:
-            responses = await repo.roll_call_responses(str(row["id"]))
-            await interaction.message.edit(
-                embed=roll_call_embed(row, responses=len(responses)), view=self
+        if roll_call.get("mode") == "daily":
+            streak = await _bump_streak(repo, str(interaction.guild_id), str(member.id), str(member))
+            await interaction.response.send_message(
+                embed=embeds.success(
+                    "Checked in ✅",
+                    f"Current streak: **{streak['current_streak']} day"
+                    f"{'s' if streak['current_streak'] != 1 else ''}** "
+                    f"(best: {streak['longest_streak']}).",
+                ),
+                ephemeral=True,
             )
-        except discord.HTTPException:
-            pass
-
-
-async def close_roll_call(bot: commands.Bot, row: dict[str, Any]) -> None:
-    """Close a roll call and post its results back to the channel."""
-    repo = bot.repo  # type: ignore[attr-defined]
-    responses = await repo.roll_call_responses(str(row["id"]))
-    present = [str(r.get("user_id")) for r in responses]
-
-    guild = bot.get_guild(int(row["guild_id"])) if row.get("guild_id") else None
-    missing: list[str] = []
-    if guild and str(row.get("mode")) != "daily":
-        targets = [str(rid) for rid in (row.get("target_role_ids") or [])]
-        members: list[discord.Member] = []
-        if targets:
-            for member in guild.members:
-                if any(str(role.id) in targets for role in member.roles) and not member.bot:
-                    members.append(member)
         else:
-            members = [m for m in guild.members if not m.bot]
-        missing = [str(m.id) for m in members if str(m.id) not in present]
+            await interaction.response.send_message(
+                embed=embeds.success("Marked present ✅", "Thanks for checking in."),
+                ephemeral=True,
+            )
 
-    await repo.close_roll_call(
-        str(row["id"]),
-        {"present": present, "missing": missing, "present_count": len(present)},
+
+async def _bump_streak(repo: Any, guild_id: str, user_id: str, username: str) -> dict[str, Any]:
+    current = await repo.get_streak(guild_id, user_id)
+    now = datetime.now(timezone.utc)
+    last = current.get("last_checked_in_at")
+    streak = int(current.get("current_streak") or 0)
+    longest = int(current.get("longest_streak") or 0)
+
+    gap_days: int | None
+    if last:
+        try:
+            last_dt = datetime.fromisoformat(str(last).replace("Z", "+00:00"))
+            gap_days = (now.date() - last_dt.date()).days
+        except ValueError:
+            gap_days = 999
+    else:
+        gap_days = None
+
+    if gap_days is None:
+        streak = 1
+    elif gap_days == 0:
+        pass  # already checked in today (shouldn't normally happen — one roll call/day)
+    elif gap_days == 1:
+        streak += 1
+    else:
+        streak = 1  # missed at least one day — streak resets
+
+    longest = max(longest, streak)
+    payload = {
+        "guild_id": guild_id,
+        "user_id": user_id,
+        "username": username,
+        "current_streak": streak,
+        "longest_streak": longest,
+        "last_checked_in_at": now.isoformat(),
+    }
+    await repo.save_streak(payload)
+    return payload
+
+
+async def build_results_embed(
+    bot: commands.Bot, guild: discord.Guild, roll_call: dict[str, Any]
+) -> discord.Embed:
+    repo = bot.repo  # type: ignore[attr-defined]
+    responses = await repo.roll_call_responses(roll_call["id"])
+    responded_ids = {str(r["user_id"]) for r in responses}
+
+    target_role_ids = roll_call.get("target_role_ids") or []
+    target_roles = [guild.get_role(int(rid)) for rid in target_role_ids]
+    target_roles = [r for r in target_roles if r is not None]
+
+    called_members: set[discord.Member] = set()
+    if target_roles:
+        for role in target_roles:
+            called_members.update(m for m in role.members if not m.bot)
+    else:
+        called_members = {m for m in guild.members if not m.bot}
+
+    missed = sorted(
+        (m for m in called_members if str(m.id) not in responded_ids),
+        key=lambda m: m.display_name.lower(),
     )
 
-    channel = bot.get_channel(int(row["channel_id"])) if row.get("channel_id") else None
-    if isinstance(channel, (discord.TextChannel, discord.Thread)):
-        try:
-            await channel.send(embed=results_embed(row, present, missing))
-        except discord.HTTPException as exc:
-            log.warning("Could not post roll call results: %s", exc)
+    mode = str(roll_call.get("mode") or "event")
+    embed = discord.Embed(
+        title=f"📊 {roll_call.get('title')} — Results",
+        color=GOLD,
+        timestamp=datetime.now(timezone.utc),
+    )
+    embed.add_field(name="Responded", value=f"**{len(responses)}** member(s)", inline=True)
+    embed.add_field(name="Called", value=f"**{len(called_members)}** member(s)", inline=True)
 
-    if guild and row.get("message_id"):
-        try:
-            message = await channel.fetch_message(int(row["message_id"]))  # type: ignore[union-attr]
-            closed = roll_call_embed(row, responses=len(present))
-            closed.title = f"🔒 {closed.title}"
-            await message.edit(embed=closed, view=None)
-        except (discord.HTTPException, AttributeError, ValueError):
-            pass
-
-
-async def post_roll_call(
-    bot: commands.Bot,
-    guild: discord.Guild,
-    channel: discord.abc.Messageable,
-    row: dict[str, Any],
-) -> Optional[discord.Message]:
-    repo = bot.repo  # type: ignore[attr-defined]
-    content = " ".join(f"<@&{rid}>" for rid in (row.get("target_role_ids") or [])) or None
-    try:
-        message = await channel.send(
-            content=content, embed=roll_call_embed(row), view=RollCallView()
+    if mode == "audit":
+        text = (
+            "\n".join(f"• {m.mention}" for m in missed[:40]) if missed else "Everyone checked in. 🎉"
         )
-    except discord.HTTPException as exc:
-        log.warning("Could not post roll call in %s: %s", guild.id, exc)
-        return None
-    await repo.set_roll_call_message(str(row["id"]), str(message.id))
-    return message
+        if len(missed) > 40:
+            text += f"\n…and {len(missed) - 40} more."
+        embed.add_field(name=f"Never responded ({len(missed)})", value=text[:1024], inline=False)
+    else:
+        text = (
+            "\n".join(f"• {m.mention}" for m in missed[:25]) if missed else "Everyone responded! 🎉"
+        )
+        if len(missed) > 25:
+            text += f"\n…and {len(missed) - 25} more."
+        embed.add_field(name=f"Did not respond ({len(missed)})", value=text[:1024], inline=False)
+
+    embed.set_footer(text=f"AHOY Roll Call · {MODE_LABEL.get(mode, mode.title())}")
+
+    if mode == "daily" and missed:
+        # Missing a daily check-in resets that member's streak (audits have
+        # no streak logic — they're a presence check only).
+        for member in missed:
+            current = await repo.get_streak(str(guild.id), str(member.id))
+            if int(current.get("current_streak") or 0) > 0:
+                await repo.save_streak(
+                    {
+                        "guild_id": str(guild.id),
+                        "user_id": str(member.id),
+                        "username": str(member),
+                        "current_streak": 0,
+                        "longest_streak": int(current.get("longest_streak") or 0),
+                        "last_checked_in_at": current.get("last_checked_in_at"),
+                    }
+                )
+
+    return embed
 
 
 class RollCall(commands.Cog):
-    """/rollcall — presence checks, streaks and inactivity audits."""
-
-    rollcall = app_commands.Group(
-        name="rollcall", description="Run presence checks and daily check-ins."
-    )
-
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
 
-    async def _settings(self, guild_id: str) -> dict[str, Any]:
-        return await self.bot.settings.get(guild_id)  # type: ignore[attr-defined]
+    rollcall_group = app_commands.Group(
+        name="rollcall", description="Post an attendance roll call with a Present button."
+    )
 
-    async def _ensure_manager(self, interaction: discord.Interaction) -> dict[str, Any]:
-        guild = ensure_guild(interaction)
-        settings = await self._settings(str(guild.id))
-        if not settings.get("rollcall_enabled", False):
-            raise ActionRefused("Roll call is switched off for this server — enable it in the dashboard.")
-
-        member = interaction.user
-        if not isinstance(member, discord.Member):
-            raise ActionRefused("This command only works inside a server.")
-        if member.guild_permissions.manage_guild or member.id == guild.owner_id:
-            return settings
-
-        allowed = {str(r) for r in (settings.get("rollcall_manager_roles") or [])}
-        if allowed and any(str(role.id) in allowed for role in member.roles):
-            return settings
-        raise ActionRefused("Only Roll Call Managers can do that.")
-
-    @rollcall.command(name="start", description="Start a roll call.")
+    @rollcall_group.command(name="start", description="Start a new roll call.")
     @app_commands.describe(
-        mode="Event attendance, daily check-in or inactivity audit",
-        title="Short title, e.g. 'Friday raid'",
-        description="Extra detail shown in the roll call message",
-        hours="How long it stays open (hours)",
-        role="Role being called (optional)",
-        second_role="Another role being called (optional)",
-        channel="Where to post it (defaults to the configured roll call channel)",
+        mode="What kind of roll call this is.",
+        title="Title shown on the roll call panel.",
+        description="Extra detail shown under the title.",
+        duration_hours="How long it stays open before auto-closing.",
+        target_role="Only ping/track this role (optional — defaults to everyone).",
+        channel="Where to post it (defaults to this channel).",
     )
     @app_commands.choices(
         mode=[
-            app_commands.Choice(name="Event attendance", value="event"),
-            app_commands.Choice(name="Daily check-in", value="daily"),
-            app_commands.Choice(name="Inactivity audit", value="audit"),
+            app_commands.Choice(name="Event / Raid Attendance", value="event"),
+            app_commands.Choice(name="Daily Check-In Streak", value="daily"),
+            app_commands.Choice(name="Inactivity Audit", value="audit"),
         ]
     )
     @app_commands.guild_only()
@@ -269,134 +258,123 @@ class RollCall(commands.Cog):
         self,
         interaction: discord.Interaction,
         mode: app_commands.Choice[str],
-        title: app_commands.Range[str, 1, 120],
-        description: Optional[app_commands.Range[str, 1, 900]] = None,
-        hours: Optional[app_commands.Range[int, 1, 720]] = None,
-        role: Optional[discord.Role] = None,
-        second_role: Optional[discord.Role] = None,
-        channel: Optional[discord.TextChannel] = None,
+        title: str,
+        description: str | None = None,
+        duration_hours: float = 2.0,
+        target_role: discord.Role | None = None,
+        channel: discord.TextChannel | None = None,
     ) -> None:
         guild = ensure_guild(interaction)
-        settings = await self._ensure_manager(interaction)
-        await interaction.response.defer(ephemeral=True)
+        member = interaction.user
+        if not isinstance(member, discord.Member):
+            raise ActionRefused("This only works inside a server.")
 
-        target = channel
-        if target is None:
-            configured = settings.get("rollcall_channel_id")
-            resolved = guild.get_channel(int(configured)) if configured else None
-            target = resolved if isinstance(resolved, discord.TextChannel) else None
-        if target is None and isinstance(interaction.channel, discord.TextChannel):
-            target = interaction.channel
-        if target is None:
-            raise ActionRefused("Pick a channel to post the roll call in.")
+        settings = await self.bot.repo.roll_call_settings(str(guild.id))  # type: ignore[attr-defined]
+        if not settings.get("enabled"):
+            raise ActionRefused(
+                "Roll Call is disabled here. Enable it in the AHOY Control Center first."
+            )
+        if not await _is_roll_call_manager(self.bot, member):
+            raise ActionRefused("You need a configured Roll Call Manager role to do that.")
 
-        window = hours or MODE_DEFAULT_HOURS.get(mode.value, 2)
-        closes = datetime.now(timezone.utc) + timedelta(hours=window)
-        roles = [str(r.id) for r in (role, second_role) if r is not None]
+        target_channel = channel or interaction.channel
+        if not isinstance(target_channel, discord.TextChannel):
+            raise ActionRefused("Pick a text channel to post the roll call in.")
+
+        duration_hours = max(0.25, min(duration_hours, 24 * 14))
+        opens_at = datetime.now(timezone.utc)
+        closes_at = opens_at + timedelta(hours=duration_hours)
 
         repo = self.bot.repo  # type: ignore[attr-defined]
-        row = await repo.create_roll_call(
+        roll_call = await repo.create_roll_call(
             {
                 "guild_id": str(guild.id),
                 "mode": mode.value,
-                "title": str(title),
-                "description": description,
-                "channel_id": str(target.id),
-                "target_role_ids": roles,
-                "closes_at": closes.isoformat(),
+                "title": title[:200],
+                "description": (description or "")[:1500] or None,
+                "channel_id": str(target_channel.id),
+                "target_role_ids": [str(target_role.id)] if target_role else [],
+                "opens_at": opens_at.isoformat(),
+                "closes_at": closes_at.isoformat(),
                 "status": "open",
-                "created_by": str(interaction.user.id),
+                "created_by": str(member.id),
             }
         )
-        if not row:
-            raise ActionRefused("Could not create that roll call. Please try again.")
 
-        message = await post_roll_call(self.bot, guild, target, row)
-        if message is None:
-            raise ActionRefused(f"I could not post in {target.mention}.")
+        embed = _open_embed(roll_call, [target_role] if target_role else [])
+        view = RollCallView(self.bot, roll_call["id"])
+        self.bot.add_view(view)
 
-        await interaction.followup.send(
+        content = target_role.mention if target_role else None
+        message = await target_channel.send(
+            content=content,
+            embed=embed,
+            view=view,
+            allowed_mentions=discord.AllowedMentions(roles=True, everyone=False, users=False),
+        )
+        await repo.set_roll_call_message(roll_call["id"], str(message.id))
+
+        await interaction.response.send_message(
             embed=embeds.success(
                 "Roll call started",
-                f"**{title}** is live in {target.mention} and closes <t:{int(closes.timestamp())}:R>.",
+                f"Posted in {target_channel.mention}, closes <t:{int(closes_at.timestamp())}:R>.",
             ),
             ephemeral=True,
         )
 
-    @rollcall.command(name="close", description="Close the newest open roll call now.")
+    @rollcall_group.command(name="close", description="Close a roll call early and post results.")
+    @app_commands.describe(message="The roll call message link or ID to close early.")
     @app_commands.guild_only()
-    async def close(self, interaction: discord.Interaction) -> None:
+    async def close(self, interaction: discord.Interaction, message: str) -> None:
         guild = ensure_guild(interaction)
-        await self._ensure_manager(interaction)
-        await interaction.response.defer(ephemeral=True)
+        member = interaction.user
+        if not isinstance(member, discord.Member) or not await _is_roll_call_manager(
+            self.bot, member
+        ):
+            raise ActionRefused("You need a configured Roll Call Manager role to do that.")
+
+        message_id = message.strip().split("/")[-1]
         repo = self.bot.repo  # type: ignore[attr-defined]
-        rows = [r for r in await repo.recent_roll_calls(str(guild.id), 25) if r.get("status") == "open"]
-        if not rows:
-            raise ActionRefused("There is no open roll call in this server.")
-        await close_roll_call(self.bot, rows[0])
+        roll_call = await repo.get_roll_call_by_message(str(guild.id), message_id)
+        if not roll_call:
+            raise ActionRefused("Could not find an open roll call for that message.")
+        if roll_call.get("status") != "open":
+            raise ActionRefused("That roll call is already closed.")
+
+        await interaction.response.defer(ephemeral=True)
+        await self._close_roll_call(guild, roll_call)
         await interaction.followup.send(
             embed=embeds.success("Roll call closed", "Results have been posted."), ephemeral=True
         )
 
-    @rollcall.command(name="results", description="Show results for the newest roll call.")
-    @app_commands.guild_only()
-    async def results(self, interaction: discord.Interaction) -> None:
-        guild = ensure_guild(interaction)
-        await interaction.response.defer(ephemeral=True)
+    async def _close_roll_call(self, guild: discord.Guild, roll_call: dict[str, Any]) -> None:
         repo = self.bot.repo  # type: ignore[attr-defined]
-        rows = await repo.recent_roll_calls(str(guild.id), 1)
-        if not rows:
-            raise ActionRefused("No roll call has been run in this server yet.")
-        row = rows[0]
-        results = row.get("results") or {}
-        responses = await repo.roll_call_responses(str(row["id"]))
-        present = [str(r.get("user_id")) for r in responses]
-        missing = [str(u) for u in (results.get("missing") or [])]
-        await interaction.followup.send(embed=results_embed(row, present, missing), ephemeral=True)
+        results_embed = await build_results_embed(self.bot, guild, roll_call)
+        channel = guild.get_channel(int(roll_call["channel_id"]))
+        if isinstance(channel, discord.TextChannel):
+            try:
+                await channel.send(embed=results_embed)
+            except discord.HTTPException as exc:
+                log.warning("Failed to post roll call results: %s", exc)
+        await repo.close_roll_call(roll_call["id"])
 
-    @rollcall.command(name="streak", description="Show a daily check-in streak.")
-    @app_commands.describe(member="Whose streak to show (defaults to you)")
-    @app_commands.guild_only()
-    async def streak(
-        self, interaction: discord.Interaction, member: Optional[discord.Member] = None
-    ) -> None:
-        guild = ensure_guild(interaction)
-        target = member or interaction.user
-        await interaction.response.defer()
-        repo = self.bot.repo  # type: ignore[attr-defined]
-        data = await repo.get_roll_call_streak(str(guild.id), str(target.id))
-        board = await repo.roll_call_streak_leaderboard(str(guild.id), 10)
-
-        embed = embeds.brand(
-            f"{getattr(target, 'display_name', 'Member')} · check-in streak",
-            f"Current **{int(data.get('current_streak') or 0)}** day(s) · best **{int(data.get('longest_streak') or 0)}**.",
-        )
-        if board:
-            embed.add_field(
-                name="Top streaks",
-                value="\n".join(
-                    f"**{i}.** <@{r.get('user_id')}> — {int(r.get('current_streak') or 0)} day(s)"
-                    for i, r in enumerate(board, 1)
-                ),
-                inline=False,
-            )
-        await interaction.followup.send(embed=embed)
-
-    async def restore_persistent_roll_calls(self) -> None:
-        """Nothing per-message to rebuild — one static view covers them all."""
-        repo = getattr(self.bot, "repo", None)
-        if repo is None:
-            return
+    async def restore_persistent_views(self) -> None:
         try:
-            open_calls = await repo.open_roll_calls()
-        except Exception as exc:  # pragma: no cover
-            log.warning("Could not read open roll calls: %s", exc)
+            rows = await self.bot.repo.active_roll_calls()  # type: ignore[attr-defined]
+        except Exception:
+            log.exception("Failed to load open roll calls during startup.")
             return
-        log.info("Roll call view restored for %d open roll call(s).", len(open_calls))
+        restored = 0
+        for row in rows:
+            try:
+                self.bot.add_view(RollCallView(self.bot, str(row["id"])))
+                restored += 1
+            except Exception:
+                log.exception("Failed restoring roll call view %s", row.get("id"))
+        log.info("Restored %s persistent roll call panel(s).", restored)
 
 
 async def setup(bot: commands.Bot) -> None:
     cog = RollCall(bot)
     await bot.add_cog(cog)
-    bot.add_view(RollCallView())
-    await cog.restore_persistent_roll_calls()
+    await cog.restore_persistent_views()
