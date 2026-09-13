@@ -17,7 +17,6 @@ from .log_service import LogService
 
 log = get_logger("activity")
 
-# activity category -> logging_settings column that gates the Discord mirror
 CATEGORY_TO_SETTING: dict[str, str] = {
     "message_delete": "message_delete",
     "message_edit": "message_edit",
@@ -42,6 +41,20 @@ def _name(user: Any) -> Optional[str]:
     return str(user) if user is not None else None
 
 
+def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
+    if not metadata:
+        return ""
+    lines: list[str] = []
+    for key, value in metadata.items():
+        if value is None or value == "":
+            continue
+        text = str(value)
+        if len(text) > 500:
+            text = text[:497] + "..."
+        lines.append(f"**{str(key).replace('_', ' ').title()}:** {text}")
+    return "\n".join(lines)
+
+
 class ActivityService:
     def __init__(self, repo: Repository, logs: LogService) -> None:
         self.repo = repo
@@ -59,7 +72,7 @@ class ActivityService:
         metadata: Optional[dict[str, Any]] = None,
         embed: Optional[discord.Embed] = None,
     ) -> None:
-        """Persist an activity row and optionally mirror it to Discord."""
+        """Persist an activity row and optionally mirror a complete audit record to Discord."""
         if guild is None:
             return
         try:
@@ -77,10 +90,45 @@ class ActivityService:
                     "metadata": metadata or {},
                 }
             )
-        except Exception as exc:  # logging must never break an event handler
+        except Exception as exc:
             log.warning("Activity log write failed (%s): %s", category, exc)
 
         if embed is not None:
             setting = CATEGORY_TO_SETTING.get(category)
             if setting:
-                await self.logs.send(guild, setting, embed)
+                # Enrich every mirrored audit embed with the same context that
+                # exists in the database. This makes Discord logs actionable
+                # without forcing an admin to cross-reference IDs manually.
+                try:
+                    audit = embed.copy()
+                    audit.add_field(
+                        name="🛡️ SERVER",
+                        value=f"**{guild.name}**\n`{guild.id}`",
+                        inline=True,
+                    )
+                    if channel is not None:
+                        audit.add_field(
+                            name="💬 CHANNEL",
+                            value=f"**#{getattr(channel, 'name', 'unknown')}**\n`{channel.id}`",
+                            inline=True,
+                        )
+                    if actor is not None:
+                        audit.add_field(
+                            name="👤 ACTOR",
+                            value=f"**{actor}**\n<@{actor.id}>\n`{actor.id}`",
+                            inline=True,
+                        )
+                    if target is not None:
+                        audit.add_field(
+                            name="🎯 TARGET",
+                            value=f"**{target}**\n<@{target.id}>\n`{target.id}`",
+                            inline=True,
+                        )
+                    audit.add_field(name="📌 EVENT", value=f"`{category}`\n{summary[:900]}", inline=False)
+                    details = _metadata_lines(metadata)
+                    if details:
+                        audit.add_field(name="🧾 DETAILS", value=details[:1024], inline=False)
+                    audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
+                    await self.logs.send(guild, setting, audit)
+                except Exception as exc:
+                    log.warning("Could not enrich audit embed for %s: %s", category, exc)
