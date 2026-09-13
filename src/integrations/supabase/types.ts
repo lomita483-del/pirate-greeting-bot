@@ -292,6 +292,33 @@ export type Database = {
         }
         Relationships: []
       }
+      bot_runtime: {
+        Row: {
+          heartbeat_at: string
+          id: string
+          instance_id: string | null
+          started_at: string
+          stopped_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          heartbeat_at: string
+          id: string
+          instance_id?: string | null
+          started_at: string
+          stopped_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          heartbeat_at?: string
+          id?: string
+          instance_id?: string | null
+          started_at?: string
+          stopped_at?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       calendar_events: {
         Row: {
           calendar_source_id: string
@@ -3045,13 +3072,17 @@ export type Database = {
           last_message_at: string | null
           last_message_channel_id: string | null
           last_message_content: string | null
+          last_online_at: string | null
           last_online_status: string | null
           last_seen_at: string | null
           last_voice_join_at: string | null
           last_voice_leave_at: string | null
+          message_count: number
           updated_at: string
           user_id: string
           username: string | null
+          voice_seconds: number
+          voice_session_count: number
         }
         Insert: {
           command_count?: number
@@ -3062,13 +3093,17 @@ export type Database = {
           last_message_at?: string | null
           last_message_channel_id?: string | null
           last_message_content?: string | null
+          last_online_at?: string | null
           last_online_status?: string | null
           last_seen_at?: string | null
           last_voice_join_at?: string | null
           last_voice_leave_at?: string | null
+          message_count?: number
           updated_at?: string
           user_id: string
           username?: string | null
+          voice_seconds?: number
+          voice_session_count?: number
         }
         Update: {
           command_count?: number
@@ -3079,13 +3114,17 @@ export type Database = {
           last_message_at?: string | null
           last_message_channel_id?: string | null
           last_message_content?: string | null
+          last_online_at?: string | null
           last_online_status?: string | null
           last_seen_at?: string | null
           last_voice_join_at?: string | null
           last_voice_leave_at?: string | null
+          message_count?: number
           updated_at?: string
           user_id?: string
           username?: string | null
+          voice_seconds?: number
+          voice_session_count?: number
         }
         Relationships: []
       }
