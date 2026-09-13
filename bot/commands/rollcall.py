@@ -213,47 +213,45 @@ async def build_results_embeds(bot: commands.Bot, guild: discord.Guild, roll_cal
     mode = str(roll_call.get("mode") or "event")
     counts = {str(button["id"]): sum(1 for row in responses if str(row.get("button_id") or "present") == str(button["id"])) for button in buttons}
 
-    responded_lines = []
+    present_lines = []
     for row in responses:
         user_id = str(row.get("user_id") or "")
         if not user_id:
             continue
+        display_name = str(row.get("display_name") or row.get("username") or "Unknown User")
+        username = str(row.get("username") or "").strip()
         action = str(row.get("button_label") or row.get("button_id") or "Present")
-        responded_lines.append(f"• <@{user_id}> — **{action}**")
+        tag = f"@{username}" if username else f"<@{user_id}>"
+        present_lines.append(f"• **{display_name}** • {tag} — {action} ✅")
 
-    missed_lines = [f"• <@{member.id}>" for member in missed]
+    missed_lines = []
+    for member in missed:
+        missed_lines.append(f"• **{member.display_name}** • @{member.name} ❌")
 
     embed = discord.Embed(
         title=f"🌊 {roll_call.get('title') or 'Roll Call'} · Attendance Report",
-        description=(
-            f"**{MODE_LABEL.get(mode, mode.title())}**\n"
-            "A complete attendance summary has been compiled below.\n\n"
-            "╭─────────────── ⚓ ───────────────╮\n"
-            "  **SEA GLASS · ROLL CALL REPORT**\n"
-            "╰──────────────────────────────────╯"
-        ),
+        description="**ROLL CALL REPORT**\n\nA complete attendance report is provided below, showing the members called, those recorded as present, those who did not respond, and the exact closing time for this roll call.",
         color=SEA,
         timestamp=datetime.now(timezone.utc),
     )
-    embed.add_field(name="📋 Responses", value=f"**{len(responses)}** members responded", inline=True)
-    embed.add_field(name="👥 Called", value=f"**{len(called)}** members called", inline=True)
-    embed.add_field(name="⏳ No Response", value=f"**{len(missed)}** members outstanding", inline=True)
 
-    for button in buttons:
-        embed.add_field(name=f"{button.get('emoji') or '•'} {button['label']}", value=f"**{counts.get(str(button['id']), 0)}**\n{button['purpose']}", inline=True)
+    embed.add_field(name="📋 RESPONSES", value=f"**{len(responses)}** members responded\n**{len(missed)}** members didn't respond", inline=False)
+    embed.add_field(name="👥 CALLED", value=f"**{len(called)}** members on the server", inline=False)
+    embed.add_field(name="✅ PRESENT", value=f"**{len(response_users)}** users were recorded as present in this roll call out of **{len(called)}** users", inline=False)
 
-    for field_name, field_value in _pack_result_lines(responded_lines, "✅ Responded"):
+    for field_name, field_value in _pack_result_lines(present_lines, "📝 LIST OF PRESENT USERS ✅"):
         embed.add_field(name=field_name, value=field_value, inline=False)
 
-    missed_title = "🔎 Never Responded" if mode == "audit" else "⏳ Did Not Respond"
-    for field_name, field_value in _pack_result_lines(missed_lines, missed_title):
+    for field_name, field_value in _pack_result_lines(missed_lines, "📝 LIST OF NON PRESENT USERS ❌"):
         embed.add_field(name=field_name, value=field_value, inline=False)
 
     closes_at = roll_call.get("closes_at")
     if closes_at:
         try:
-            stamp = int(datetime.fromisoformat(str(closes_at).replace("Z", "+00:00")).timestamp())
-            embed.add_field(name="🕒 Closed", value=f"<t:{stamp}:F> · <t:{stamp}:R>", inline=False)
+            closed_at = datetime.fromisoformat(str(closes_at).replace("Z", "+00:00"))
+            stamp = int(closed_at.timestamp())
+            duration_text = "<t:{0}:R>".format(stamp)
+            embed.add_field(name="⏱️ CLOSED", value=f"**Date:** <t:{stamp}:D>\n**Time:** <t:{stamp}:t}\n**Duration:** {duration_text}", inline=False)
         except ValueError:
             pass
 
