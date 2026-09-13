@@ -83,6 +83,11 @@ class SendCommands(commands.Cog):
             log.exception("Failed to poll bot_action_queue")
             return
         for action in actions:
+            # Claim the row first. The scheduler also polls this table, so this
+            # prevents it from racing the Roll Call/message worker.
+            claimed = await self.bot.repo.db.try_run(lambda c: c.table("bot_action_queue").update({"status": "processing"}).eq("id", action["id"]).eq("status", "pending").execute())  # type: ignore[attr-defined]
+            if not (getattr(claimed, "data", None) or []):
+                continue
             kind = action.get("action")
             try:
                 if kind == "send_message":
@@ -93,12 +98,14 @@ class SendCommands(commands.Cog):
                     await self._process_rollcall_start(action)
                 elif kind == "rollcall_close":
                     await self._process_rollcall_close(action)
+                else:
+                    await self.bot.repo.finish_bot_action(action["id"], "failed", f"Unsupported queued action: {kind}")  # type: ignore[attr-defined]
             except Exception as exc:
                 log.exception("Dashboard action %s failed", kind)
                 await self.bot.repo.finish_bot_action(action["id"], "failed", str(exc)[:400])  # type: ignore[attr-defined]
 
     async def _process_rollcall_start(self, action: dict) -> None:
-        from .rollcall import RollCall, RollCallView, _open_embed
+        from .rollcall import RollCallView, _open_embed
         repo = self.bot.repo  # type: ignore[attr-defined]
         payload = action.get("payload") or {}
         roll_call = await repo.get_roll_call(str(payload.get("roll_call_id") or action.get("target_id")))
@@ -136,72 +143,45 @@ class SendCommands(commands.Cog):
         await repo.finish_bot_action(action["id"], "done")
 
     async def _process_reaction_role_panel(self, action: dict) -> None:
-        payload = action.get("payload") or {}
-        guild_id = action.get("guild_id")
-        error: str | None = None
+        payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error: str | None = None
         try:
             guild = self.bot.get_guild(int(guild_id)) if guild_id else None
-            if guild is None:
-                raise ActionRefused("!PIRATE is not in that server (or lost access).")
+            if guild is None: raise ActionRefused("!PIRATE is not in that server (or lost access).")
             channel = guild.get_channel(int(payload["channel_id"]))
-            if not isinstance(channel, discord.TextChannel):
-                raise ActionRefused("That channel no longer exists or isn't a text channel.")
+            if not isinstance(channel, discord.TextChannel): raise ActionRefused("That channel no longer exists or isn't a text channel.")
             options = payload.get("options") or []
-            if not options:
-                raise ActionRefused("Add at least one emoji/role pair.")
+            if not options: raise ActionRefused("Add at least one emoji/role pair.")
             lines = []
             for opt in options:
-                role = guild.get_role(int(opt["role_id"]))
-                label = opt.get("description") or (role.name if role else opt["role_id"])
-                lines.append(f"{opt['emoji']} — {label}")
+                role = guild.get_role(int(opt["role_id"])); label = opt.get("description") or (role.name if role else opt["role_id"]); lines.append(f"{opt['emoji']} — {label}")
             embed = discord.Embed(title=payload.get("title") or "Pick your roles", description=(payload.get("description") or "React below to grant yourself a role.") + "\n\n" + "\n".join(lines), color=discord.Color.from_str("#D4AF37"))
             message = await channel.send(embed=embed)
             for opt in options:
-                try:
-                    await message.add_reaction(opt["emoji"])
-                except discord.HTTPException:
-                    continue
+                try: await message.add_reaction(opt["emoji"])
+                except discord.HTTPException: continue
                 await self.bot.repo.add_reaction_role({"guild_id": str(guild.id), "channel_id": str(channel.id), "message_id": str(message.id), "emoji": opt["emoji"], "role_id": str(opt["role_id"]), "description": opt.get("description") or None})  # type: ignore[attr-defined]
-        except ActionRefused as exc:
-            error = str(exc)
-        except discord.HTTPException as exc:
-            error = f"Discord rejected that panel: {exc}"
-        except Exception as exc:
-            log.exception("reaction_role_panel action failed")
-            error = str(exc)
+        except ActionRefused as exc: error = str(exc)
+        except discord.HTTPException as exc: error = f"Discord rejected that panel: {exc}"
+        except Exception as exc: log.exception("reaction_role_panel action failed"); error = str(exc)
         await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
 
     async def _process_send_action(self, action: dict) -> None:
-        payload = action.get("payload") or {}
-        guild_id = action.get("guild_id")
-        error: str | None = None
+        payload = action.get("payload") or {}; guild_id = action.get("guild_id"); error: str | None = None
         try:
             guild = self.bot.get_guild(int(guild_id)) if guild_id else None
-            if guild is None:
-                raise ActionRefused("AHOY is not in that server (or lost access).")
+            if guild is None: raise ActionRefused("AHOY is not in that server (or lost access).")
             channel = guild.get_channel(int(payload["channel_id"]))
-            if not isinstance(channel, (discord.TextChannel, discord.Thread)):
-                raise ActionRefused("That channel no longer exists or isn't a text channel.")
+            if not isinstance(channel, (discord.TextChannel, discord.Thread)): raise ActionRefused("That channel no longer exists or isn't a text channel.")
             mention_role = guild.get_role(int(payload["mention_role_id"])) if payload.get("mention_role_id") else None
-            everyone = bool(payload.get("mention_everyone"))
-            content = payload.get("content") or ""
-            prefix = "@everyone" if everyone else (mention_role.mention if mention_role else "")
-            content = f"{prefix} {content}".strip() if prefix else content
-            embed = _build_embed(payload.get("embed") or {})
-            allowed_mentions = discord.AllowedMentions(everyone=everyone, roles=[mention_role] if mention_role else [])
-            if not content and embed is None:
-                raise ActionRefused("Empty message — nothing to send.")
-            if not channel.permissions_for(guild.me).send_messages:
-                raise ActionRefused(f"AHOY can't send messages in #{channel.name}.")
+            everyone = bool(payload.get("mention_everyone")); content = payload.get("content") or ""; prefix = "@everyone" if everyone else (mention_role.mention if mention_role else ""); content = f"{prefix} {content}".strip() if prefix else content
+            embed = _build_embed(payload.get("embed") or {}); allowed_mentions = discord.AllowedMentions(everyone=everyone, roles=[mention_role] if mention_role else [])
+            if not content and embed is None: raise ActionRefused("Empty message — nothing to send.")
+            if not channel.permissions_for(guild.me).send_messages: raise ActionRefused(f"AHOY can't send messages in #{channel.name}.")
             await channel.send(content=content or None, embed=embed, allowed_mentions=allowed_mentions)
             await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"Message sent to #{channel.name} from the website", "metadata": {"channel_id": str(channel.id)}})  # type: ignore[attr-defined]
-        except ActionRefused as exc:
-            error = str(exc)
-        except discord.HTTPException as exc:
-            error = f"Discord rejected that message: {exc}"
-        except Exception as exc:
-            log.exception("send_message action failed")
-            error = str(exc)
+        except ActionRefused as exc: error = str(exc)
+        except discord.HTTPException as exc: error = f"Discord rejected that message: {exc}"
+        except Exception as exc: log.exception("send_message action failed"); error = str(exc)
         await self.bot.repo.finish_bot_action(action["id"], "failed" if error else "done", error)  # type: ignore[attr-defined]
 
     @_poll_queue.before_loop
