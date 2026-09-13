@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Crown, ShieldPlus, UserMinus } from "lucide-react";
+import { Crown, ShieldPlus, UserMinus, ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { Link } from "@tanstack/react-router";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,78 +29,106 @@ export function StaffPanel({ canEdit }: { canEdit: boolean }) {
   });
 
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <section className="glass space-y-3 rounded-2xl p-5">
-        <h3 className="text-lg font-semibold">Platform staff</h3>
-        {(data?.owners ?? []).map((id) => (
-          <div key={id} className="hairline flex items-center justify-between rounded-xl px-3 py-2">
-            <span className="font-mono text-sm">{id}</span>
-            <Badge>
-              <Crown className="mr-1 size-3" /> owner
-            </Badge>
-          </div>
-        ))}
-        {(data?.staff ?? []).map((member) => (
-          <div
-            key={member.discord_user_id}
-            className="hairline flex items-center justify-between rounded-xl px-3 py-2"
-          >
-            <div>
-              <p className="text-sm">{member.username ?? member.discord_user_id}</p>
-              <p className="font-mono text-xs text-muted-foreground">{member.discord_user_id}</p>
+    <div className="space-y-6">
+      {canEdit ? (
+        <section className="rounded-2xl border border-[#e7a927]/35 bg-[#061321]/90 p-5 shadow-[0_15px_50px_rgba(0,0,0,0.2)]">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="flex size-11 shrink-0 items-center justify-center rounded-xl border border-[#e7a927]/30 bg-[#e7a927]/10 text-[#ffd15a]">
+                <Crown className="size-5" aria-hidden="true" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base font-semibold text-white">Premium Access Requests</h3>
+                <p className="mt-1 text-sm text-white/50">
+                  Review members who requested Premium access and approve or decline their unlock request.
+                </p>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">{member.role}</Badge>
-              {canEdit ? (
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => mutation.mutate({ userId: member.discord_user_id, role: null })}
-                >
-                  <UserMinus className="size-4" />
-                </Button>
-              ) : null}
-            </div>
-          </div>
-        ))}
-      </section>
-
-      <section className="glass space-y-3 rounded-2xl p-5">
-        <h3 className="flex items-center gap-2 text-lg font-semibold">
-          <ShieldPlus className="size-4" /> Grant panel access
-        </h3>
-        <p className="text-xs text-muted-foreground">
-          Only owners can change staff. Admins can manage users and send notifications.
-        </p>
-        <div className="space-y-2">
-          <Label htmlFor="staff-id">Discord user id</Label>
-          <Input
-            id="staff-id"
-            value={userId}
-            placeholder="123456789012345678"
-            onChange={(event) => setUserId(event.target.value)}
-          />
-        </div>
-        <div className="flex gap-2">
-          {(["admin", "owner"] as const).map((option) => (
-            <Button
-              key={option}
-              size="sm"
-              variant={role === option ? "default" : "outline"}
-              onClick={() => setRole(option)}
-            >
-              {option}
+            <Button asChild className="shrink-0 gap-2" aria-label="Open Premium Access Requests">
+              <Link to="/owner-console/plan-requests">
+                Open Premium Requests
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
             </Button>
+          </div>
+        </section>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="glass space-y-3 rounded-2xl p-5">
+          <h3 className="text-lg font-semibold">Platform staff</h3>
+          {(data?.owners ?? []).map((id) => (
+            <div key={id} className="hairline flex items-center justify-between rounded-xl px-3 py-2">
+              <span className="font-mono text-sm">{id}</span>
+              <Badge>
+                <Crown className="mr-1 size-3" /> owner
+              </Badge>
+            </div>
           ))}
-        </div>
-        <Button
-          className="w-full"
-          disabled={!canEdit || !/^\d{5,25}$/.test(userId) || mutation.isPending}
-          onClick={() => mutation.mutate({ userId, role })}
-        >
-          Add staff member
-        </Button>
-      </section>
+          {(data?.staff ?? []).map((member) => (
+            <div
+              key={member.discord_user_id}
+              className="hairline flex items-center justify-between rounded-xl px-3 py-2"
+            >
+              <div>
+                <p className="text-sm">{member.username ?? member.discord_user_id}</p>
+                <p className="font-mono text-xs text-muted-foreground">{member.discord_user_id}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary">{member.role}</Badge>
+                {canEdit ? (
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={`Remove ${member.username ?? member.discord_user_id} from staff`}
+                    onClick={() => mutation.mutate({ userId: member.discord_user_id, role: null })}
+                  >
+                    <UserMinus className="size-4" aria-hidden="true" />
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </section>
+
+        <section className="glass space-y-3 rounded-2xl p-5">
+          <h3 className="flex items-center gap-2 text-lg font-semibold">
+            <ShieldPlus className="size-4" aria-hidden="true" /> Grant panel access
+          </h3>
+          <p className="text-xs text-muted-foreground">
+            Only owners can change staff. Admins can manage users and send notifications.
+          </p>
+          <div className="space-y-2">
+            <Label htmlFor="staff-id">Discord user id</Label>
+            <Input
+              id="staff-id"
+              value={userId}
+              placeholder="123456789012345678"
+              onChange={(event) => setUserId(event.target.value)}
+            />
+          </div>
+          <div className="flex gap-2">
+            {(["admin", "owner"] as const).map((option) => (
+              <Button
+                key={option}
+                size="sm"
+                variant={role === option ? "default" : "outline"}
+                aria-pressed={role === option}
+                onClick={() => setRole(option)}
+              >
+                {option}
+              </Button>
+            ))}
+          </div>
+          <Button
+            className="w-full"
+            disabled={!canEdit || !/^\d{5,25}$/.test(userId) || mutation.isPending}
+            onClick={() => mutation.mutate({ userId, role })}
+          >
+            Add staff member
+          </Button>
+        </section>
+      </div>
     </div>
   );
 }
