@@ -1,54 +1,506 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, BarChart3, Bot, Clock3, Flame, MessageSquare, Mic, Search, Wifi } from "lucide-react";
+import {
+  Activity,
+  BarChart3,
+  Bot,
+  Clock3,
+  Flame,
+  MessageSquare,
+  Mic,
+  Search,
+  Wifi,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getStatahoyOverview, getStatahoyUserActivity } from "@/lib/statahoy.functions";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  getStatahoyOverview,
+  getStatahoyUserActivity,
+} from "@/lib/statahoy.functions";
 
-export const Route = createFileRoute("/statahoy/$guildId/activity")({ component: StatahoyUserActivityPage });
+export const Route = createFileRoute("/statahoy/$guildId/activity")({
+  component: StatahoyUserActivityPage,
+});
 
 type ActivityUser = {
-  userId: string; username: string; displayName: string; avatar: string | null;
-  joinedAt: string | null; leftAt: string | null; lastSeenAt: string | null; lastOnlineAt: string | null;
-  lastOnlineStatus: string; messageCount: number; lastMessageAt: string | null; lastMessageContent: string | null;
-  commandCount: number; lastCommandAt: string | null; lastCommandName: string | null;
-  voiceSeconds: number; voiceSessions: number; lastVoiceJoinAt: string | null; lastVoiceLeaveAt: string | null;
-  rollCallStreak: number; rollCallLongestStreak: number; lastRollCallAt: string | null;
+  userId: string;
+  username: string;
+  displayName: string;
+  avatar: string | null;
+  joinedAt: string | null;
+  leftAt: string | null;
+  lastSeenAt: string | null;
+  lastOnlineAt: string | null;
+  lastOnlineStatus: string;
+  messageCount: number;
+  lastMessageAt: string | null;
+  lastMessageContent: string | null;
+  commandCount: number;
+  lastCommandAt: string | null;
+  lastCommandName: string | null;
+  voiceSeconds: number;
+  voiceSessions: number;
+  lastVoiceJoinAt: string | null;
+  lastVoiceLeaveAt: string | null;
+  rollCallStreak: number;
+  rollCallLongestStreak: number;
+  lastRollCallAt: string | null;
 };
 
-function humanizeSeconds(total: number) { const h = Math.floor(total / 3600); const m = Math.floor((total % 3600) / 60); if (h) return `${h}h ${m}m`; if (total < 60) return `${Math.max(0, Math.floor(total))}s`; return `${m}m`; }
-function relative(value: string | null) { if (!value) return "Never"; const d = new Date(value); if (Number.isNaN(d.getTime())) return "Unknown"; const diff = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000)); if (diff < 60) return `${diff}s ago`; if (diff < 3600) return `${Math.floor(diff / 60)}m ago`; if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`; return `${Math.floor(diff / 86400)}d ago`; }
-function fullDate(value: string | null) { if (!value) return "Never"; const d = new Date(value); return Number.isNaN(d.getTime()) ? "Unknown" : d.toLocaleString(); }
-function statusLabel(status: string) { return status === "online" ? "Online" : status === "idle" ? "Idle" : status === "dnd" ? "Do Not Disturb" : status === "offline" ? "Offline" : status || "Unknown"; }
-function statusClass(status: string) { return status === "online" ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" : status === "idle" ? "bg-amber-500/15 text-amber-400 border-amber-500/30" : status === "dnd" ? "bg-red-500/15 text-red-400 border-red-500/30" : "bg-muted text-muted-foreground border-border"; }
+function humanizeSeconds(total: number) {
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+
+  if (h) return `${h}h ${m}m`;
+  if (total < 60) return `${Math.max(0, Math.floor(total))}s`;
+  return `${m}m`;
+}
+
+function relative(value: string | null) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
+
+  const diff = Math.max(
+    0,
+    Math.floor((Date.now() - date.getTime()) / 1000),
+  );
+
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function fullDate(value: string | null) {
+  if (!value) return "Never";
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "Unknown" : date.toLocaleString();
+}
+
+function statusLabel(status: string) {
+  if (status === "online") return "Online";
+  if (status === "idle") return "Idle";
+  if (status === "dnd") return "Do Not Disturb";
+  if (status === "offline") return "Offline";
+  return status || "Unknown";
+}
+
+function statusClass(status: string) {
+  if (status === "online") {
+    return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+  }
+
+  if (status === "idle") {
+    return "bg-amber-500/15 text-amber-400 border-amber-500/30";
+  }
+
+  if (status === "dnd") {
+    return "bg-red-500/15 text-red-400 border-red-500/30";
+  }
+
+  return "bg-muted text-muted-foreground border-border";
+}
 
 function ActivityCard({ user }: { user: ActivityUser }) {
   const initials = user.displayName.slice(0, 2).toUpperCase();
-  return <article className="glass overflow-hidden rounded-2xl p-5 transition-colors hover:border-primary/30">
-    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="flex min-w-0 items-center gap-3">{user.avatar ? <img src={user.avatar} alt="" className="h-12 w-12 rounded-full object-cover" /> : <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">{initials}</div>}<div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-semibold">{user.displayName}</h3><span className={`rounded-full border px-2 py-0.5 text-[11px] ${statusClass(user.lastOnlineStatus)}`}>{statusLabel(user.lastOnlineStatus)}</span></div><p className="truncate text-xs text-muted-foreground">@{user.username} · {user.userId}</p></div></div><div className="rounded-xl border border-border/60 bg-background/30 px-3 py-2 text-xs"><span className="text-muted-foreground">Last active</span><div className="mt-1 font-medium">{relative(user.lastSeenAt)}</div>{user.lastSeenAt && <div className="text-muted-foreground">{fullDate(user.lastSeenAt)}</div>}</div></div>
-    <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><div className="rounded-xl border border-border/60 p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Wifi className="h-3.5 w-3.5" /> Last online</div><p className="mt-2 text-lg font-semibold">{relative(user.lastOnlineAt)}</p><p className="text-xs text-muted-foreground">{fullDate(user.lastOnlineAt)}</p></div><div className="rounded-xl border border-border/60 p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><MessageSquare className="h-3.5 w-3.5" /> Messages</div><p className="mt-2 text-lg font-semibold">{user.messageCount.toLocaleString()}</p><p className="text-xs text-muted-foreground">Last: {relative(user.lastMessageAt)}</p></div><div className="rounded-xl border border-border/60 p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Bot className="h-3.5 w-3.5" /> Bot usage</div><p className="mt-2 text-lg font-semibold">{user.commandCount.toLocaleString()}</p><p className="text-xs text-muted-foreground">{user.lastCommandName ? `/${user.lastCommandName} · ${relative(user.lastCommandAt)}` : "Never used"}</p></div><div className="rounded-xl border border-border/60 p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Mic className="h-3.5 w-3.5" /> Voice</div><p className="mt-2 text-lg font-semibold">{humanizeSeconds(user.voiceSeconds)}</p><p className="text-xs text-muted-foreground">{user.voiceSessions.toLocaleString()} sessions</p></div><div className="rounded-xl border border-primary/20 bg-primary/5 p-3"><div className="flex items-center gap-2 text-xs text-primary"><Flame className="h-3.5 w-3.5" /> Roll Call Streak</div><p className="mt-2 text-lg font-semibold">{user.rollCallStreak} day{user.rollCallStreak === 1 ? "" : "s"}</p><p className="text-xs text-muted-foreground">Best {user.rollCallLongestStreak} · Last {relative(user.lastRollCallAt)}</p></div></div>
-    <div className="mt-3 grid gap-3 lg:grid-cols-3"><div className="rounded-xl border border-border/60 bg-background/20 p-4 lg:col-span-2"><div className="flex items-center justify-between gap-3"><div className="flex items-center gap-2 text-xs font-medium"><MessageSquare className="h-3.5 w-3.5 text-primary" /> Last message sent</div><span className="text-xs text-muted-foreground">{relative(user.lastMessageAt)}</span></div><p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{user.lastMessageContent || "No text message recorded yet."}</p></div><div className="rounded-xl border border-border/60 bg-background/20 p-4"><div className="flex items-center gap-2 text-xs font-medium"><Wifi className="h-3.5 w-3.5 text-primary" /> Voice history</div><div className="mt-3 space-y-2 text-sm"><div><span className="text-muted-foreground">Last join</span><p className="font-medium">{fullDate(user.lastVoiceJoinAt)}</p></div><div><span className="text-muted-foreground">Last leave</span><p className="font-medium">{fullDate(user.lastVoiceLeaveAt)}</p></div></div></div></div>
-    <div className="mt-3 rounded-xl border border-primary/15 bg-primary/[0.03] p-4"><div className="flex items-center gap-2 text-xs font-medium"><Flame className="h-3.5 w-3.5 text-primary" /> Roll Call Check-In</div><div className="mt-3 flex flex-wrap gap-6 text-sm"><div><span className="text-muted-foreground">Current streak</span><p className="font-semibold">{user.rollCallStreak} day{user.rollCallStreak === 1 ? "" : "s"}</p></div><div><span className="text-muted-foreground">Longest streak</span><p className="font-semibold">{user.rollCallLongestStreak} day{user.rollCallLongestStreak === 1 ? "" : "s"}</p></div><div><span className="text-muted-foreground">Last check-in</span><p className="font-semibold">{fullDate(user.lastRollCallAt)}</p></div></div></div>
-    <div className="mt-3 rounded-xl border border-border/60 bg-background/20 p-4"><div className="flex items-center gap-2 text-xs font-medium"><Clock3 className="h-3.5 w-3.5 text-primary" /> Server membership</div><div className="mt-3 flex flex-wrap gap-6 text-sm"><div><span className="text-muted-foreground">Joined</span><p className="font-medium">{fullDate(user.joinedAt)}</p></div><div><span className="text-muted-foreground">Status</span><p className="font-medium">{user.leftAt ? `Left ${relative(user.leftAt)}` : "Currently a member"}</p></div></div></div>
-  </article>;
+
+  return (
+    <article className="glass overflow-hidden rounded-2xl p-5 transition-colors hover:border-primary/30">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          {user.avatar ? (
+            <img
+              src={user.avatar}
+              alt=""
+              className="h-12 w-12 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-primary/10 font-semibold text-primary">
+              {initials}
+            </div>
+          )}
+
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="truncate font-semibold">{user.displayName}</h3>
+              <span
+                className={`rounded-full border px-2 py-0.5 text-[11px] ${statusClass(user.lastOnlineStatus)}`}
+              >
+                {statusLabel(user.lastOnlineStatus)}
+              </span>
+            </div>
+            <p className="truncate text-xs text-muted-foreground">
+              @{user.username} · {user.userId}
+            </p>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-background/30 px-3 py-2 text-xs">
+          <span className="text-muted-foreground">Last active</span>
+          <div className="mt-1 font-medium">{relative(user.lastSeenAt)}</div>
+          {user.lastSeenAt && (
+            <div className="text-muted-foreground">
+              {fullDate(user.lastSeenAt)}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-xl border border-border/60 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Wifi className="h-3.5 w-3.5" />
+            Last online
+          </div>
+          <p className="mt-2 text-lg font-semibold">
+            {relative(user.lastOnlineAt)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {fullDate(user.lastOnlineAt)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <MessageSquare className="h-3.5 w-3.5" />
+            Messages
+          </div>
+          <p className="mt-2 text-lg font-semibold">
+            {user.messageCount.toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Last: {relative(user.lastMessageAt)}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Bot className="h-3.5 w-3.5" />
+            Bot usage
+          </div>
+          <p className="mt-2 text-lg font-semibold">
+            {user.commandCount.toLocaleString()}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {user.lastCommandName
+              ? `/${user.lastCommandName} · ${relative(user.lastCommandAt)}`
+              : "Never used"}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 p-3">
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Mic className="h-3.5 w-3.5" />
+            Voice
+          </div>
+          <p className="mt-2 text-lg font-semibold">
+            {humanizeSeconds(user.voiceSeconds)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {user.voiceSessions.toLocaleString()} sessions
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <div className="flex items-center gap-2 text-xs text-primary">
+            <Flame className="h-3.5 w-3.5" />
+            Roll Call Streak
+          </div>
+          <p className="mt-2 text-lg font-semibold">
+            {user.rollCallStreak} day{user.rollCallStreak === 1 ? "" : "s"}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Best {user.rollCallLongestStreak} · Last {relative(user.lastRollCallAt)}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-3">
+        <div className="rounded-xl border border-border/60 bg-background/20 p-4 lg:col-span-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-medium">
+              <MessageSquare className="h-3.5 w-3.5 text-primary" />
+              Last message sent
+            </div>
+            <span className="text-xs text-muted-foreground">
+              {relative(user.lastMessageAt)}
+            </span>
+          </div>
+          <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">
+            {user.lastMessageContent || "No text message recorded yet."}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-border/60 bg-background/20 p-4">
+          <div className="flex items-center gap-2 text-xs font-medium">
+            <Wifi className="h-3.5 w-3.5 text-primary" />
+            Voice history
+          </div>
+          <div className="mt-3 space-y-2 text-sm">
+            <div>
+              <span className="text-muted-foreground">Last join</span>
+              <p className="font-medium">{fullDate(user.lastVoiceJoinAt)}</p>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Last leave</span>
+              <p className="font-medium">{fullDate(user.lastVoiceLeaveAt)}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-primary/15 bg-primary/[0.03] p-4">
+        <div className="flex items-center gap-2 text-xs font-medium">
+          <Flame className="h-3.5 w-3.5 text-primary" />
+          Roll Call Check-In
+        </div>
+        <div className="mt-3 flex flex-wrap gap-6 text-sm">
+          <div>
+            <span className="text-muted-foreground">Current streak</span>
+            <p className="font-semibold">
+              {user.rollCallStreak} day{user.rollCallStreak === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Longest streak</span>
+            <p className="font-semibold">
+              {user.rollCallLongestStreak} day
+              {user.rollCallLongestStreak === 1 ? "" : "s"}
+            </p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Last check-in</span>
+            <p className="font-semibold">{fullDate(user.lastRollCallAt)}</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 rounded-xl border border-border/60 bg-background/20 p-4">
+        <div className="flex items-center gap-2 text-xs font-medium">
+          <Clock3 className="h-3.5 w-3.5 text-primary" />
+          Server membership
+        </div>
+        <div className="mt-3 flex flex-wrap gap-6 text-sm">
+          <div>
+            <span className="text-muted-foreground">Joined</span>
+            <p className="font-medium">{fullDate(user.joinedAt)}</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground">Status</span>
+            <p className="font-medium">
+              {user.leftAt
+                ? `Left ${relative(user.leftAt)}`
+                : "Currently a member"}
+            </p>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
 }
 
 export function StatahoyUserActivityContent({ guildId }: { guildId: string }) {
   const [search, setSearch] = useState("");
-  const [sort, setSort] = useState<"last_seen" | "messages" | "commands" | "voice">("last_seen");
-  const { data: overview } = useQuery({ queryKey: ["statahoy-overview", guildId, "activity-page"], queryFn: () => getStatahoyOverview({ data: { guildId, days: 14 } }) });
-  const { data: activityData, isLoading, error } = useQuery({ queryKey: ["statahoy-user-activity", guildId, search, sort], queryFn: () => getStatahoyUserActivity({ data: { guildId, search, sort, limit: 100 } }) });
-  const users = useMemo(() => (activityData?.users ?? []) as ActivityUser[], [activityData]);
-  const trackedMessages = users.reduce((sum, user) => sum + user.messageCount, 0);
-  const trackedCommands = users.reduce((sum, user) => sum + user.commandCount, 0);
-  const trackedVoice = users.reduce((sum, user) => sum + user.voiceSeconds, 0);
-  const activeStreaks = users.filter((u) => u.rollCallStreak > 0).length;
+  const [sort, setSort] = useState<
+    "last_seen" | "messages" | "commands" | "voice"
+  >("last_seen");
 
-  return <div className="min-h-screen"><header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl"><div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-4"><div className="flex items-center gap-2"><a href={`/statahoy/${guildId}`} className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em]"><BarChart3 className="h-4 w-4 text-primary" />Statahoy</a>{overview?.guild.name && <span className="text-sm text-muted-foreground">/ {overview.guild.name} / User Activity</span>}</div><Button asChild variant="outline" size="sm"><Link to="/statahoy/$guildId" params={{ guildId }}>← Back to Statahoy</Link></Button></div></header>
-  <main className="mx-auto max-w-7xl px-6 pb-24"><div className="pt-6"><div className="rounded-2xl border border-primary/25 bg-primary/5 p-5"><div className="flex items-center gap-2"><Activity className="h-5 w-5 text-primary" /><h1 className="text-xl font-semibold">Discord User Activity</h1></div><p className="mt-1 max-w-3xl text-sm text-muted-foreground">Detailed member activity, including online status, messages, bot usage, voice history, Roll Call streaks and server membership.</p><div className="mt-5 grid gap-3 sm:grid-cols-4"><div className="rounded-xl border border-border/60 bg-background/40 p-4"><div className="text-xs text-muted-foreground">Tracked members</div><div className="mt-1 text-2xl font-semibold">{users.length.toLocaleString()}</div></div><div className="rounded-xl border border-border/60 bg-background/40 p-4"><div className="text-xs text-muted-foreground">Messages tracked</div><div className="mt-1 text-2xl font-semibold">{trackedMessages.toLocaleString()}</div></div><div className="rounded-xl border border-border/60 bg-background/40 p-4"><div className="text-xs text-muted-foreground">Bot commands / voice</div><div className="mt-1 text-2xl font-semibold">{trackedCommands.toLocaleString()} / {humanizeSeconds(trackedVoice)}</div></div><div className="rounded-xl border border-border/60 bg-background/40 p-4"><div className="text-xs text-muted-foreground">Active Roll Call streaks</div><div className="mt-1 flex items-center gap-2 text-2xl font-semibold"><Flame className="h-5 w-5 text-primary" />{activeStreaks.toLocaleString()}</div></div></div></div></div>
-  <section className="mt-6"><div className="mb-4 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/[0.03] p-5 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-2xl font-semibold">User Activity Cards</h2><p className="mt-1 text-sm text-muted-foreground">Search and sort all tracked members.</p></div><div className="flex flex-col gap-2 sm:flex-row"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search member or ID" className="pl-9 sm:w-64" /></div><Select value={sort} onValueChange={(v) => setSort(v as typeof sort)}><SelectTrigger className="w-full sm:w-44"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="last_seen">Last active</SelectItem><SelectItem value="messages">Most messages</SelectItem><SelectItem value="commands">Bot usage</SelectItem><SelectItem value="voice">Voice time</SelectItem></SelectContent></div></div>{error && <div className="glass rounded-2xl p-5 text-sm text-destructive">{(error as Error).message || "Could not load user activity."}</div>}{isLoading && <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">Loading user activity…</div>}{!isLoading && !error && users.length === 0 && <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">No tracked users yet. Once the bot observes activity, members will appear here automatically.</div>}<div className="space-y-4">{users.map((user) => <ActivityCard key={user.userId} user={user} />)}</div></section></main></div>;
+  const { data: overview } = useQuery({
+    queryKey: ["statahoy-overview", guildId, "activity-page"],
+    queryFn: () =>
+      getStatahoyOverview({ data: { guildId, days: 14 } }),
+  });
+
+  const {
+    data: activityData,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["statahoy-user-activity", guildId, search, sort],
+    queryFn: () =>
+      getStatahoyUserActivity({
+        data: { guildId, search, sort, limit: 100 },
+      }),
+  });
+
+  const users = useMemo(
+    () => (activityData?.users ?? []) as ActivityUser[],
+    [activityData],
+  );
+
+  const trackedMessages = users.reduce(
+    (sum, user) => sum + user.messageCount,
+    0,
+  );
+  const trackedCommands = users.reduce(
+    (sum, user) => sum + user.commandCount,
+    0,
+  );
+  const trackedVoice = users.reduce(
+    (sum, user) => sum + user.voiceSeconds,
+    0,
+  );
+  const activeStreaks = users.filter((user) => user.rollCallStreak > 0).length;
+
+  return (
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-20 border-b border-border/60 bg-background/90 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <Link
+              to="/statahoy/$guildId"
+              params={{ guildId }}
+              className="flex items-center gap-2 text-sm font-semibold uppercase tracking-[0.2em]"
+            >
+              <BarChart3 className="h-4 w-4 text-primary" />
+              Statahoy
+            </Link>
+            {overview?.guild.name && (
+              <span className="text-sm text-muted-foreground">
+                / {overview.guild.name} / User Activity
+              </span>
+            )}
+          </div>
+
+          <Button asChild variant="outline" size="sm">
+            <Link to="/statahoy/$guildId" params={{ guildId }}>
+              ← Back to Statahoy
+            </Link>
+          </Button>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-7xl px-6 pb-24">
+        <div className="pt-6">
+          <div className="rounded-2xl border border-primary/25 bg-primary/5 p-5">
+            <div className="flex items-center gap-2">
+              <Activity className="h-5 w-5 text-primary" />
+              <h1 className="text-xl font-semibold">Discord User Activity</h1>
+            </div>
+            <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+              Detailed member activity, including online status, messages, bot
+              usage, voice history, Roll Call streaks and server membership.
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-4">
+              <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+                <div className="text-xs text-muted-foreground">
+                  Tracked members
+                </div>
+                <div className="mt-1 text-2xl font-semibold">
+                  {users.length.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+                <div className="text-xs text-muted-foreground">
+                  Messages tracked
+                </div>
+                <div className="mt-1 text-2xl font-semibold">
+                  {trackedMessages.toLocaleString()}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+                <div className="text-xs text-muted-foreground">
+                  Bot commands / voice
+                </div>
+                <div className="mt-1 text-2xl font-semibold">
+                  {trackedCommands.toLocaleString()} / {humanizeSeconds(trackedVoice)}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-background/40 p-4">
+                <div className="text-xs text-muted-foreground">
+                  Active Roll Call streaks
+                </div>
+                <div className="mt-1 flex items-center gap-2 text-2xl font-semibold">
+                  <Flame className="h-5 w-5 text-primary" />
+                  {activeStreaks.toLocaleString()}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <section className="mt-6">
+          <div className="mb-4 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/[0.03] p-5 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">User Activity Cards</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Search and sort all tracked members.
+              </p>
+            </div>
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search member or ID"
+                  className="pl-9 sm:w-64"
+                />
+              </div>
+
+              <Select
+                value={sort}
+                onValueChange={(value) =>
+                  setSort(value as typeof sort)
+                }
+              >
+                <SelectTrigger className="w-full sm:w-44">
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="last_seen">Last active</SelectItem>
+                  <SelectItem value="messages">Most messages</SelectItem>
+                  <SelectItem value="commands">Bot usage</SelectItem>
+                  <SelectItem value="voice">Voice time</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {error && (
+            <div className="glass rounded-2xl p-5 text-sm text-destructive">
+              {(error as Error).message || "Could not load user activity."}
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="glass rounded-2xl p-6 text-sm text-muted-foreground">
+              Loading user activity…
+            </div>
+          )}
+
+          {!isLoading && !error && users.length === 0 && (
+            <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
+              No tracked users yet. Once the bot observes activity, members will
+              appear here automatically.
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {users.map((user) => (
+              <ActivityCard key={user.userId} user={user} />
+            ))}
+          </div>
+        </section>
+      </main>
+    </div>
+  );
 }
 
 function StatahoyUserActivityPage() {
