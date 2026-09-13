@@ -21,19 +21,19 @@ export const createSupportReport = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const user = await session();
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from("platform_users")
-      .select("username,global_name")
-      .eq("discord_user_id", user.userId)
-      .maybeSingle();
-    if (profileError) throw new Error(`Could not load your !HOY profile: ${profileError.message}`);
+
+    // Do not make a support submission depend on a platform_users profile row.
+    // Discord session data is already authoritative for the signed-in user and
+    // this avoids a common failure when the profile has not been created yet.
+    const username = user.username || user.userId;
+    const displayName = user.globalName || user.username || user.userId;
 
     const { data: row, error } = await supabaseAdmin
       .from("user_support_reports")
       .insert({
         user_id: user.userId,
-        username: profile?.username ?? user.username,
-        display_name: profile?.global_name ?? user.username,
+        username,
+        display_name: displayName,
         subject: data.subject,
         category: data.category,
         message: data.message,
