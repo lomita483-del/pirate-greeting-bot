@@ -348,34 +348,14 @@ function Overview({
   const { data, isPending } = useQuery({
     queryKey: ["admin", "overview"],
     queryFn: () => getAdminOverview(),
-    refetchInterval: 30_000,
+    refetchInterval: 15_000,
   });
 
   const [activityOpen, setActivityOpen] = useState(false);
-  const [uptimeSeconds, setUptimeSeconds] = useState(() => {
-    if (typeof window === "undefined") return 0;
-
-    const storageKey = "ahoy-owner-console-uptime-start";
-    const existing = window.localStorage.getItem(storageKey);
-
-    if (existing) {
-      const parsed = Number(existing);
-
-      if (Number.isFinite(parsed) && parsed > 0) {
-        return Math.max(0, Math.floor((Date.now() - parsed) / 1000));
-      }
-    }
-
-    const now = Date.now();
-    window.localStorage.setItem(storageKey, String(now));
-    return 0;
-  });
+  const [clockNow, setClockNow] = useState(() => Date.now());
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setUptimeSeconds((value) => value + 1);
-    }, 1000);
-
+    const timer = window.setInterval(() => setClockNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, []);
 
@@ -392,7 +372,28 @@ function Overview({
     );
   }
 
-  const uptime = formatUptime(uptimeSeconds);
+  const heartbeatMs = data.botRuntime?.heartbeatAt
+    ? Date.parse(data.botRuntime.heartbeatAt)
+    : Number.NaN;
+  const startedMs = data.botRuntime?.startedAt
+    ? Date.parse(data.botRuntime.startedAt)
+    : Number.NaN;
+  const stoppedMs = data.botRuntime?.stoppedAt
+    ? Date.parse(data.botRuntime.stoppedAt)
+    : Number.NaN;
+
+  const heartbeatFresh =
+    Number.isFinite(heartbeatMs) &&
+    clockNow - heartbeatMs <= 45_000;
+  const isBotOnline =
+    data.botRuntime?.status === "online" &&
+    !Number.isFinite(stoppedMs) &&
+    Number.isFinite(startedMs) &&
+    heartbeatFresh;
+  const uptimeSeconds = isBotOnline
+    ? Math.max(0, Math.floor((clockNow - startedMs) / 1000))
+    : 0;
+  const uptime = isBotOnline ? formatUptime(uptimeSeconds) : "Offline";
 
   const stats = [
     {
@@ -437,7 +438,7 @@ function Overview({
     },
     {
       label: "Bot Uptime",
-      hint: "This dashboard session",
+      hint: "Actual bot runtime",
       value: uptime,
       delta: "+0.02%",
       icon: Gauge,
