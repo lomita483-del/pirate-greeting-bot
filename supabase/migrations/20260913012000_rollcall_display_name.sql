@@ -1,6 +1,9 @@
 ALTER TABLE public.roll_call_responses
   ADD COLUMN IF NOT EXISTS display_name TEXT;
 
+CREATE UNIQUE INDEX IF NOT EXISTS roll_call_responses_unique_user
+  ON public.roll_call_responses (roll_call_id, user_id);
+
 CREATE INDEX IF NOT EXISTS roll_call_responses_roll_call_id_idx
   ON public.roll_call_responses (roll_call_id);
 
