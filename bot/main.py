@@ -8,20 +8,16 @@ Startup sequence:
   5. Connect to Discord
   6. Handle graceful shutdown
 """
-
 from __future__ import annotations
-
 import asyncio
 import signal
 import sys
 import traceback
 from datetime import datetime, timezone
 from typing import Optional
-
 import discord
 from discord import app_commands
 from discord.ext import commands
-
 from .config import Config, ConfigError, load_config
 from .database.client import Database, DatabaseError
 from .database.repository import Repository
@@ -40,54 +36,131 @@ from .utils.checks import ActionRefused
 from .utils.logger import get_logger, setup_logging
 
 EXTENSIONS = (
-    "bot.commands.general",
-    "bot.commands.moderation",
-    "bot.commands.levels",
-    "bot.commands.economy",
-    "bot.commands.tickets",
-    "bot.commands.reminders",
-    "bot.commands.reaction_roles",
-    "bot.commands.giveaways",
-    "bot.commands.polls",
-    "bot.commands.profile",
-    "bot.commands.stats",
-    "bot.commands.statahoy",
-    "bot.commands.calendar",
-    "bot.commands.send",
-    "bot.commands.reports",
-    "bot.commands.activity",
-    "bot.commands.rollcall",
-    "bot.commands.library",
-    "bot.events.guild_events",
-    "bot.events.member_events",
-    "bot.events.message_events",
-    "bot.events.custom_command_events",
-    "bot.events.reaction_events",
-    "bot.events.activity_events",
-    "bot.events.stats_events",
-    "bot.events.calendar_events",
-    "bot.events.scheduler",
+    "bot.commands.general", "bot.commands.moderation", "bot.commands.levels", "bot.commands.economy", "bot.commands.tickets", "bot.commands.reminders", "bot.commands.reaction_roles", "bot.commands.giveaways", "bot.commands.polls", "bot.commands.profile", "bot.commands.stats", "bot.commands.statahoy", "bot.commands.calendar", "bot.commands.send", "bot.commands.reports", "bot.commands.activity", "bot.commands.rollcall", "bot.commands.library",
+    "bot.events.guild_events", "bot.events.member_events", "bot.events.message_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler",
 )
-
 log = get_logger("core")
-
 
 class AhoyBot(commands.Bot):
     def __init__(self, config: Config) -> None:
-        intents = discord.Intents.default()
-        intents.members = True
-        intents.message_content = True
-        intents.voice_states = True
-        intents.reactions = True
-        intents.presences = True
+        intents = discord.Intents.default(); intents.members = True; intents.message_content = True; intents.voice_states = True; intents.reactions = True; intents.presences = True
+        super().__init__(command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
+        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._health_runner = None; self._synced_guild_ids: set[int] = set()
 
-        super().__init__(
-            command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "),
-            intents=intents,
-            help_command=None,
-            activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"),
-        )
+    async def setup_hook(self) -> None:
+        await self.db.connect()
+        for extension in EXTENSIONS:
+            try: await self.load_extension(extension); log.info("Loaded extension %s", extension)
+            except Exception as exc: log.exception("Failed to load %s: %s", extension, exc)
+        self.tree.on_error = self.on_app_command_error; self.tree.interaction_check = self._platform_gate
+        global_commands = self.tree.get_commands(guild=None)
+        if global_commands:
+            self.tree.clear_commands(guild=None); await self.tree.sync()
+            for command in global_commands: self.tree.add_command(command)
+            log.info("Cleared %d stale global command registration(s).", len(global_commands))
+        self._health_runner = await start_health_server(self)
 
-    # The remainder of the bot lifecycle is unchanged from the existing
-    # implementation; this file only adds the custom command event extension
-    # to the existing extension list.
+    async def sync_guild_commands(self, guild: discord.Guild) -> None:
+        if guild.id in self._synced_guild_ids: return
+        try: self.tree.copy_global_to(guild=guild); await self.tree.sync(guild=guild); self._synced_guild_ids.add(guild.id)
+        except discord.HTTPException as exc: log.warning("Command sync failed for %s: %s", guild.id, exc)
+
+    async def _platform_gate(self, interaction: discord.Interaction) -> bool:
+        command_name = getattr(interaction.command, "name", "")
+        try: await self.platform.ensure_allowed(str(interaction.user.id), command_name)
+        except AccessDenied as exc: raise ActionRefused(str(exc)) from exc
+        except DatabaseError: return True
+        if interaction.guild_id and command_name:
+            try: await self.repo.touch_user_command(str(interaction.guild_id), str(interaction.user.id), str(interaction.user), command_name)
+            except Exception as exc: log.warning("Activity command touch failed: %s", exc)
+        return True
+
+    async def _deliver_notifications(self) -> None:
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                for item in await self.repo.pending_notifications(): await self._deliver_one(item)
+            except Exception as exc: log.warning("Notification delivery failed: %s", exc)
+            await asyncio.sleep(30)
+
+    async def _deliver_one(self, item: dict) -> None:
+        title = item.get("title") or "Notice from AHOY"; body = item.get("body") or ""; embed = embeds.info(title, body); sent = False; error = None
+        if item.get("via_dm"):
+            targets: list[int] = []
+            if item.get("target_type") == "user" and item.get("target_user_id"): targets = [int(item["target_user_id"])]
+            elif item.get("target_type") == "guild" and item.get("target_guild_id"):
+                guild = self.get_guild(int(item["target_guild_id"])); targets = [m.id for m in (guild.members if guild else []) if not m.bot][:500]
+            for user_id in targets:
+                try: user = self.get_user(user_id) or await self.fetch_user(user_id); await user.send(embed=embed); sent = True
+                except discord.HTTPException: continue
+        if item.get("via_announcement"):
+            guild_ids = [item["target_guild_id"]] if item.get("target_guild_id") else [str(g.id) for g in self.guilds]
+            for guild_id in guild_ids:
+                guild = self.get_guild(int(guild_id));
+                if guild is None: continue
+                channel = guild.get_channel(int(item["announcement_channel_id"])) if item.get("announcement_channel_id") else None; channel = channel or guild.system_channel
+                if channel is None: continue
+                try: await channel.send(embed=embed); sent = True
+                except discord.HTTPException as exc: error = str(exc)
+        await self.repo.mark_notification(item["id"], "sent" if sent else "failed", None if sent else (error or "No reachable target"))
+
+    async def on_ready(self) -> None:
+        log.info("AHOY is online as %s (%s) across %d server(s).", self.user, getattr(self.user, "id", "?"), len(self.guilds))
+        if self._notification_task is None: self._notification_task = asyncio.create_task(self._deliver_notifications())
+        for guild in self.guilds:
+            await self.sync_guild_commands(guild)
+            await self.repo.upsert_server(str(guild.id), guild.name, guild.icon.key if guild.icon else None, str(guild.owner_id) if guild.owner_id else None, guild.member_count or 0)
+
+    async def _record_error(self, *, source: str, error: BaseException, guild_id: Optional[str] = None, command: Optional[str] = None, user_id: Optional[str] = None, channel_id: Optional[str] = None) -> None:
+        try:
+            tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
+            await self.repo.log_error(source=source, error_type=type(error).__name__, message=str(error) or repr(error), guild_id=guild_id, command=command, traceback_text=tb, user_id=user_id, channel_id=channel_id)
+        except Exception: log.exception("Failed to record error log entry")
+
+    async def on_command_error(self, ctx: commands.Context, error: commands.CommandError) -> None:
+        await self._record_error(source="command", error=error, guild_id=str(ctx.guild.id) if ctx.guild else None, command=ctx.command.qualified_name if ctx.command else None, user_id=str(ctx.author.id) if ctx.author else None, channel_id=str(ctx.channel.id) if ctx.channel else None)
+
+    async def on_error(self, event_method: str, *args, **kwargs) -> None:
+        error = sys.exc_info()[1]
+        if error is None: return
+        await self._record_error(source="event", error=error, command=event_method); log.exception("Unhandled error in event %s", event_method)
+
+    async def on_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        original = getattr(error, "original", error)
+        await self._record_error(source="app_command", error=original, guild_id=str(interaction.guild_id) if interaction.guild_id else None, command=interaction.command.qualified_name if interaction.command else None, user_id=str(interaction.user.id) if interaction.user else None, channel_id=str(interaction.channel_id) if interaction.channel_id else None)
+        if isinstance(original, ActionRefused): embed = embeds.warning("Action not allowed", str(original))
+        elif isinstance(error, app_commands.CommandOnCooldown): embed = embeds.warning("Slow down", f"Try again in {error.retry_after:.0f} seconds.")
+        elif isinstance(error, (app_commands.MissingPermissions, app_commands.CheckFailure)): embed = embeds.warning("Missing permissions", "You do not have permission to use that command.")
+        elif isinstance(original, app_commands.BotMissingPermissions): embed = embeds.error("AHOY is missing permissions", "Please grant AHOY the permissions needed for this action.")
+        elif isinstance(original, discord.Forbidden): embed = embeds.error("Discord refused that action", "AHOY lacks permission or role position to complete it.")
+        elif isinstance(original, discord.RateLimited): embed = embeds.warning("Rate limited", "Discord is throttling requests. Please retry shortly.")
+        elif isinstance(original, DatabaseError): embed = embeds.error("Storage unavailable", "AHOY could not reach its database. The action was not saved.")
+        elif isinstance(original, discord.HTTPException): embed = embeds.error("Discord API error", "Discord returned an error. Please try again.")
+        else: embed = embeds.error("Something went wrong", "AHOY hit an unexpected problem. The crew has been notified.")
+        log.exception("Command error in /%s: %s", getattr(interaction.command, "name", "unknown"), original)
+        try:
+            if interaction.response.is_done(): await interaction.followup.send(embed=embed, ephemeral=True)
+            else: await interaction.response.send_message(embed=embed, ephemeral=True)
+        except discord.HTTPException: pass
+
+    async def close(self) -> None:
+        log.info("AHOY is shutting down gracefully…")
+        if self._health_runner is not None:
+            try: await self._health_runner.cleanup()
+            except Exception: pass
+        await super().close()
+
+async def run() -> None:
+    config = load_config(); setup_logging(config.log_level); bot = AhoyBot(config)
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        try: loop.add_signal_handler(sig, lambda: asyncio.create_task(bot.close()))
+        except NotImplementedError: pass
+    async with bot: await bot.start(config.discord_token)
+
+def main() -> None:
+    try: asyncio.run(run())
+    except ConfigError as exc: print(f"Configuration error: {exc}")
+    except KeyboardInterrupt: print("AHOY stopped.")
+
+if __name__ == "__main__": main()
