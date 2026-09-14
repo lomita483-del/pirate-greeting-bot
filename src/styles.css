@@ -124,7 +124,7 @@
 
 @utility hairline { border-bottom: 1px solid var(--border); }
 
-/* Exact pirate artwork, intentionally visible across the full web surface. */
+/* The homepage pirate artwork is the shared visual atmosphere for every route. */
 @utility ahoy-watermark {
   position: fixed;
   inset: 0;
@@ -136,4 +136,13 @@
   background-size: cover;
   opacity: 0.94;
   filter: saturate(118%);
+}
+
+/* Some route shells previously painted an opaque full-screen background over
+   the global artwork. Keep their cards/panels intact, but let the shared
+   pirate background remain visible exactly like it is on the homepage. */
+@layer components {
+  .relative.z-10 > [class*="min-h-screen"] {
+    background-color: transparent !important;
+  }
 }
