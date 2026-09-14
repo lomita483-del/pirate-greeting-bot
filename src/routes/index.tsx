@@ -35,12 +35,14 @@ function LandingPage() {
 
   return (
     <div className="min-h-screen">
-      <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-6">
+      <header className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-6 py-6">
         <AhoyWordmark subtitle="Control Center" />
-        <div className="flex items-center gap-2">
+        <nav aria-label="Main navigation" className="flex flex-wrap items-center justify-end gap-2">
+          <Link to="/privacy" className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">Privacy</Link>
+          <Link to="/terms" className="rounded-md px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground">Terms</Link>
           <Button asChild size="sm" variant="outline"><a href="/api/public/invite">Invite !HOY BOT</a></Button>
           {signedIn ? <Button asChild size="sm"><Link to="/dashboard">Open dashboard</Link></Button> : <Button asChild size="sm" variant="secondary"><a href="/api/public/auth/discord/start">Sign in with Discord</a></Button>}
-        </div>
+        </nav>
       </header>
 
       <main>
