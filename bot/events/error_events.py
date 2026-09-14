@@ -1,13 +1,23 @@
 """Central error capture with actionable diagnostics for the !HOY BOT Error Center."""
 from __future__ import annotations
 
+import time
 import traceback
+from typing import Any
+
 import discord
 from discord import app_commands
 from discord.ext import commands
+
+from ..utils.checks import ActionRefused
 from ..utils.logger import get_logger
 
 log = get_logger("errors")
+
+# Prevent one underlying failure from flooding the Error Center when Discord
+# dispatches the same exception repeatedly in a short window.
+_RECENT_ERRORS: dict[str, float] = {}
+_DEDUPE_SECONDS = 15.0
 
 
 def _diagnostics(
@@ -23,14 +33,17 @@ def _diagnostics(
     user_id: str | None = None,
 ) -> tuple[str, str, str]:
     error_type = type(error).__name__
+
     if isinstance(error, commands.CommandNotFound):
         command_name = getattr(error, "command", None) or (command or "unknown")
         cause = (
             f"Discord received a prefix command named '{command_name}', but no registered Discord command matched it. "
-            "This can happen when a user types ordinary text after the bot prefix, when a custom command is disabled/not loaded, "
-            "or when the command name is incorrect."
+            "This is normally user input rather than a bot failure."
         )
         location = f"prefix command parser → {command_name}"
+    elif isinstance(error, ActionRefused):
+        cause = str(error) or "The bot intentionally refused the requested action because a prerequisite or configuration rule was not satisfied."
+        location = f"command validation → {command or 'unknown'}"
     elif isinstance(error, commands.MissingPermissions):
         cause = "The member invoking the command does not have one or more Discord permissions required by the command."
         location = f"command permission check → {command or 'unknown'}"
@@ -62,13 +75,37 @@ def _diagnostics(
     return cause[:2000], location[:500], context[:2000]
 
 
+def _dedupe_key(
+    source: str,
+    error: BaseException,
+    command: str | None,
+    guild_id: str | None,
+    channel_id: str | None,
+    user_id: str | None,
+) -> str:
+    return "|".join(
+        [
+            source,
+            type(error).__name__,
+            str(command or ""),
+            str(guild_id or ""),
+            str(channel_id or ""),
+            str(user_id or ""),
+            str(error),
+        ]
+    )[:3000]
+
+
 class ErrorEvents(commands.Cog):
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
         tree = bot.tree
         original_on_error = tree.on_error
 
-        async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
+        async def on_app_command_error(
+            interaction: discord.Interaction,
+            error: app_commands.AppCommandError,
+        ) -> None:
             original = getattr(error, "original", error)
             await self._record(
                 source="app_command",
@@ -98,7 +135,26 @@ class ErrorEvents(commands.Cog):
         channel_name: str | None = None,
         user_name: str | None = None,
     ) -> None:
+        # Expected user/configuration refusals should not pollute the ERROR
+        # center. They are still surfaced to the user by the command layer.
+        if isinstance(error, (commands.CommandNotFound, ActionRefused)):
+            return
+
         try:
+            key = _dedupe_key(source, error, command, guild_id, channel_id, user_id)
+            now = time.monotonic()
+            last = _RECENT_ERRORS.get(key)
+            if last is not None and now - last < _DEDUPE_SECONDS:
+                return
+            _RECENT_ERRORS[key] = now
+
+            # Keep the in-memory cache bounded.
+            if len(_RECENT_ERRORS) > 1000:
+                cutoff = now - _DEDUPE_SECONDS
+                for old_key, old_time in list(_RECENT_ERRORS.items()):
+                    if old_time < cutoff:
+                        _RECENT_ERRORS.pop(old_key, None)
+
             tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
             cause, location, context = _diagnostics(
                 error,
@@ -128,6 +184,8 @@ class ErrorEvents(commands.Cog):
                 }).execute()
             )
         except Exception:
+            # Error reporting must never recursively become another reported
+            # application error.
             log.exception("Failed to record error log entry")
 
     @commands.Cog.listener()
@@ -145,8 +203,9 @@ class ErrorEvents(commands.Cog):
         )
 
     @commands.Cog.listener()
-    async def on_error(self, event_method: str, *args, **kwargs) -> None:
+    async def on_error(self, event_method: str, *args: Any, **kwargs: Any) -> None:
         import sys
+
         error = sys.exc_info()[1]
         if error is None:
             return
