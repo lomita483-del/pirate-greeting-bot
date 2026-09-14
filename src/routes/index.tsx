@@ -79,7 +79,17 @@ function LandingPage() {
         </section>
       </main>
 
-      <footer className="hairline border-t border-border/60"><div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground"><span>!HOY — steady as she goes.</span><span>Built with LOVE 💕</span></div></footer>
+      <footer className="hairline border-t border-border/60">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 py-8 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <span>!HOY — steady as she goes.</span>
+            <span className="text-border">•</span>
+            <Link to="/privacy" className="transition-colors hover:text-foreground">Privacy Policy</Link>
+            <Link to="/terms" className="transition-colors hover:text-foreground">Terms of Service</Link>
+          </div>
+          <span>Built with LOVE 💕</span>
+        </div>
+      </footer>
     </div>
   );
 }
