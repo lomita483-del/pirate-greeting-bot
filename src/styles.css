@@ -103,11 +103,7 @@
     font-family: var(--font-sans);
     background-color: var(--color-background);
     color: var(--color-foreground);
-    background-image:
-      radial-gradient(70rem 46rem at 8% -14%, oklch(0.865 0.158 86 / 16%), transparent 58%),
-      radial-gradient(56rem 38rem at 96% -6%, oklch(0.7 0.115 205 / 14%), transparent 60%),
-      radial-gradient(70rem 50rem at 50% 118%, oklch(0.45 0.11 250 / 22%), transparent 62%),
-      linear-gradient(180deg, oklch(0.152 0.045 254), oklch(0.118 0.034 256) 70%);
+    background-image: radial-gradient(70rem 46rem at 8% -14%, oklch(0.865 0.158 86 / 12%), transparent 58%), radial-gradient(56rem 38rem at 96% -6%, oklch(0.7 0.115 205 / 10%), transparent 60%), linear-gradient(180deg, oklch(0.152 0.045 254), oklch(0.118 0.034 256) 70%);
     background-attachment: fixed;
   }
   h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; }
@@ -128,16 +124,16 @@
 
 @utility hairline { border-bottom: 1px solid var(--border); }
 
-/* !HOY BOT watermark — intentionally independent of the legacy PIRATE asset. */
+/* Full-screen nautical pirate background behind every page. */
 @utility ahoy-watermark {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: url("/hoy-logo.svg");
+  background-image: linear-gradient(oklch(0.04 0.02 250 / 38%), oklch(0.04 0.02 250 / 38%)), url("/hoy-pirate-background.svg");
   background-repeat: no-repeat;
   background-position: center;
-  background-size: min(70vw, 46rem);
-  opacity: 0.045;
-  filter: saturate(125%);
+  background-size: cover;
+  opacity: 0.86;
+  filter: saturate(115%);
 }
