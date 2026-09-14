@@ -124,16 +124,16 @@
 
 @utility hairline { border-bottom: 1px solid var(--border); }
 
-/* Full-screen nautical pirate background behind every page. */
+/* Exact pirate artwork, intentionally visible across the full web surface. */
 @utility ahoy-watermark {
   position: fixed;
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background-image: linear-gradient(oklch(0.04 0.02 250 / 38%), oklch(0.04 0.02 250 / 38%)), url("/hoy-pirate-background.svg");
+  background-image: linear-gradient(oklch(0.025 0.015 250 / 14%), oklch(0.025 0.015 250 / 14%)), url("/hoy-pirate-background.svg");
   background-repeat: no-repeat;
   background-position: center;
   background-size: cover;
-  opacity: 0.86;
-  filter: saturate(115%);
+  opacity: 0.94;
+  filter: saturate(118%);
 }
