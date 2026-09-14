@@ -1,7 +1,7 @@
 {
-  "name": "!PIRATE Control Center",
-  "short_name": "!PIRATE",
-  "description": "Manage your !PIRATE Discord bot — moderation, logging, welcome messages, and more.",
+  "name": "!HOY BOT",
+  "short_name": "!HOY BOT",
+  "description": "Manage your !HOY BOT Discord bot — moderation, logging, welcome messages, and more.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
