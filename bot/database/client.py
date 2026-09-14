@@ -43,5 +43,23 @@ class Database:
 try:
     from .repository_compat import install_repository_compat
     install_repository_compat()
+    # repository_compat is intentionally optional for the core repository.
+    # Install the critical case lookup explicitly as a final fallback so a
+    # partial compatibility load can never leave /case broken.
+    from .repository import Repository
+
+    async def _recent_cases(self, guild_id: str, limit: int = 10):
+        rows = await self.db.try_run(
+            lambda c: c.table("moderation_cases")
+            .select("*")
+            .eq("guild_id", guild_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return getattr(rows, "data", None) or []
+
+    if not hasattr(Repository, "recent_cases"):
+        setattr(Repository, "recent_cases", _recent_cases)
 except Exception:
     log.exception("Failed to load repository compatibility helpers")
