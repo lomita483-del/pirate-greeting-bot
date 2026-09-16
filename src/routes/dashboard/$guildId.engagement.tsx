@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Trophy } from "lucide-react";
 
-import { LeaderboardPanel, RemindersPanel, XpAdminPanel } from "@/components/dashboard/engagement-panels";
+import { EconomyAdminPanel, LeaderboardPanel, RemindersPanel, XpAdminPanel } from "@/components/dashboard/engagement-panels";
 import { PremiumGate } from "@/components/dashboard/premium-gate";
 import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 
@@ -9,9 +9,9 @@ export const Route = createFileRoute("/dashboard/$guildId/engagement")({
   head: () => ({
     meta: [
       { title: "Engagement — ! HOY Control Center" },
-      { name: "description", content: "XP and economy leaderboards, XP administration and member reminders for your server." },
+      { name: "description", content: "XP and economy leaderboards, XP and economy administration, and member reminders for your server." },
       { property: "og:title", content: "Engagement — ! HOY Control Center" },
-      { property: "og:description", content: "Leaderboards, XP administration and member reminders." },
+      { property: "og:description", content: "Leaderboards, XP and economy administration, and reminders." },
     ],
   }),
   component: () => (
@@ -23,6 +23,7 @@ export const Route = createFileRoute("/dashboard/$guildId/engagement")({
             <div className="space-y-6">
               <LeaderboardPanel guildId={guildId} currency={config.settings?.currency_name ?? "coins"} />
               <XpAdminPanel guildId={guildId} />
+              <EconomyAdminPanel guildId={guildId} />
               <RemindersPanel guildId={guildId} />
             </div>
           </PremiumGate>
