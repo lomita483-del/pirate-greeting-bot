@@ -38,10 +38,7 @@ def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
             continue
         label = str(key).replace("_", " ").title()
         if isinstance(value, list):
-            text = ", ".join(
-                str(item.get("name") or item.get("value") or "—") if isinstance(item, dict) else str(item)
-                for item in value
-            )
+            text = ", ".join(str(item.get("name") or item.get("value") or "—") if isinstance(item, dict) else str(item) for item in value)
         else:
             text = str(value)
         if len(text) > 500:
@@ -63,10 +60,7 @@ class ActivityService:
     async def _audit_actor(self, guild: discord.Guild, category: str, target_id: Optional[int]) -> Optional[discord.abc.User]:
         if target_id is None or not guild.me or not guild.me.guild_permissions.view_audit_log:
             return None
-        action = {
-            "member_roles": discord.AuditLogAction.member_role_update,
-            "member_nickname": discord.AuditLogAction.member_update,
-        }.get(category)
+        action = {"member_roles": discord.AuditLogAction.member_role_update, "member_nickname": discord.AuditLogAction.member_update}.get(category)
         if action is None:
             return None
         try:
@@ -77,18 +71,7 @@ class ActivityService:
             return None
         return None
 
-    async def record(
-        self,
-        guild: Optional[discord.Guild],
-        category: str,
-        summary: str,
-        *,
-        actor: Optional[discord.abc.User] = None,
-        target: Optional[discord.abc.User] = None,
-        channel: Optional[Any] = None,
-        metadata: Optional[dict[str, Any]] = None,
-        embed: Optional[discord.Embed] = None,
-    ) -> None:
+    async def record(self, guild: Optional[discord.Guild], category: str, summary: str, *, actor: Optional[discord.abc.User] = None, target: Optional[discord.abc.User] = None, channel: Optional[Any] = None, metadata: Optional[dict[str, Any]] = None, embed: Optional[discord.Embed] = None) -> None:
         if guild is None:
             return
         try:
@@ -111,10 +94,8 @@ class ActivityService:
             audit_actor = await self._audit_actor(guild, category, getattr(target, "id", None)) if category in {"member_roles", "member_nickname"} else None
             visible_actor = audit_actor or actor
             audit = embed.copy() if embed is not None else embeds.info("Activity", summary)
-            title = (audit.title or "Activity").replace("*_", "").replace("_*", "").strip()
-            audit.title = title
-            # Build concise, event-specific details instead of repeating the same
-            # information as description + Summary + Details + Server blocks.
+            audit.title = (audit.title or "Activity").replace("*_", "").replace("_*", "").strip()
+
             if category == "member_nickname" and target is not None:
                 audit.description = f"{target.mention} changed nickname."
                 audit.clear_fields()
@@ -122,6 +103,7 @@ class ActivityService:
                 _field(audit, "Action by", visible_actor.mention if visible_actor else "Audit actor unavailable")
                 _field(audit, "Before", str((metadata or {}).get("before") or target.name))
                 _field(audit, "After", str((metadata or {}).get("after") or target.display_name))
+
             elif category == "member_roles" and target is not None:
                 added = [str(x) for x in (metadata or {}).get("added", [])]
                 removed = [str(x) for x in (metadata or {}).get("removed", [])]
@@ -134,18 +116,21 @@ class ActivityService:
                 reason = (metadata or {}).get("reason")
                 if reason and reason != "No reason recorded":
                     _field(audit, "Reason", str(reason), inline=False)
+
             elif category == "message_delete":
                 audit.clear_fields()
                 audit.description = f"{target.mention if target else 'A member'}'s message was deleted in {getattr(channel, 'mention', '#unknown')}."
                 _field(audit, "Message sent by", target.mention if target else "Unknown")
                 _field(audit, "Deleted by", visible_actor.mention if visible_actor else "Audit actor unavailable")
-                _field(audit, "Content", f"```{str((metadata or {}).get('content') or '(no text content)').replace('```', "'''")[:900]}```", inline=False)
+                content = str((metadata or {}).get("content") or "(no text content)").replace("```", "'''")[:900]
+                _field(audit, "Content", f"```{content}```", inline=False)
                 attachments = int((metadata or {}).get("attachments") or 0)
                 if attachments:
                     _field(audit, "Attachments", str(attachments))
                 reason = (metadata or {}).get("reason")
                 if reason and reason != "No reason recorded":
                     _field(audit, "Reason", str(reason))
+
             elif category == "message_edit":
                 audit.clear_fields()
                 audit.description = f"Message sent by {target.mention if target else 'a member'} was edited in {getattr(channel, 'mention', '#unknown')}."
@@ -156,17 +141,16 @@ class ActivityService:
                 new = str((metadata or {}).get("after") or "(no text content)").replace("```", "'''")[:900]
                 _field(audit, "Before", f"```{old}```", inline=False)
                 _field(audit, "After", f"```{new}```", inline=False)
+
             elif category == "moderation" and target is not None:
                 audit.clear_fields()
-                action_text = title.lower()
-                audit.description = f"{target.mention} {action_text} from the server."
+                action_text = audit.title.lower().replace("member ", "")
+                audit.description = f"{target.mention} was {action_text} from the server."
                 _field(audit, "Member", target.mention)
                 _field(audit, "Action by", visible_actor.mention if visible_actor else "Unknown")
-                reason = (metadata or {}).get("reason") or "No reason recorded"
-                _field(audit, "Reason", str(reason))
+                _field(audit, "Reason", str((metadata or {}).get("reason") or "No reason recorded"))
+
             else:
-                # For the remaining event types, keep the supplied event embed
-                # but add only the useful actor/target/channel context.
                 audit.description = audit.description or summary
                 existing_names = {f.name.lower().replace("*", "") for f in audit.fields}
                 if visible_actor is not None and "action by" not in existing_names:
