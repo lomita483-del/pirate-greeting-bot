@@ -9,9 +9,9 @@ import { ModuleHeader } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/moderation")({
   head: () => ({
     meta: [
-      { title: "Moderation — !PIRATE Control Center" },
-      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by !PIRATE." },
-      { property: "og:title", content: "Moderation — !PIRATE Control Center" },
+      { title: "Moderation — ! HOY BOT Control Center" },
+      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by ! HOY BOT." },
+      { property: "og:title", content: "Moderation — ! HOY BOT Control Center" },
       { property: "og:description", content: "Manage all ban, kick, mute and warn cases." },
     ],
   }),
@@ -22,11 +22,7 @@ function ModerationPage() {
   const { guildId } = useGuild();
   return (
     <div>
-      <ModuleHeader
-        icon={Shield}
-        title="Moderation"
-        description="Manage all ban, kick, mute and warn cases from the dashboard."
-      />
+      <ModuleHeader icon={Shield} title="Moderation" description="Manage all ban, kick, mute and warn cases from the dashboard." />
       <PremiumGate feature="moderation">
         <CasesPanel guildId={guildId} />
       </PremiumGate>
