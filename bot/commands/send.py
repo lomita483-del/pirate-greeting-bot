@@ -1,4 +1,4 @@
-"""/send plus website action-queue delivery for messages, reaction panels and Roll Calls."""
+"""/send plus website action-queue delivery for messages, reaction panels, Roll Calls and giveaways."""
 from __future__ import annotations
 import datetime as _dt
 import discord
@@ -58,11 +58,12 @@ class SendCommands(commands.Cog):
         except discord.HTTPException as exc: raise ActionRefused(f"Discord rejected that message: {exc}") from exc
         await self.bot.repo.log_activity({"guild_id": str(guild.id), "kind": "message_sent", "summary": f"{interaction.user} sent a message to #{channel.name} via /send", "metadata": {"channel_id": str(channel.id)}})
         await interaction.response.send_message(embed=embeds.success("Message sent", f"Posted to {channel.mention}."), ephemeral=True)
+
     @tasks.loop(seconds=10)
     async def _poll_queue(self) -> None:
         try: actions = await self.bot.repo.pending_bot_actions()
         except Exception: log.exception("Failed to poll bot_action_queue"); return
-        supported = {"send_message", "reaction_role_panel", "rollcall_start", "rollcall_close"}
+        supported = {"send_message", "reaction_role_panel", "rollcall_start", "rollcall_close", "giveaway_create", "giveaway_edit", "giveaway_end", "giveaway_cancel", "giveaway_reroll"}
         for action in actions:
             kind = action.get("action")
             if kind not in supported: continue
@@ -73,8 +74,83 @@ class SendCommands(commands.Cog):
                 elif kind == "reaction_role_panel": await self._process_reaction_role_panel(action)
                 elif kind == "rollcall_start": await self._process_rollcall_start(action)
                 elif kind == "rollcall_close": await self._process_rollcall_close(action)
+                elif kind == "giveaway_create": await self._process_giveaway_create(action)
+                elif kind == "giveaway_edit": await self._process_giveaway_edit(action)
+                elif kind == "giveaway_end": await self._process_giveaway_end(action)
+                elif kind == "giveaway_cancel": await self._process_giveaway_cancel(action)
+                elif kind == "giveaway_reroll": await self._process_giveaway_reroll(action)
             except Exception:
                 log.exception("Dashboard action %s failed", kind); await self.bot.repo.finish_bot_action(action["id"], "failed", "Action failed")
+
+    async def _giveaway_cog(self):
+        from .giveaways import Giveaways
+        cog = self.bot.get_cog("Giveaways")
+        if not isinstance(cog, Giveaways): raise ActionRefused("Giveaway service is not ready.")
+        return cog
+
+    def _giveaway_embed(self, prize: str, description: str, winners: int, ends_at: str, settings: dict, host_id: str | None) -> discord.Embed:
+        requirements = []
+        if settings.get("required_role_id"): requirements.append(f"Required role: <@&{settings['required_role_id']}>")
+        minimum = int(settings.get("min_account_age_days") or 0)
+        if minimum: requirements.append(f"Account age: {minimum}+ days")
+        if settings.get("bonus_role_id"): requirements.append(f"Bonus: <@&{settings['bonus_role_id']}> = {int(settings.get('bonus_entries') or 2)}x entry weight")
+        requirement_text = "\n".join(requirements) if requirements else "No special requirements."
+        end = _dt.datetime.fromisoformat(str(ends_at).replace("Z", "+00:00"))
+        return embeds.brand(f"🎁 Giveaway · {prize}", f"{description or 'Enter below for your chance to win!'}\n\n**Winners:** {winners}\n**Entries:** 0\n**Ends:** {discord.utils.format_dt(end, 'R')} ({discord.utils.format_dt(end, 'f')})\n\n**Requirements**\n{requirement_text}\n\nHosted by: <@{host_id}>" if host_id else f"{description or 'Enter below for your chance to win!'}\n\n**Winners:** {winners}\n**Entries:** 0\n**Ends:** {discord.utils.format_dt(end, 'R')} ({discord.utils.format_dt(end, 'f')})\n\n**Requirements**\n{requirement_text}")
+
+    async def _process_giveaway_create(self, action: dict) -> None:
+        payload = action.get("payload") or {}; guild = self.bot.get_guild(int(action["guild_id"]))
+        if guild is None: raise ActionRefused("AHOY is not in that server.")
+        channel = guild.get_channel(int(payload["channel_id"]))
+        if not isinstance(channel, discord.TextChannel): raise ActionRefused("Giveaway channel no longer exists.")
+        me = guild.me
+        if me and not channel.permissions_for(me).send_messages: raise ActionRefused(f"AHOY can't send messages in #{channel.name}.")
+        settings = payload.get("settings") or {}
+        embed = self._giveaway_embed(str(payload["prize"])[:200], str(settings.get("description") or "Enter below for your chance to win!"), int(payload.get("winner_count") or 1), str(payload["ends_at"]), settings, str(action.get("requested_by") or ""))
+        message = await channel.send(embed=embed)
+        cog = await self._giveaway_cog()
+        row = await self.bot.repo.create_giveaway({"guild_id": str(guild.id), "channel_id": str(channel.id), "message_id": str(message.id), "prize": str(payload["prize"])[:200], "winner_count": int(payload.get("winner_count") or 1), "ends_at": str(payload["ends_at"]), "host_id": str(action.get("requested_by") or ""), "host_name": "Dashboard", "settings": settings})
+        giveaway_id = str(row.get("id")); view = cog.__class__.__dict__.get("__name__") and __import__("bot.commands.giveaways", fromlist=["GiveawayView"]).GiveawayView(cog, giveaway_id)
+        self.bot.add_view(view, message_id=message.id)
+        await message.edit(view=view)
+        await self.bot.repo.finish_bot_action(action["id"], "done")
+
+    async def _process_giveaway_edit(self, action: dict) -> None:
+        cog = await self._giveaway_cog(); row = await cog._get_by_id(str(action.get("target_id")))
+        if not row or row.get("status") != "running": raise ActionRefused("That giveaway is no longer running.")
+        payload = action.get("payload") or {}; settings = payload.get("settings") or row.get("settings") or {}
+        channel = self.bot.get_channel(int(row["channel_id"]))
+        if not isinstance(channel, discord.TextChannel): raise ActionRefused("Giveaway channel no longer exists.")
+        message = await channel.fetch_message(int(row["message_id"]))
+        embed = self._giveaway_embed(str(payload["prize"])[:200], str(settings.get("description") or "Enter below for your chance to win!"), int(payload.get("winner_count") or 1), str(payload["ends_at"]), settings, str(row.get("host_id") or ""))
+        view = __import__("bot.commands.giveaways", fromlist=["GiveawayView"]).GiveawayView(cog, str(row["id"]))
+        await message.edit(embed=embed, view=view)
+        await self.bot.repo.update_giveaway(row["id"], {"prize": str(payload["prize"])[:200], "winner_count": int(payload.get("winner_count") or 1), "ends_at": str(payload["ends_at"]), "settings": settings})
+        await self.bot.repo.finish_bot_action(action["id"], "done")
+
+    async def _process_giveaway_end(self, action: dict) -> None:
+        cog = await self._giveaway_cog(); row = await cog._get_by_id(str(action.get("target_id")))
+        if not row or row.get("status") != "running": raise ActionRefused("That giveaway is not running.")
+        await cog._conclude(row)
+        await self.bot.repo.finish_bot_action(action["id"], "done")
+
+    async def _process_giveaway_cancel(self, action: dict) -> None:
+        cog = await self._giveaway_cog(); row = await cog._get_by_id(str(action.get("target_id")))
+        if not row or row.get("status") != "running": raise ActionRefused("That giveaway is not running.")
+        await self.bot.repo.update_giveaway(row["id"], {"status": "cancelled"})
+        channel = self.bot.get_channel(int(row["channel_id"]))
+        if isinstance(channel, discord.TextChannel):
+            try:
+                message = await channel.fetch_message(int(row["message_id"])); await message.edit(view=None, content="🎁 **Giveaway cancelled.**")
+            except discord.HTTPException: pass
+        await self.bot.repo.finish_bot_action(action["id"], "done")
+
+    async def _process_giveaway_reroll(self, action: dict) -> None:
+        cog = await self._giveaway_cog(); row = await cog._get_by_id(str(action.get("target_id")))
+        if not row or row.get("status") != "ended": raise ActionRefused("Only ended giveaways can be rerolled.")
+        await cog._conclude(row, reroll=True)
+        await self.bot.repo.finish_bot_action(action["id"], "done")
+
     async def _process_rollcall_start(self, action: dict) -> None:
         from .rollcall import RollCallView, _open_embed, _buttons
         repo = self.bot.repo; payload = action.get("payload") or {}
