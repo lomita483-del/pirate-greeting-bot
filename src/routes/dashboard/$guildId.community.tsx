@@ -18,17 +18,13 @@ export const Route = createFileRoute("/dashboard/$guildId/community")({
   }),
   component: () => (
     <div>
-      <ModuleHeader
-        icon={Sparkles}
-        title="Community"
-        description="Reaction roles, advanced giveaways, polls and the starboard."
-      />
+      <ModuleHeader icon={Sparkles} title="Community" description="Reaction roles, advanced giveaways, polls and the starboard." />
       <WithConfig>
         {({ guildId, config, refresh }) => (
           <div className="space-y-6">
             <ReactionRolesPanel guildId={guildId} structure={config.structure} />
             <GiveawaysManagerPanel guildId={guildId} structure={config.structure} />
-            <PollsPanel guildId={guildId} structure={config.structure} />
+            <PollsPanel guildId={guildId} />
             <StarboardPanel guildId={guildId} config={config} onSaved={refresh} />
           </div>
         )}
