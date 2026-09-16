@@ -1,4 +1,4 @@
-"""Server event logging with clean, readable audit formatting."""
+"""Server event logging with clean, readable, professional audit formatting."""
 
 from __future__ import annotations
 
@@ -24,8 +24,30 @@ GRANULAR_TO_CATEGORY: dict[str, str] = {
     "channel_slow_mode_update": "channel_changes", "server_name_update": "server_changes", "server_icon_update": "server_changes", "server_owner_update": "server_changes",
     "verification_level_update": "server_changes", "server_boost_level_update": "server_changes", "moderation_ban": "moderation_actions", "moderation_unban": "moderation_actions",
     "moderation_kick": "moderation_actions", "moderation_warn": "moderation_actions", "moderation_timeout": "moderation_actions", "moderation_untimeout": "moderation_actions",
-    "moderation_automod": "moderation_actions",
+    "moderation_automod": "moderation_actions", "moderation_report": "moderation_actions",
 }
+
+_ACTIVITY_OWNED = {
+    "user_join", "user_leave", "user_roles_add", "user_roles_remove",
+    "user_name_update", "user_avatar_update", "user_timed_out", "user_timeout_removed",
+    "voice_user_join", "voice_user_leave", "voice_user_switch",
+}
+
+_LEADING_MARKS = re.compile(r"^[\s\u200b]*(?:[\U0001F1E6-\U0001FAFF\u2600-\u27BF\u2300-\u23FF\u2B00-\u2BFF]|[\uFE0F\u200D])+\s*")
+
+
+def _clean_title(title: str | None) -> str | None:
+    if not title:
+        return title
+    title = title.replace("*_", "").replace("_*", "").strip()
+    title = _LEADING_MARKS.sub("", title).strip()
+    return title or None
+
+
+def _clean_field_name(name: str) -> str:
+    name = _LEADING_MARKS.sub("", name or "").strip()
+    name = name.replace("**", "").replace("*_", "").replace("_*", "").strip()
+    return name or "Details"
 
 
 class LogService:
@@ -48,27 +70,8 @@ class LogService:
             log.warning("Failed to write server log for guild %s: %s", guild.id, exc)
 
     async def log(self, guild: Optional[discord.Guild], event_type: str, embed: discord.Embed) -> None:
-        if guild is None:
+        if guild is None or event_type in _ACTIVITY_OWNED:
             return
-
-        # These events are rendered by ActivityEvents as one detailed audit
-        # entry. Suppressing the legacy copies prevents duplicate logs and,
-        # importantly, keeps role additions/removals in the same message.
-        if event_type in {
-            "user_join",
-            "user_leave",
-            "user_roles_add",
-            "user_roles_remove",
-            "user_name_update",
-            "user_avatar_update",
-            "user_timed_out",
-            "user_timeout_removed",
-            "voice_user_join",
-            "voice_user_leave",
-            "voice_user_switch",
-        }:
-            return
-
         try:
             config = await self.settings.get(str(guild.id), "logging_settings")
             if not config or not config.get("enabled"):
@@ -86,21 +89,19 @@ class LogService:
             log.warning("Failed to write granular log '%s' for guild %s: %s", event_type, guild.id, exc)
 
     async def _find_message_deleter(self, guild: discord.Guild, embed: discord.Embed) -> Optional[discord.abc.User]:
-        """Resolve the moderator who deleted a message from Discord audit logs."""
-        if not guild.me.guild_permissions.view_audit_log:
+        if not guild.me or not guild.me.guild_permissions.view_audit_log:
             return None
         description = embed.description or ""
-        author_match = re.search(r"<@!?([0-9]+)>", description)
-        channel_match = re.search(r"<#([0-9]+)>", description)
+        author_match = re.search(r"<@!?(\d+)>", description)
+        channel_match = re.search(r"<#(\d+)>", description)
         author_id = int(author_match.group(1)) if author_match else None
         channel_id = int(channel_match.group(1)) if channel_match else None
         try:
             async for entry in guild.audit_logs(limit=12, action=discord.AuditLogAction.message_delete):
-                target_id = getattr(entry.target, "id", None)
+                if author_id is not None and getattr(entry.target, "id", None) != author_id:
+                    continue
                 extra = getattr(entry, "extra", None)
                 extra_channel_id = getattr(getattr(extra, "channel", None), "id", None)
-                if author_id is not None and target_id != author_id:
-                    continue
                 if channel_id is not None and extra_channel_id not in {None, channel_id}:
                     continue
                 return entry.user
@@ -117,19 +118,25 @@ class LogService:
             return
 
         audit = embed.copy()
-        if audit.title:
-            clean_title = audit.title.replace("*_", "").replace("_*", "").strip()
-            audit.title = f"*_{clean_title}_*"
+        title = _clean_title(audit.title)
+        if title:
+            audit.title = f"*_{title}_*"
         if audit.description:
-            audit.description = f"_{audit.description.strip('_')}_"
-        audit.add_field(name="Server", value=f"**{guild.name}**", inline=True)
-        audit.add_field(name="Log type", value=f"`{event_type}`", inline=True)
+            description = audit.description.strip()
+            if not (description.startswith("_") and description.endswith("_")):
+                audit.description = f"_{description.strip('_')}_"
+
+        for field in audit.fields:
+            field.name = f"*_{_clean_field_name(field.name)}_*"
+
+        audit.add_field(name="*_Server_*", value=guild.name, inline=True)
+        audit.add_field(name="*_Log type_*", value=f"`{event_type}`", inline=True)
 
         if event_type in {"message_delete", "message_bulk_delete"}:
             deleter = await self._find_message_deleter(guild, embed)
             audit.add_field(
-                name="Deleted by",
-                value=deleter.mention if deleter is not None else "Discord audit actor unavailable",
+                name="*_Deleted by_*",
+                value=deleter.mention if deleter is not None else "Audit actor unavailable",
                 inline=True,
             )
 
@@ -145,7 +152,7 @@ class LogService:
         reason: str,
         extra: str = "",
     ) -> None:
-        target_text = target.mention if target is not None else "—"
+        target_text = target.mention if target is not None else "Unknown member"
         moderator_text = moderator.mention if moderator is not None else "AHOY AutoMod"
         title = f"Moderation · {action.title()}"
         description = (
