@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -23,6 +24,47 @@ def _jump(message: discord.Message) -> str:
         return message.jump_url
     except Exception:  # pragma: no cover
         return ""
+
+
+async def _audit_entry(
+    guild: discord.Guild,
+    action: discord.AuditLogAction,
+    *,
+    target_id: int | None = None,
+    channel_id: int | None = None,
+    limit: int = 12,
+) -> Any | None:
+    """Return a very recent matching audit entry without ever exposing IDs in logs."""
+    try:
+        async for entry in guild.audit_logs(limit=limit, action=action):
+            created = entry.created_at
+            age = (datetime.now(timezone.utc) - created).total_seconds()
+            if age < -2 or age > 15:
+                continue
+            target = getattr(entry, "target", None)
+            if target_id is not None and getattr(target, "id", None) != target_id:
+                continue
+            extra = getattr(entry, "extra", None)
+            if channel_id is not None and extra is not None:
+                extra_channel = getattr(extra, "channel", None)
+                if extra_channel is not None and getattr(extra_channel, "id", None) != channel_id:
+                    continue
+            return entry
+    except (discord.Forbidden, discord.HTTPException, AttributeError) as exc:
+        log.debug("Audit lookup unavailable in %s: %s", guild.id, exc)
+    except Exception as exc:  # pragma: no cover
+        log.debug("Audit lookup failed in %s: %s", guild.id, exc)
+    return None
+
+
+def _reason(entry: Any | None) -> str:
+    if entry is None:
+        return "No reason recorded"
+    return (getattr(entry, "reason", None) or "No reason recorded").strip() or "No reason recorded"
+
+
+def _actor(entry: Any | None) -> discord.abc.User | None:
+    return getattr(entry, "user", None) if entry is not None else None
 
 
 class ActivityEvents(commands.Cog):
@@ -47,19 +89,34 @@ class ActivityEvents(commands.Cog):
     async def on_message_delete(self, message: discord.Message) -> None:
         if message.guild is None or message.author.bot:
             return
-        content = clean_text(message.content or "", 400) or "*(no text content)*"
+        content = clean_text(message.content or "", 1200) or "(no text content)"
+        entry = await _audit_entry(
+            message.guild,
+            discord.AuditLogAction.message_delete,
+            target_id=message.author.id,
+            channel_id=getattr(message.channel, "id", None),
+        )
+        deleter = _actor(entry)
+        actor_label = deleter.mention if deleter is not None else "Unknown / audit log unavailable"
+        metadata = {
+            "sent_by": message.author.mention,
+            "deleted_by": actor_label,
+            "content": content,
+            "attachments": len(message.attachments),
+        }
         await self._record(
             message.guild,
             "message_delete",
-            f"Message by {message.author} deleted in #{getattr(message.channel, 'name', '?')}",
-            actor=message.author,
+            f"{message.author.mention}'s message was deleted in {getattr(message.channel, 'mention', '#' + getattr(message.channel, 'name', '?'))}",
+            actor=deleter or message.author,
+            target=message.author,
             channel=message.channel,
-            metadata={"content": content, "attachments": len(message.attachments)},
-            embed=embeds.warning(
+            metadata=metadata,
+            embed=embeds.info(
                 "Message deleted",
-                f"**Author:** {message.author.mention}\n"
-                f"**Channel:** {message.channel.mention if hasattr(message.channel, 'mention') else '—'}\n"
-                f"**Content:** {content}",
+                f"Message sent by {message.author.mention} was deleted.\n"
+                f"Deleted by: {actor_label}\n"
+                f"Reason: {_reason(entry)}",
             ),
         )
 
@@ -67,31 +124,31 @@ class ActivityEvents(commands.Cog):
     async def on_message_edit(self, before: discord.Message, after: discord.Message) -> None:
         if after.guild is None or after.author.bot or before.content == after.content:
             return
-        old = clean_text(before.content or "", 900) or "*(no text content)*"
-        new = clean_text(after.content or "", 900) or "*(no text content)*"
-        # Triple backticks inside the message would otherwise break the
-        # code block below.
+        old = clean_text(before.content or "", 1200) or "(no text content)"
+        new = clean_text(after.content or "", 1200) or "(no text content)"
         old_block = old.replace("```", "'''")
         new_block = new.replace("```", "'''")
 
         embed = discord.Embed(
+            title="Message edited",
             description=(
-                f"✏️ Message sent by {after.author.mention} edited in "
+                f"Message sent by {after.author.mention} was edited in "
                 f"{getattr(after.channel, 'mention', '#' + getattr(after.channel, 'name', '?'))}. "
                 f"[Jump to Message]({_jump(after)})"
             ),
             color=embeds.TEAL,
             timestamp=datetime.now(timezone.utc),
         )
-        embed.add_field(name="Old", value=f"```{old_block}```", inline=False)
-        embed.add_field(name="New", value=f"```{new_block}```", inline=False)
-        embed.set_footer(text=f"{embeds.BRAND} ⚓")
+        embed.add_field(name="Before", value=f"```{old_block}```", inline=False)
+        embed.add_field(name="After", value=f"```{new_block}```", inline=False)
+        embed.set_footer(text=f"{embeds.BRAND}  •  Detailed Audit Log")
 
         await self._record(
             after.guild,
             "message_edit",
-            f"Message by {after.author} edited in #{getattr(after.channel, 'name', '?')}",
+            f"Message sent by {after.author.mention} was edited in {getattr(after.channel, 'mention', '#' + getattr(after.channel, 'name', '?'))}",
             actor=after.author,
+            target=after.author,
             channel=after.channel,
             metadata={"before": old, "after": new, "jump_url": _jump(after)},
             embed=embed,
@@ -103,57 +160,108 @@ class ActivityEvents(commands.Cog):
         await self._record(
             member.guild,
             "member_join",
-            f"{member} joined the server",
+            f"{member.mention} joined the server",
             actor=member,
+            target=member,
             metadata={"member_count": member.guild.member_count},
         )
 
     @commands.Cog.listener()
     async def on_member_remove(self, member: discord.Member) -> None:
+        kick = await _audit_entry(member.guild, discord.AuditLogAction.kick, target_id=member.id)
+        ban = await _audit_entry(member.guild, discord.AuditLogAction.ban, target_id=member.id)
+
+        if kick is not None:
+            moderator = _actor(kick)
+            moderator_label = moderator.mention if moderator is not None else "Unknown"
+            await self._record(
+                member.guild,
+                "moderation",
+                f"{member.mention} was kicked from the server",
+                actor=moderator,
+                target=member,
+                metadata={"reason": _reason(kick)},
+                embed=embeds.info(
+                    "Member kicked",
+                    f"Member: {member.mention}\nAction by: {moderator_label}\nReason: {_reason(kick)}",
+                ),
+            )
+            return
+
+        if ban is not None:
+            moderator = _actor(ban)
+            moderator_label = moderator.mention if moderator is not None else "Unknown"
+            await self._record(
+                member.guild,
+                "moderation",
+                f"{member.mention} was banned from the server",
+                actor=moderator,
+                target=member,
+                metadata={"reason": _reason(ban)},
+                embed=embeds.info(
+                    "Member banned",
+                    f"Member: {member.mention}\nAction by: {moderator_label}\nReason: {_reason(ban)}",
+                ),
+            )
+            return
+
         await self._record(
             member.guild,
             "member_leave",
-            f"{member} left the server",
+            f"{member.mention} left the server",
             actor=member,
+            target=member,
             metadata={"member_count": member.guild.member_count},
         )
 
     @commands.Cog.listener()
     async def on_member_update(self, before: discord.Member, after: discord.Member) -> None:
         if before.nick != after.nick:
+            entry = await _audit_entry(
+                after.guild,
+                discord.AuditLogAction.member_update,
+                target_id=after.id,
+            )
+            moderator = _actor(entry) or after
             await self._record(
                 after.guild,
                 "member_nickname",
-                f"{after} changed nickname",
-                actor=after,
-                metadata={"before": before.nick, "after": after.nick},
+                f"{after.mention} changed nickname",
+                actor=moderator,
+                target=after,
+                metadata={
+                    "before": before.nick or before.name,
+                    "after": after.nick or after.name,
+                },
                 embed=embeds.info(
                     "Nickname changed",
-                    f"{after.mention}\n**Before:** {before.nick or '—'}\n"
-                    f"**After:** {after.nick or '—'}",
+                    f"Member: {after.mention}\n"
+                    f"Action by: {moderator.mention}\n"
+                    f"Before: {before.nick or before.name}\n"
+                    f"After: {after.nick or after.name}",
                 ),
             )
 
         added = [r for r in after.roles if r not in before.roles]
         removed = [r for r in before.roles if r not in after.roles]
         if added or removed:
-            detail = ", ".join(
-                [f"+{r.name}" for r in added] + [f"-{r.name}" for r in removed]
+            entry = await _audit_entry(
+                after.guild,
+                discord.AuditLogAction.member_role_update,
+                target_id=after.id,
             )
+            moderator = _actor(entry) or after
             await self._record(
                 after.guild,
                 "member_roles",
-                f"Roles updated for {after}: {detail}",
-                actor=after,
+                f"Roles updated for {after.mention}",
+                actor=moderator,
+                target=after,
                 metadata={
-                    "added": [{"id": str(r.id), "name": r.name} for r in added],
-                    "removed": [{"id": str(r.id), "name": r.name} for r in removed],
+                    "added": [r.name for r in added],
+                    "removed": [r.name for r in removed],
+                    "reason": _reason(entry),
                 },
-                # No embed= — message_events.py's on_member_update already
-                # delivers this to Discord via the granular
-                # "user_roles_add"/"user_roles_remove" log() calls, which
-                # fall back to the broad "role_changes" toggle themselves.
-                # This call still writes the activity_logs audit row.
             )
 
     # -- channels -------------------------------------------------------
@@ -162,10 +270,10 @@ class ActivityEvents(commands.Cog):
         await self._record(
             channel.guild,
             "channel_create",
-            f"Channel #{channel.name} created",
+            f"Channel {channel.mention if hasattr(channel, 'mention') else '#' + channel.name} was created",
             channel=channel,
             metadata={"type": str(channel.type)},
-            embed=embeds.success("Channel created", f"**{channel.name}** ({channel.type})"),
+            embed=embeds.info("Channel created", f"Channel: {channel.mention if hasattr(channel, 'mention') else channel.name}\nType: {channel.type}"),
         )
 
     @commands.Cog.listener()
@@ -173,10 +281,10 @@ class ActivityEvents(commands.Cog):
         await self._record(
             channel.guild,
             "channel_delete",
-            f"Channel #{channel.name} deleted",
+            f"Channel #{channel.name} was deleted",
             channel=channel,
             metadata={"type": str(channel.type)},
-            embed=embeds.warning("Channel deleted", f"**{channel.name}** ({channel.type})"),
+            embed=embeds.info("Channel deleted", f"Channel: #{channel.name}\nType: {channel.type}"),
         )
 
     @commands.Cog.listener()
@@ -191,7 +299,7 @@ class ActivityEvents(commands.Cog):
             f"Channel renamed {before.name} → {after.name}",
             channel=after,
             metadata={"before": before.name, "after": after.name},
-            embed=embeds.info("Channel renamed", f"**{before.name}** → **{after.name}**"),
+            embed=embeds.info("Channel renamed", f"Before: {before.name}\nAfter: {after.name}"),
         )
 
     # -- invites ---------------------------------------------------------
@@ -211,7 +319,7 @@ class ActivityEvents(commands.Cog):
             },
             embed=embeds.info(
                 "Invite created",
-                f"**Code:** {invite.code}\n**By:** {invite.inviter or '—'}",
+                f"Code: `{invite.code}`\nBy: {invite.inviter.mention if invite.inviter else 'Unknown'}",
             ),
         )
 
@@ -224,6 +332,7 @@ class ActivityEvents(commands.Cog):
             f"Invite {invite.code} deleted",
             channel=invite.channel,
             metadata={"code": invite.code},
+            embed=embeds.info("Invite deleted", f"Code: `{invite.code}`"),
         )
 
     # -- voice -------------------------------------------------------------
@@ -244,15 +353,10 @@ class ActivityEvents(commands.Cog):
             await self._record(
                 member.guild,
                 "voice_join",
-                f"{member} joined voice #{after.channel.name}",
+                f"{member.mention} joined voice {after.channel.mention}",
                 actor=member,
+                target=member,
                 channel=after.channel,
-                # No embed= here on purpose — bot/events/message_events.py's
-                # on_voice_state_update already delivers this to Discord via
-                # the granular "voice_user_join" log(), which falls back to
-                # the broad "voice_activity" toggle itself. Passing an embed
-                # here too would double-post to the same channel. This call
-                # still writes the activity_logs audit-trail row below.
             )
             if repo is not None:
                 stats = await repo.get_voice_stats(guild_id, str(member.id))
@@ -272,10 +376,10 @@ class ActivityEvents(commands.Cog):
             await self._record(
                 member.guild,
                 "voice_leave",
-                f"{member} left voice #{before.channel.name}",
+                f"{member.mention} left voice {before.channel.mention}",
                 actor=member,
+                target=member,
                 channel=before.channel,
-                # No embed= here — see the matching note on voice_join above.
             )
             if repo is not None:
                 stats = await repo.get_voice_stats(guild_id, str(member.id))
@@ -300,8 +404,6 @@ class ActivityEvents(commands.Cog):
                         "last_left_at": now.isoformat(),
                     }
                 )
-                # Statahoy: also bucket this session's seconds into today's
-                # per-channel daily counter, for the voice activity chart.
                 if session_seconds > 0:
                     try:
                         await repo.bump_voice_activity(
@@ -313,7 +415,6 @@ class ActivityEvents(commands.Cog):
                         )
                     except Exception as exc:
                         log.warning("Voice activity bucket failed: %s", exc)
-                    # Plans/tasks unlock system: live total in whole minutes.
                     minutes = session_seconds // 60
                     if minutes > 0:
                         try:
@@ -328,8 +429,9 @@ class ActivityEvents(commands.Cog):
             await self._record(
                 member.guild,
                 "voice_move",
-                f"{member} moved {before.channel.name} → {after.channel.name}",
+                f"{member.mention} moved from {before.channel.mention} to {after.channel.mention}",
                 actor=member,
+                target=member,
                 channel=after.channel,
                 metadata={"from": before.channel.name, "to": after.channel.name},
             )
