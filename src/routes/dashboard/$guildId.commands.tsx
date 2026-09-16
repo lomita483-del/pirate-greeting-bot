@@ -7,13 +7,13 @@ import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/commands")({
   head: () => ({
     meta: [
-      { title: "Commands — !PIRATE Control Center" },
+      { title: "Commands — ! HOY BOT Control Center" },
       {
         name: "description",
-        content: "Enable, disable and fully customise permissions, channels and cooldowns for every !PIRATE command.",
+        content: "Enable, disable and fully customise permissions, channels and cooldowns for every ! HOY BOT command.",
       },
-      { property: "og:title", content: "Commands — !PIRATE Control Center" },
-      { property: "og:description", content: "Permissions, channels and cooldowns for every !PIRATE command." },
+      { property: "og:title", content: "Commands — ! HOY BOT Control Center" },
+      { property: "og:description", content: "Permissions, channels and cooldowns for every ! HOY BOT command." },
     ],
   }),
   component: () => (
