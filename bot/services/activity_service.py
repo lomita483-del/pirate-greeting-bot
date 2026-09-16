@@ -66,6 +66,26 @@ class ActivityService:
         self.repo = repo
         self.logs = logs
 
+    async def _audit_actor(
+        self, guild: discord.Guild, category: str, target_id: Optional[int]
+    ) -> Optional[discord.abc.User]:
+        """Find who caused a member role/nickname change when Discord exposes it."""
+        if target_id is None or not guild.me.guild_permissions.view_audit_log:
+            return None
+        action = {
+            "member_roles": discord.AuditLogAction.member_role_update,
+            "member_nickname": discord.AuditLogAction.member_update,
+        }.get(category)
+        if action is None:
+            return None
+        try:
+            async for entry in guild.audit_logs(limit=12, action=action):
+                if getattr(entry.target, "id", None) == target_id:
+                    return entry.user
+        except (discord.Forbidden, discord.HTTPException, discord.ClientException):
+            return None
+        return None
+
     async def record(
         self,
         guild: Optional[discord.Guild],
@@ -102,8 +122,6 @@ class ActivityService:
         if not setting:
             return
 
-        # Role updates are deliberately composed into one Discord entry even
-        # when Discord reports additions and removals together in one update.
         if embed is None and category == "member_roles" and actor is not None:
             added = [str(item.get("name")) for item in (metadata or {}).get("added", []) if item.get("name")]
             removed = [str(item.get("name")) for item in (metadata or {}).get("removed", []) if item.get("name")]
@@ -121,6 +139,10 @@ class ActivityService:
             return
 
         try:
+            audit_actor = None
+            if category in {"member_roles", "member_nickname"} and actor is not None:
+                audit_actor = await self._audit_actor(guild, category, getattr(actor, "id", None))
+
             audit = embed.copy()
             if audit.title:
                 audit.title = f"*_{audit.title.replace('*_', '').replace('_*', '')}_*"
@@ -134,7 +156,18 @@ class ActivityService:
                     value=getattr(channel, "mention", f"#{getattr(channel, 'name', 'unknown')}"),
                     inline=True,
                 )
-            if actor is not None:
+            if category in {"member_roles", "member_nickname"}:
+                audit.add_field(
+                    name="Member",
+                    value=actor.mention if actor is not None and hasattr(actor, "mention") else "Unknown",
+                    inline=True,
+                )
+                audit.add_field(
+                    name="Action by",
+                    value=(audit_actor.mention if audit_actor is not None else (actor.mention if actor is not None else "Unknown")),
+                    inline=True,
+                )
+            elif actor is not None:
                 audit.add_field(
                     name="Action by",
                     value=actor.mention if hasattr(actor, "mention") else str(actor),
