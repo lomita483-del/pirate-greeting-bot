@@ -38,7 +38,7 @@ from .utils.logger import get_logger, setup_logging
 
 EXTENSIONS = (
     "bot.commands.general", "bot.commands.moderation", "bot.commands.levels", "bot.commands.economy", "bot.commands.tickets", "bot.commands.reminders", "bot.commands.reaction_roles", "bot.commands.giveaways", "bot.commands.polls", "bot.commands.profile", "bot.commands.stats", "bot.commands.statahoy", "bot.commands.calendar", "bot.commands.send", "bot.commands.reports", "bot.commands.activity", "bot.commands.rollcall", "bot.commands.library",
-    "bot.events.guild_events", "bot.events.member_events", "bot.events.message_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler",
+    "bot.events.guild_events", "bot.events.member_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler",
 )
 log = get_logger("core")
 
@@ -72,7 +72,7 @@ class AhoyBot(commands.Bot):
         except AccessDenied as exc: raise ActionRefused(str(exc)) from exc
         except DatabaseError: return True
         if interaction.guild_id and command_name:
-            try: await self.repo.touch_user_command(str(interaction.guild_id), str(interaction.user.id), str(interaction.user), command_name)
+            try: await self.repo.touch_user_command(str(interaction.guild_id), str(interaction.user.id), command_name)
             except Exception as exc: log.warning("Activity command touch failed: %s", exc)
         return True
 
@@ -113,31 +113,14 @@ class AhoyBot(commands.Bot):
             await self.repo.upsert_server(str(guild.id), guild.name, guild.icon.key if guild.icon else None, str(guild.owner_id) if guild.owner_id else None, guild.member_count or 0)
 
     async def _record_error(self, *, source: str, error: BaseException, guild_id: Optional[str] = None, command: Optional[str] = None, user_id: Optional[str] = None, channel_id: Optional[str] = None) -> None:
-        """Persist actionable errors while suppressing expected/noisy repeats.
-
-        CommandNotFound is intentionally not persisted: normal Discord chat often contains
-        text beginning with a bot prefix, and treating every unknown word as an application
-        failure creates a misleading Error Center. Real command failures are still logged.
-        Identical failures are also deduplicated for a short window so a retry loop cannot
-        flood the admin console.
-        """
         if isinstance(error, commands.CommandNotFound):
-            log.debug("Ignoring expected unknown command: %s", getattr(error, "command", command or "unknown"))
-            return
-
-        error_name = type(error).__name__
-        error_message = str(error) or repr(error)
-        dedupe_key = "|".join((source, error_name, command or "", guild_id or "", channel_id or "", error_message[:500]))
-        now = time.monotonic()
-        previous = self._recent_error_keys.get(dedupe_key)
-        if previous is not None and now - previous < self._error_dedupe_seconds:
-            log.debug("Deduplicated repeated %s error for command %s", error_name, command or "unknown")
-            return
+            log.debug("Ignoring expected unknown command: %s", getattr(error, "command", command or "unknown")); return
+        error_name = type(error).__name__; error_message = str(error) or repr(error)
+        dedupe_key = "|".join((source, error_name, command or "", guild_id or "", channel_id or "", error_message[:500])); now = time.monotonic(); previous = self._recent_error_keys.get(dedupe_key)
+        if previous is not None and now - previous < self._error_dedupe_seconds: return
         self._recent_error_keys[dedupe_key] = now
         cutoff = now - self._error_dedupe_seconds
-        if len(self._recent_error_keys) > 1000:
-            self._recent_error_keys = {k: v for k, v in self._recent_error_keys.items() if v >= cutoff}
-
+        if len(self._recent_error_keys) > 1000: self._recent_error_keys = {k: v for k, v in self._recent_error_keys.items() if v >= cutoff}
         try:
             tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))
             await self.repo.log_error(source=source, error_type=error_name, message=error_message, guild_id=guild_id, command=command, traceback_text=tb, user_id=user_id, channel_id=channel_id)
