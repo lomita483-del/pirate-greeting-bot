@@ -34,7 +34,7 @@ async def _audit_entry(
     channel_id: int | None = None,
     limit: int = 12,
 ) -> Any | None:
-    """Return a very recent matching audit entry without ever exposing IDs in logs."""
+    """Return a very recent matching audit entry without exposing IDs in logs."""
     try:
         async for entry in guild.audit_logs(limit=limit, action=action):
             created = entry.created_at
@@ -84,7 +84,6 @@ class ActivityEvents(commands.Cog):
         except Exception as exc:  # pragma: no cover - never break an event
             log.warning("Activity record failed: %s", exc)
 
-    # -- messages -------------------------------------------------------
     @commands.Cog.listener()
     async def on_message_delete(self, message: discord.Message) -> None:
         if message.guild is None or message.author.bot:
@@ -108,7 +107,7 @@ class ActivityEvents(commands.Cog):
             message.guild,
             "message_delete",
             f"{message.author.mention}'s message was deleted in {getattr(message.channel, 'mention', '#' + getattr(message.channel, 'name', '?'))}",
-            actor=deleter or message.author,
+            actor=deleter,
             target=message.author,
             channel=message.channel,
             metadata=metadata,
@@ -154,7 +153,6 @@ class ActivityEvents(commands.Cog):
             embed=embed,
         )
 
-    # -- members --------------------------------------------------------
     @commands.Cog.listener()
     async def on_member_join(self, member: discord.Member) -> None:
         await self._record(
@@ -264,7 +262,6 @@ class ActivityEvents(commands.Cog):
                 },
             )
 
-    # -- channels -------------------------------------------------------
     @commands.Cog.listener()
     async def on_guild_channel_create(self, channel: discord.abc.GuildChannel) -> None:
         await self._record(
@@ -302,7 +299,6 @@ class ActivityEvents(commands.Cog):
             embed=embeds.info("Channel renamed", f"Before: {before.name}\nAfter: {after.name}"),
         )
 
-    # -- invites ---------------------------------------------------------
     @commands.Cog.listener()
     async def on_invite_create(self, invite: discord.Invite) -> None:
         guild = invite.guild if isinstance(invite.guild, discord.Guild) else None
@@ -335,7 +331,6 @@ class ActivityEvents(commands.Cog):
             embed=embeds.info("Invite deleted", f"Code: `{invite.code}`"),
         )
 
-    # -- voice -------------------------------------------------------------
     @commands.Cog.listener()
     async def on_voice_state_update(
         self,
