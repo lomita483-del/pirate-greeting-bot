@@ -31,7 +31,7 @@ class ChannelLock(commands.Cog):
         self,
         interaction: discord.Interaction,
         channel: discord.TextChannel,
-        reason: str = "No reason provided",
+        reason: str,
     ) -> None:
         guild = ensure_guild(interaction)
         ensure_permission(interaction, "manage_channels")
