@@ -7,23 +7,17 @@ import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/custom-commands")({
   head: () => ({
     meta: [
-      { title: "Custom commands — !PIRATE Control Center" },
-      { name: "description", content: "Create and manage your own !PIRATE commands with custom responses." },
-      { property: "og:title", content: "Custom commands — !PIRATE Control Center" },
-      { property: "og:description", content: "Create and manage your own !PIRATE commands." },
+      { title: "Custom commands — ! HOY BOT Control Center" },
+      { name: "description", content: "Create and manage your own ! HOY BOT commands with custom responses." },
+      { property: "og:title", content: "Custom commands — ! HOY BOT Control Center" },
+      { property: "og:description", content: "Create and manage your own ! HOY BOT commands." },
     ],
   }),
   component: () => (
     <div>
-      <ModuleHeader
-        icon={Bot}
-        title="Custom commands"
-        description="Create and manage your own commands and their responses."
-      />
+      <ModuleHeader icon={Bot} title="Custom commands" description="Create and manage your own commands and their responses." />
       <WithConfig>
-        {({ guildId, config, refresh }) => (
-          <CommandsPanel guildId={guildId} config={config} onSaved={refresh} />
-        )}
+        {({ guildId, config, refresh }) => <CommandsPanel guildId={guildId} config={config} onSaved={refresh} />}
       </WithConfig>
     </div>
   ),
