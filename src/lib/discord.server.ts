@@ -1,5 +1,5 @@
 /**
- * Server-only Discord OAuth2 + session handling for the !PIRATE Control Center.
+ * Server-only Discord OAuth2 + session handling for the ! HOY BOT Control Center.
  *
  * - The Discord bot token is NEVER used here and never leaves the bot process.
  * - The user's OAuth access token is stored in an encrypted, httpOnly cookie.
@@ -36,17 +36,10 @@ function env(name: string): string {
   return value;
 }
 
-/* ------------------------------------------------------------------ */
-/* Cookie encryption (AES-GCM, key derived from the OAuth client secret) */
-/* ------------------------------------------------------------------ */
-
 async function sessionKey(): Promise<CryptoKey> {
   const secret = env("DISCORD_CLIENT_SECRET");
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`ahoy:${secret}`));
-  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
 function toBase64Url(bytes: Uint8Array): string {
@@ -67,9 +60,7 @@ export async function sealSession(session: AhoySession): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await sessionKey();
   const data = new TextEncoder().encode(JSON.stringify(session));
-  const cipher = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data),
-  );
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, data));
   return `${toBase64Url(iv)}.${toBase64Url(cipher)}`;
 }
 
@@ -78,11 +69,7 @@ export async function openSession(value: string): Promise<AhoySession | null> {
     const [ivPart, dataPart] = value.split(".");
     if (!ivPart || !dataPart) return null;
     const key = await sessionKey();
-    const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: fromBase64Url(ivPart) },
-      key,
-      fromBase64Url(dataPart),
-    );
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(dataPart));
     const session = JSON.parse(new TextDecoder().decode(plain)) as AhoySession;
     if (!session.userId || session.expiresAt < Date.now()) return null;
     return session;
@@ -92,14 +79,7 @@ export async function openSession(value: string): Promise<AhoySession | null> {
 }
 
 export function buildSessionCookie(sealed: string): string {
-  return [
-    `${COOKIE_NAME}=${sealed}`,
-    "Path=/",
-    "HttpOnly",
-    "Secure",
-    "SameSite=Lax",
-    `Max-Age=${SESSION_TTL_SECONDS}`,
-  ].join("; ");
+  return [`${COOKIE_NAME}=${sealed}`, "Path=/", "HttpOnly", "Secure", "SameSite=Lax", `Max-Age=${SESSION_TTL_SECONDS}`].join("; ");
 }
 
 export function clearSessionCookie(): string {
@@ -123,22 +103,13 @@ export async function sessionFromHeader(cookieHeader: string | null): Promise<Ah
 export const SESSION_COOKIE_NAME = COOKIE_NAME;
 export const SESSION_MAX_AGE = SESSION_TTL_SECONDS;
 
-/* ------------------------------------------------------------------ */
-/* OAuth state — signed + self-verifying, no cookie round-trip needed  */
-/* ------------------------------------------------------------------ */
-
-const STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const STATE_TTL_MS = 10 * 60 * 1000;
 
 export async function sealState(): Promise<string> {
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await sessionKey();
-  const payload = JSON.stringify({
-    nonce: crypto.randomUUID(),
-    expiresAt: Date.now() + STATE_TTL_MS,
-  });
-  const cipher = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(payload)),
-  );
+  const payload = JSON.stringify({ nonce: crypto.randomUUID(), expiresAt: Date.now() + STATE_TTL_MS });
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(payload)));
   return `${toBase64Url(iv)}.${toBase64Url(cipher)}`;
 }
 
@@ -147,11 +118,7 @@ export async function openState(value: string): Promise<boolean> {
     const [ivPart, dataPart] = value.split(".");
     if (!ivPart || !dataPart) return false;
     const key = await sessionKey();
-    const plain = await crypto.subtle.decrypt(
-      { name: "AES-GCM", iv: fromBase64Url(ivPart) },
-      key,
-      fromBase64Url(dataPart),
-    );
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: fromBase64Url(ivPart) }, key, fromBase64Url(dataPart));
     const { expiresAt } = JSON.parse(new TextDecoder().decode(plain)) as { expiresAt: number };
     return typeof expiresAt === "number" && expiresAt > Date.now();
   } catch {
@@ -159,35 +126,14 @@ export async function openState(value: string): Promise<boolean> {
   }
 }
 
-/* ------------------------------------------------------------------ */
-/* OAuth2                                                              */
-/* ------------------------------------------------------------------ */
-
 export function authorizeUrl(redirectUri: string, state: string): string {
-  const params = new URLSearchParams({
-    client_id: env("DISCORD_CLIENT_ID"),
-    redirect_uri: redirectUri,
-    response_type: "code",
-    scope: "identify guilds",
-    state,
-    prompt: "consent",
-  });
+  const params = new URLSearchParams({ client_id: env("DISCORD_CLIENT_ID"), redirect_uri: redirectUri, response_type: "code", scope: "identify guilds", state, prompt: "consent" });
   return `https://discord.com/oauth2/authorize?${params.toString()}`;
 }
 
 export async function exchangeCode(code: string, redirectUri: string) {
-  const body = new URLSearchParams({
-    client_id: env("DISCORD_CLIENT_ID"),
-    client_secret: env("DISCORD_CLIENT_SECRET"),
-    grant_type: "authorization_code",
-    code,
-    redirect_uri: redirectUri,
-  });
-  const response = await fetch(`${DISCORD_API}/oauth2/token`, {
-    method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body,
-  });
+  const body = new URLSearchParams({ client_id: env("DISCORD_CLIENT_ID"), client_secret: env("DISCORD_CLIENT_SECRET"), grant_type: "authorization_code", code, redirect_uri: redirectUri });
+  const response = await fetch(`${DISCORD_API}/oauth2/token`, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body });
   if (!response.ok) {
     console.error("Discord token exchange failed", response.status, await response.text());
     throw new Error("Discord sign-in failed.");
@@ -196,9 +142,7 @@ export async function exchangeCode(code: string, redirectUri: string) {
 }
 
 async function discordFetch<T>(path: string, accessToken: string): Promise<T> {
-  const response = await fetch(`${DISCORD_API}${path}`, {
-    headers: { authorization: `Bearer ${accessToken}` },
-  });
+  const response = await fetch(`${DISCORD_API}${path}`, { headers: { authorization: `Bearer ${accessToken}` } });
   if (response.status === 429) throw new Error("Discord is rate limiting us. Try again shortly.");
   if (!response.ok) {
     console.error("Discord API error", path, response.status);
@@ -208,15 +152,9 @@ async function discordFetch<T>(path: string, accessToken: string): Promise<T> {
 }
 
 export async function fetchCurrentUser(accessToken: string) {
-  return discordFetch<{
-    id: string;
-    username: string;
-    global_name: string | null;
-    avatar: string | null;
-  }>("/users/@me", accessToken);
+  return discordFetch<{ id: string; username: string; global_name: string | null; avatar: string | null }>("/users/@me", accessToken);
 }
 
-/* Small in-process cache so we do not hammer Discord's guild endpoint. */
 const guildCache = new Map<string, { at: number; guilds: DiscordGuildSummary[] }>();
 
 export async function fetchUserGuilds(session: AhoySession): Promise<DiscordGuildSummary[]> {
@@ -227,15 +165,11 @@ export async function fetchUserGuilds(session: AhoySession): Promise<DiscordGuil
   return guilds;
 }
 
-/** Read one member's role IDs in a guild, using the bot's own token. */
 async function fetchMemberRoles(guildId: string, userId: string): Promise<string[]> {
   const token = process.env["DISCORD_TOKEN"];
   if (!token) return [];
   try {
-    const res = await fetch(
-      `${DISCORD_API}/guilds/${guildId}/members/${userId}`,
-      { headers: { authorization: `Bot ${token}` } },
-    );
+    const res = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${userId}`, { headers: { authorization: `Bot ${token}` } });
     if (!res.ok) return [];
     const member = (await res.json()) as { roles?: string[] };
     return member.roles ?? [];
@@ -247,37 +181,18 @@ async function fetchMemberRoles(guildId: string, userId: string): Promise<string
 export function canManage(guild: DiscordGuildSummary): boolean {
   if (guild.owner) return true;
   let bits = 0n;
-  try {
-    bits = BigInt(guild.permissions ?? "0");
-  } catch {
-    return false;
-  }
+  try { bits = BigInt(guild.permissions ?? "0"); } catch { return false; }
   return (bits & MANAGE_GUILD) === MANAGE_GUILD || (bits & ADMINISTRATOR) === ADMINISTRATOR;
 }
 
-/**
- * Server-side authorization gate. Throws unless the signed-in Discord user
- * really can manage the requested guild — either via Discord's own
- * Manage Server / Administrator / owner permissions, or via a role listed
- * in that guild's Role Manager (server_settings.manager_role_ids).
- */
-export async function assertGuildAccess(
-  session: AhoySession,
-  guildId: string,
-): Promise<DiscordGuildSummary> {
+export async function assertGuildAccess(session: AhoySession, guildId: string): Promise<DiscordGuildSummary> {
   const guilds = await fetchUserGuilds(session);
   const guild = guilds.find((g) => g.id === guildId);
   if (!guild) throw new Error("You do not have permission to manage this server.");
   if (canManage(guild)) return guild;
-
-  // Not an owner/admin/manage-guild holder — check the custom Role Manager list.
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data } = await supabaseAdmin
-      .from("server_settings")
-      .select("manager_role_ids")
-      .eq("guild_id", guildId)
-      .maybeSingle();
+    const { data } = await supabaseAdmin.from("server_settings").select("manager_role_ids").eq("guild_id", guildId).maybeSingle();
     const managerRoleIds: string[] = (data?.["manager_role_ids"] as string[] | null) ?? [];
     if (managerRoleIds.length) {
       const memberRoles = await fetchMemberRoles(guildId, session.userId);
@@ -286,6 +201,5 @@ export async function assertGuildAccess(
   } catch (error) {
     console.error("Role Manager check failed", error);
   }
-
   throw new Error("You do not have permission to manage this server.");
 }
