@@ -13,9 +13,7 @@ from .log_service import LogService
 
 log = get_logger("moderation")
 
-# Actions that stay "active" until they are lifted or expire.
 ACTIVE_ACTIONS = {"timeout", "ban", "mute"}
-# Lifting an action closes the matching open case(s).
 LIFTS: dict[str, list[str]] = {
     "unban": ["ban"],
     "untimeout": ["timeout", "mute"],
@@ -80,15 +78,15 @@ class ModerationService:
             lifted = LIFTS.get(action)
             if lifted and target is not None:
                 await self.repo.close_active_cases(guild_id, str(target.id), lifted)
-        except Exception as exc:  # cases must never block a moderation action
+        except Exception as exc:
             log.warning("Could not open a case for %s in %s: %s", action, guild_id, exc)
 
         number = case.get("case_number")
         await self.logs.moderation(
             guild,
             action,
-            str(target) if target else "—",
-            str(moderator) if moderator else "AHOY AutoMod",
+            target,
+            moderator,
             reason,
             (f"**Case:** #{number}\n" if number else "") + extra,
         )
