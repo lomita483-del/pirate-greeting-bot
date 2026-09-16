@@ -1,13 +1,4 @@
-"""Server event logging.
-
-One way to log something now: `log(guild, event_type, embed)`.
-
-Each specific event type (e.g. "user_join", "voice_user_leave") can be
-routed to its own channel via `logging_settings.channel_overrides` (a
-{event_type: channel_id} map configured on the website's "Detailed event
-log" grid). If nothing is set for that exact event type, it falls back to
-that event's broad category toggle + the single "Default log channel".
-"""
+"""Server event logging with clean, readable audit formatting."""
 
 from __future__ import annotations
 
@@ -42,7 +33,6 @@ class LogService:
         self.settings = settings
 
     async def send(self, guild: Optional[discord.Guild], category: str, embed: discord.Embed) -> None:
-        """Send a legacy/coarse event to the configured default log channel."""
         if guild is None:
             return
         try:
@@ -57,7 +47,6 @@ class LogService:
             log.warning("Failed to write server log for guild %s: %s", guild.id, exc)
 
     async def log(self, guild: Optional[discord.Guild], event_type: str, embed: discord.Embed) -> None:
-        """Route a granular event to its override or its category fallback."""
         if guild is None:
             return
         try:
@@ -84,13 +73,14 @@ class LogService:
         if not (perms.send_messages and perms.embed_links):
             return
 
-        # Every audit entry gets a consistent identity block, even when an
-        # older caller supplied a minimal embed. Event-specific details are
-        # still preserved in the original embed and enriched by ActivityService
-        # when actor/target/channel metadata is available.
         audit = embed.copy()
-        audit.add_field(name="🏰 SERVER", value=f"**{guild.name}**\n`{guild.id}`", inline=True)
-        audit.add_field(name="📂 LOG TYPE", value=f"`{event_type}`", inline=True)
+        if audit.title:
+            clean_title = audit.title.replace("*_", "").replace("_*", "").strip()
+            audit.title = f"*_{clean_title}_*"
+        if audit.description:
+            audit.description = f"_{audit.description.strip('_')}_"
+        audit.add_field(name="Server", value=f"**{guild.name}**", inline=True)
+        audit.add_field(name="Log type", value=f"`{event_type}`", inline=True)
         audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
         await channel.send(embed=audit)
 
@@ -98,13 +88,20 @@ class LogService:
         self,
         guild: discord.Guild,
         action: str,
-        target: str,
-        moderator: str,
+        target: discord.abc.User | None,
+        moderator: discord.abc.User | None,
         reason: str,
         extra: str = "",
     ) -> None:
-        embed = embeds.info(
-            f"Moderation · {action.title()}",
-            f"**Member:** {target}\n**Moderator:** {moderator}\n**Reason:** {reason}" + (f"\n{extra}" if extra else ""),
+        target_text = target.mention if target is not None else "—"
+        moderator_text = moderator.mention if moderator is not None else "AHOY AutoMod"
+        title = f"Moderation · {action.title()}"
+        description = (
+            f"**Action:** `/{action}`\n"
+            f"**Member:** {target_text}\n"
+            f"**Action by:** {moderator_text}\n"
+            f"**Reason:** {reason}"
+            + (f"\n{extra}" if extra else "")
         )
+        embed = embeds.info(title, description)
         await self.log(guild, f"moderation_{action}", embed)
