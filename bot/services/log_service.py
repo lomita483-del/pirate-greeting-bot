@@ -27,10 +27,15 @@ GRANULAR_TO_CATEGORY: dict[str, str] = {
     "moderation_automod": "moderation_actions", "moderation_report": "moderation_actions",
 }
 
+# ActivityEvents owns member/voice events. GuildEvents owns structural events
+# so each Discord action produces one detailed audit message, not duplicates.
 _ACTIVITY_OWNED = {
     "user_join", "user_leave", "user_roles_add", "user_roles_remove",
     "user_name_update", "user_avatar_update", "user_timed_out", "user_timeout_removed",
     "voice_user_join", "voice_user_leave", "voice_user_switch",
+    "channel_create", "channel_delete", "channel_name_update", "channel_topic_update",
+    "channel_nsfw_update", "channel_parent_update", "channel_slow_mode_update",
+    "invite_create", "invite_delete",
 }
 
 _LEADING_MARKS = re.compile(r"^[\s\u200b]*(?:[\U0001F1E6-\U0001FAFF\u2600-\u27BF\u2300-\u23FF\u2B00-\u2BFF]|[\uFE0F\u200D])+\s*")
@@ -134,33 +139,15 @@ class LogService:
 
         if event_type in {"message_delete", "message_bulk_delete"}:
             deleter = await self._find_message_deleter(guild, embed)
-            audit.add_field(
-                name="*_Deleted by_*",
-                value=deleter.mention if deleter is not None else "Audit actor unavailable",
-                inline=True,
-            )
+            audit.add_field(name="*_Deleted by_*", value=deleter.mention if deleter is not None else "Audit actor unavailable", inline=True)
 
         audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
         await channel.send(embed=audit)
 
-    async def moderation(
-        self,
-        guild: discord.Guild,
-        action: str,
-        target: discord.abc.User | None,
-        moderator: discord.abc.User | None,
-        reason: str,
-        extra: str = "",
-    ) -> None:
+    async def moderation(self, guild: discord.Guild, action: str, target: discord.abc.User | None,
+                         moderator: discord.abc.User | None, reason: str, extra: str = "") -> None:
         target_text = target.mention if target is not None else "Unknown member"
         moderator_text = moderator.mention if moderator is not None else "AHOY AutoMod"
         title = f"Moderation · {action.title()}"
-        description = (
-            f"Action: `/{action}`\n"
-            f"Member: {target_text}\n"
-            f"Action by: {moderator_text}\n"
-            f"Reason: {reason}"
-            + (f"\n{extra}" if extra else "")
-        )
-        embed = embeds.info(title, description)
-        await self.log(guild, f"moderation_{action}", embed)
+        description = f"Action: `/{action}`\nMember: {target_text}\nAction by: {moderator_text}\nReason: {reason}" + (f"\n{extra}" if extra else "")
+        await self.log(guild, f"moderation_{action}", embeds.info(title, description))
