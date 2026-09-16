@@ -22,6 +22,7 @@ from discord.ext import commands
 from .config import Config, ConfigError, load_config
 from .database.client import Database, DatabaseError
 from .database.repository import Repository
+from .database.runtime import bot_runtime_start, bot_runtime_heartbeat, bot_runtime_stop
 from .services.automod_service import AutoModService
 from .services.level_service import LevelService
 from .services.log_service import LogService
@@ -46,10 +47,16 @@ class AhoyBot(commands.Bot):
     def __init__(self, config: Config) -> None:
         intents = discord.Intents.default(); intents.members = True; intents.message_content = True; intents.voice_states = True; intents.reactions = True; intents.presences = True
         super().__init__(command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
-        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
+        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._runtime_task: Optional[asyncio.Task[None]] = None; self._runtime_instance_id = f"discord-{id(self)}"; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
 
     async def setup_hook(self) -> None:
         await self.db.connect()
+        runtime = await bot_runtime_start(self.db, self._runtime_instance_id)
+        if runtime is not None:
+            self._runtime_task = asyncio.create_task(self._runtime_heartbeat_loop())
+            log.info("Persisted !HOY BOT runtime session %s.", self._runtime_instance_id)
+        else:
+            log.warning("Could not persist !HOY BOT runtime session; dashboard presence will remain offline.")
         for extension in EXTENSIONS:
             try: await self.load_extension(extension); log.info("Loaded extension %s", extension)
             except Exception as exc: log.exception("Failed to load %s: %s", extension, exc)
@@ -60,6 +67,15 @@ class AhoyBot(commands.Bot):
             for command in global_commands: self.tree.add_command(command)
             log.info("Cleared %d stale global command registration(s).", len(global_commands))
         self._health_runner = await start_health_server(self)
+
+    async def _runtime_heartbeat_loop(self) -> None:
+        await self.wait_until_ready()
+        while not self.is_closed():
+            try:
+                await bot_runtime_heartbeat(self.db, self._runtime_instance_id)
+            except Exception as exc:
+                log.warning("Runtime heartbeat failed: %s", exc)
+            await asyncio.sleep(20)
 
     async def sync_guild_commands(self, guild: discord.Guild) -> None:
         if guild.id in self._synced_guild_ids: return
@@ -108,6 +124,8 @@ class AhoyBot(commands.Bot):
     async def on_ready(self) -> None:
         log.info("AHOY is online as %s (%s) across %d server(s).", self.user, getattr(self.user, "id", "?"), len(self.guilds))
         if self._notification_task is None: self._notification_task = asyncio.create_task(self._deliver_notifications())
+        if self._runtime_task is None:
+            self._runtime_task = asyncio.create_task(self._runtime_heartbeat_loop())
         for guild in self.guilds:
             await self.sync_guild_commands(guild)
             await self.repo.upsert_server(str(guild.id), guild.name, guild.icon.key if guild.icon else None, str(guild.owner_id) if guild.owner_id else None, guild.member_count or 0)
@@ -154,6 +172,16 @@ class AhoyBot(commands.Bot):
 
     async def close(self) -> None:
         log.info("AHOY is shutting down gracefully…")
+        if self._runtime_task is not None:
+            self._runtime_task.cancel()
+            try: await self._runtime_task
+            except asyncio.CancelledError: pass
+            except Exception: pass
+            self._runtime_task = None
+        try:
+            await bot_runtime_stop(self.db, self._runtime_instance_id)
+        except Exception as exc:
+            log.warning("Could not mark runtime offline cleanly: %s", exc)
         if self._health_runner is not None:
             try: await self._health_runner.cleanup()
             except Exception: pass
