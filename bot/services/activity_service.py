@@ -1,4 +1,4 @@
-"""Durable activity logging with concise, actionable Discord audit entries."""
+"""Durable activity logging with professional, readable Discord audit entries."""
 
 from __future__ import annotations
 
@@ -14,21 +14,11 @@ from .log_service import LogService
 log = get_logger("activity")
 
 CATEGORY_TO_SETTING: dict[str, str] = {
-    "message_delete": "message_delete",
-    "message_edit": "message_edit",
-    "member_join": "member_join",
-    "member_leave": "member_leave",
-    "member_nickname": "role_changes",
-    "member_roles": "role_changes",
-    "channel_create": "channel_changes",
-    "channel_delete": "channel_changes",
-    "channel_update": "channel_changes",
-    "server_update": "server_changes",
-    "voice_join": "voice_activity",
-    "voice_leave": "voice_activity",
-    "voice_move": "voice_activity",
-    "invite_create": "server_changes",
-    "invite_delete": "server_changes",
+    "message_delete": "message_delete", "message_edit": "message_edit", "member_join": "member_join",
+    "member_leave": "member_leave", "member_nickname": "role_changes", "member_roles": "role_changes",
+    "channel_create": "channel_changes", "channel_delete": "channel_changes", "channel_update": "channel_changes",
+    "server_update": "server_changes", "voice_join": "voice_activity", "voice_leave": "voice_activity",
+    "voice_move": "voice_activity", "invite_create": "server_changes", "invite_delete": "server_changes",
     "moderation": "moderation_actions",
 }
 
@@ -42,11 +32,15 @@ def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
         return ""
     lines: list[str] = []
     for key, value in metadata.items():
+        # Raw Discord IDs are deliberately kept out of the human-facing audit
+        # message. Mentions/names are much more useful and remain clickable.
+        if key == "id" or key.endswith("_id") or key in {"guild_id", "channel_id", "actor_id", "target_id"}:
+            continue
         if value is None or value == "":
             continue
         label = str(key).replace("_", " ").title()
         if isinstance(value, list):
-            rendered = []
+            rendered: list[str] = []
             for item in value:
                 if isinstance(item, dict):
                     rendered.append(str(item.get("name") or item.get("value") or "—"))
@@ -57,7 +51,7 @@ def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
             text = str(value)
         if len(text) > 500:
             text = text[:497] + "..."
-        lines.append(f"**{label}:** {text}")
+        lines.append(f"*_{label}_*: {text}")
     return "\n".join(lines)
 
 
@@ -69,8 +63,7 @@ class ActivityService:
     async def _audit_actor(
         self, guild: discord.Guild, category: str, target_id: Optional[int]
     ) -> Optional[discord.abc.User]:
-        """Find who caused a member role/nickname change when Discord exposes it."""
-        if target_id is None or not guild.me.guild_permissions.view_audit_log:
+        if target_id is None or not guild.me or not guild.me.guild_permissions.view_audit_log:
             return None
         action = {
             "member_roles": discord.AuditLogAction.member_role_update,
@@ -101,20 +94,14 @@ class ActivityService:
         if guild is None:
             return
         try:
-            await self.repo.log_activity(
-                {
-                    "guild_id": str(guild.id),
-                    "category": category,
-                    "actor_id": str(actor.id) if actor else None,
-                    "actor_name": _name(actor),
-                    "target_id": str(target.id) if target else None,
-                    "target_name": _name(target),
-                    "channel_id": str(channel.id) if channel is not None else None,
-                    "channel_name": getattr(channel, "name", None),
-                    "summary": summary[:500],
-                    "metadata": metadata or {},
-                }
-            )
+            await self.repo.log_activity({
+                "guild_id": str(guild.id), "category": category,
+                "actor_id": str(actor.id) if actor else None, "actor_name": _name(actor),
+                "target_id": str(target.id) if target else None, "target_name": _name(target),
+                "channel_id": str(channel.id) if channel is not None else None,
+                "channel_name": getattr(channel, "name", None), "summary": summary[:500],
+                "metadata": metadata or {},
+            })
         except Exception as exc:
             log.warning("Activity log write failed (%s): %s", category, exc)
 
@@ -122,67 +109,54 @@ class ActivityService:
         if not setting:
             return
 
-        if embed is None and category == "member_roles" and actor is not None:
-            added = [str(item.get("name")) for item in (metadata or {}).get("added", []) if item.get("name")]
-            removed = [str(item.get("name")) for item in (metadata or {}).get("removed", []) if item.get("name")]
-            changes = []
+        if embed is None and category == "member_roles" and target is not None:
+            added = [str(item) for item in (metadata or {}).get("added", [])]
+            removed = [str(item) for item in (metadata or {}).get("removed", [])]
+            changes: list[str] = []
             if added:
                 changes.append(f"Added: {', '.join(added)}")
             if removed:
                 changes.append(f"Removed: {', '.join(removed)}")
-            embed = embeds.info(
-                "Roles updated",
-                f"{actor.mention}\n" + ("\n".join(changes) or "No role details available."),
-            )
+            embed = embeds.info("Roles updated", "\n".join(changes) or "No role details available.")
 
         if embed is None:
             return
 
         try:
-            audit_actor = None
-            if category in {"member_roles", "member_nickname"} and actor is not None:
-                audit_actor = await self._audit_actor(guild, category, getattr(actor, "id", None))
+            # For member changes, audit_actor is resolved against the target,
+            # not the moderator/member supplied as the visible actor.
+            audit_actor = await self._audit_actor(
+                guild, category, getattr(target, "id", None)
+            ) if category in {"member_roles", "member_nickname"} else None
 
             audit = embed.copy()
             if audit.title:
-                audit.title = f"*_{audit.title.replace('*_', '').replace('_*', '')}_*"
+                clean = audit.title.replace("*_", "").replace("_*", "").strip()
+                audit.title = f"*_{clean}_*"
             if audit.description:
-                audit.description = f"_{audit.description.strip('_')}_"
+                description = audit.description.strip()
+                if not (description.startswith("_") and description.endswith("_")):
+                    audit.description = f"_{description.strip('_')}_"
 
-            audit.add_field(name="Server", value=f"**{guild.name}**", inline=True)
-            if channel is not None:
-                audit.add_field(
-                    name="Channel",
-                    value=getattr(channel, "mention", f"#{getattr(channel, 'name', 'unknown')}"),
-                    inline=True,
-                )
             if category in {"member_roles", "member_nickname"}:
-                audit.add_field(
-                    name="Member",
-                    value=actor.mention if actor is not None and hasattr(actor, "mention") else "Unknown",
-                    inline=True,
-                )
-                audit.add_field(
-                    name="Action by",
-                    value=(audit_actor.mention if audit_actor is not None else (actor.mention if actor is not None else "Unknown")),
-                    inline=True,
-                )
+                member = target or actor
+                if member is not None:
+                    audit.add_field(name="*_Member_*", value=member.mention, inline=True)
+                action_by = audit_actor or (actor if actor is not target else None)
+                audit.add_field(name="*_Action by_*", value=action_by.mention if action_by is not None else "Audit actor unavailable", inline=True)
             elif actor is not None:
-                audit.add_field(
-                    name="Action by",
-                    value=actor.mention if hasattr(actor, "mention") else str(actor),
-                    inline=True,
-                )
-            if target is not None:
-                audit.add_field(
-                    name="Member",
-                    value=target.mention if hasattr(target, "mention") else str(target),
-                    inline=True,
-                )
-            audit.add_field(name="Log", value=f"_{summary[:900]}_", inline=False)
+                audit.add_field(name="*_Action by_*", value=actor.mention if hasattr(actor, "mention") else str(actor), inline=True)
+
+            if channel is not None:
+                audit.add_field(name="*_Channel_*", value=getattr(channel, "mention", f"#{getattr(channel, 'name', 'unknown')}"), inline=True)
+
+            if target is not None and category not in {"member_roles", "member_nickname"}:
+                audit.add_field(name="*_Member_*", value=target.mention if hasattr(target, "mention") else str(target), inline=True)
+
             details = _metadata_lines(metadata)
             if details:
-                audit.add_field(name="Details", value=details[:1024], inline=False)
+                audit.add_field(name="*_Details_*", value=details[:1024], inline=False)
+            audit.add_field(name="*_Summary_*", value=f"_{summary[:900]}_", inline=False)
             audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
             await self.logs.send(guild, setting, audit)
         except Exception as exc:
