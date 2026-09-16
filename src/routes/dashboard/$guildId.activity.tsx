@@ -9,9 +9,9 @@ import { ModuleHeader } from "@/components/dashboard/module-page";
 export const Route = createFileRoute("/dashboard/$guildId/activity")({
   head: () => ({
     meta: [
-      { title: "Activity — !PIRATE Control Center" },
+      { title: "Activity — ! HOY BOT Control Center" },
       { name: "description", content: "Live activity log of messages, members and voice events in your server." },
-      { property: "og:title", content: "Activity — !PIRATE Control Center" },
+      { property: "og:title", content: "Activity — ! HOY BOT Control Center" },
       { property: "og:description", content: "Live activity log of messages, members and voice events." },
     ],
   }),
@@ -25,7 +25,7 @@ function ActivityPage() {
       <ModuleHeader
         icon={Activity}
         title="Activity"
-        description="Everything !PIRATE has recorded happening in this server."
+        description="Everything ! HOY BOT has recorded happening in this server."
       />
       <div className="space-y-6">
         <ActivityLogPanel guildId={guildId} />
