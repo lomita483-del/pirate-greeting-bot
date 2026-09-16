@@ -7,6 +7,7 @@ from typing import Any, Optional
 import discord
 
 from ..database.repository import Repository
+from ..utils import embeds
 from ..utils.logger import get_logger
 from .log_service import LogService
 
@@ -45,7 +46,7 @@ def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
             continue
         label = str(key).replace("_", " ").title()
         if isinstance(value, list):
-            rendered: list[str] = []
+            rendered = []
             for item in value:
                 if isinstance(item, dict):
                     rendered.append(str(item.get("name") or item.get("value") or "—"))
@@ -77,7 +78,6 @@ class ActivityService:
         metadata: Optional[dict[str, Any]] = None,
         embed: Optional[discord.Embed] = None,
     ) -> None:
-        """Persist an activity row and optionally mirror it to Discord."""
         if guild is None:
             return
         try:
@@ -98,10 +98,26 @@ class ActivityService:
         except Exception as exc:
             log.warning("Activity log write failed (%s): %s", category, exc)
 
-        if embed is None:
-            return
         setting = CATEGORY_TO_SETTING.get(category)
         if not setting:
+            return
+
+        # Role updates are deliberately composed into one Discord entry even
+        # when Discord reports additions and removals together in one update.
+        if embed is None and category == "member_roles" and actor is not None:
+            added = [str(item.get("name")) for item in (metadata or {}).get("added", []) if item.get("name")]
+            removed = [str(item.get("name")) for item in (metadata or {}).get("removed", []) if item.get("name")]
+            changes = []
+            if added:
+                changes.append(f"Added: {', '.join(added)}")
+            if removed:
+                changes.append(f"Removed: {', '.join(removed)}")
+            embed = embeds.info(
+                "Roles updated",
+                f"{actor.mention}\n" + ("\n".join(changes) or "No role details available."),
+            )
+
+        if embed is None:
             return
 
         try:
@@ -111,11 +127,7 @@ class ActivityService:
             if audit.description:
                 audit.description = f"_{audit.description.strip('_')}_"
 
-            audit.add_field(
-                name="Server",
-                value=f"**{guild.name}**",
-                inline=True,
-            )
+            audit.add_field(name="Server", value=f"**{guild.name}**", inline=True)
             if channel is not None:
                 audit.add_field(
                     name="Channel",
@@ -134,12 +146,7 @@ class ActivityService:
                     value=target.mention if hasattr(target, "mention") else str(target),
                     inline=True,
                 )
-
-            audit.add_field(
-                name="Log",
-                value=f"_{summary[:900]}_",
-                inline=False,
-            )
+            audit.add_field(name="Log", value=f"_{summary[:900]}_", inline=False)
             details = _metadata_lines(metadata)
             if details:
                 audit.add_field(name="Details", value=details[:1024], inline=False)
