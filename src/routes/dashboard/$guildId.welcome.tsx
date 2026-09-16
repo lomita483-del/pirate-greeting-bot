@@ -9,19 +9,15 @@ import { WelcomeMessagesPanel } from "@/components/dashboard/welcome-messages-pa
 export const Route = createFileRoute("/dashboard/$guildId/welcome")({
   head: () => ({
     meta: [
-      { title: "Welcome messages — !PIRATE Control Center" },
+      { title: "Welcome messages — ! HOY BOT Control Center" },
       { name: "description", content: "Greet joining members and announce leaves in the channels you choose." },
-      { property: "og:title", content: "Welcome messages — !PIRATE Control Center" },
+      { property: "og:title", content: "Welcome messages — ! HOY BOT Control Center" },
       { property: "og:description", content: "Custom welcome and leave messages for new members." },
     ],
   }),
   component: () => (
     <div className="space-y-6">
-      <ModuleHeader
-        icon={Hand}
-        title="Welcome messages"
-        description="Greet joining members and announce leaves in the channels you choose."
-      />
+      <ModuleHeader icon={Hand} title="Welcome messages" description="Greet joining members and announce leaves in the channels you choose." />
       <WithConfig>
         {({ guildId, config, refresh }) => (
           <PremiumGate feature="welcome">
