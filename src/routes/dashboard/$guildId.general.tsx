@@ -8,9 +8,9 @@ import { RoleManagerPanel } from "@/components/dashboard/role-manager-panel";
 export const Route = createFileRoute("/dashboard/$guildId/general")({
   head: () => ({
     meta: [
-      { title: "General settings — !PIRATE Control Center" },
-      { name: "description", content: "Set !PIRATE's prefix, language, currency and core server defaults." },
-      { property: "og:title", content: "General settings — !PIRATE Control Center" },
+      { title: "General settings — ! HOY BOT Control Center" },
+      { name: "description", content: "Set ! HOY BOT's prefix, language, currency and core server defaults." },
+      { property: "og:title", content: "General settings — ! HOY BOT Control Center" },
       { property: "og:description", content: "Prefix, language, currency and core server defaults." },
     ],
   }),
@@ -19,7 +19,7 @@ export const Route = createFileRoute("/dashboard/$guildId/general")({
       <ModuleHeader
         icon={Settings}
         title="General settings"
-        description="Core !PIRATE behaviour for this server."
+        description="Core ! HOY BOT behaviour for this server."
       />
       <WithConfig>
         {({ guildId, config, refresh }) => (
