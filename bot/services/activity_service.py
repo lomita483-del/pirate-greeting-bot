@@ -1,9 +1,4 @@
-"""Durable activity logging.
-
-Every significant server event is written to ``activity_logs`` so the
-dashboard can show a filterable audit trail, and (when the matching logging
-category is enabled) mirrored to the Discord log channel by ``LogService``.
-"""
+"""Durable activity logging with concise, actionable Discord audit entries."""
 
 from __future__ import annotations
 
@@ -48,10 +43,20 @@ def _metadata_lines(metadata: Optional[dict[str, Any]]) -> str:
     for key, value in metadata.items():
         if value is None or value == "":
             continue
-        text = str(value)
+        label = str(key).replace("_", " ").title()
+        if isinstance(value, list):
+            rendered: list[str] = []
+            for item in value:
+                if isinstance(item, dict):
+                    rendered.append(str(item.get("name") or item.get("value") or "—"))
+                else:
+                    rendered.append(str(item))
+            text = ", ".join(rendered)
+        else:
+            text = str(value)
         if len(text) > 500:
             text = text[:497] + "..."
-        lines.append(f"**{str(key).replace('_', ' ').title()}:** {text}")
+        lines.append(f"**{label}:** {text}")
     return "\n".join(lines)
 
 
@@ -72,7 +77,7 @@ class ActivityService:
         metadata: Optional[dict[str, Any]] = None,
         embed: Optional[discord.Embed] = None,
     ) -> None:
-        """Persist an activity row and optionally mirror a complete audit record to Discord."""
+        """Persist an activity row and optionally mirror it to Discord."""
         if guild is None:
             return
         try:
@@ -93,42 +98,52 @@ class ActivityService:
         except Exception as exc:
             log.warning("Activity log write failed (%s): %s", category, exc)
 
-        if embed is not None:
-            setting = CATEGORY_TO_SETTING.get(category)
-            if setting:
-                # Enrich every mirrored audit embed with the same context that
-                # exists in the database. This makes Discord logs actionable
-                # without forcing an admin to cross-reference IDs manually.
-                try:
-                    audit = embed.copy()
-                    audit.add_field(
-                        name="🛡️ SERVER",
-                        value=f"**{guild.name}**\n`{guild.id}`",
-                        inline=True,
-                    )
-                    if channel is not None:
-                        audit.add_field(
-                            name="💬 CHANNEL",
-                            value=f"**#{getattr(channel, 'name', 'unknown')}**\n`{channel.id}`",
-                            inline=True,
-                        )
-                    if actor is not None:
-                        audit.add_field(
-                            name="👤 ACTOR",
-                            value=f"**{actor}**\n<@{actor.id}>\n`{actor.id}`",
-                            inline=True,
-                        )
-                    if target is not None:
-                        audit.add_field(
-                            name="🎯 TARGET",
-                            value=f"**{target}**\n<@{target.id}>\n`{target.id}`",
-                            inline=True,
-                        )
-                    audit.add_field(name="📌 EVENT", value=f"`{category}`\n{summary[:900]}", inline=False)
-                    details = _metadata_lines(metadata)
-                    if details:
-                        audit.add_field(name="🧾 DETAILS", value=details[:1024], inline=False)
-                    audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
-                    await self.logs.send(guild, setting, audit)
-                except Exception as exc:
-                    log.warning("Could not enrich audit embed for %s: %s", category, exc)
+        if embed is None:
+            return
+        setting = CATEGORY_TO_SETTING.get(category)
+        if not setting:
+            return
+
+        try:
+            audit = embed.copy()
+            if audit.title:
+                audit.title = f"*_{audit.title.replace('*_', '').replace('_*', '')}_*"
+            if audit.description:
+                audit.description = f"_{audit.description.strip('_')}_"
+
+            audit.add_field(
+                name="Server",
+                value=f"**{guild.name}**",
+                inline=True,
+            )
+            if channel is not None:
+                audit.add_field(
+                    name="Channel",
+                    value=getattr(channel, "mention", f"#{getattr(channel, 'name', 'unknown')}"),
+                    inline=True,
+                )
+            if actor is not None:
+                audit.add_field(
+                    name="Action by",
+                    value=actor.mention if hasattr(actor, "mention") else str(actor),
+                    inline=True,
+                )
+            if target is not None:
+                audit.add_field(
+                    name="Member",
+                    value=target.mention if hasattr(target, "mention") else str(target),
+                    inline=True,
+                )
+
+            audit.add_field(
+                name="Log",
+                value=f"_{summary[:900]}_",
+                inline=False,
+            )
+            details = _metadata_lines(metadata)
+            if details:
+                audit.add_field(name="Details", value=details[:1024], inline=False)
+            audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
+            await self.logs.send(guild, setting, audit)
+        except Exception as exc:
+            log.warning("Could not enrich audit embed for %s: %s", category, exc)
