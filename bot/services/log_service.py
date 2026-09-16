@@ -49,6 +49,13 @@ class LogService:
     async def log(self, guild: Optional[discord.Guild], event_type: str, embed: discord.Embed) -> None:
         if guild is None:
             return
+
+        # activity_events.py creates one combined, detailed member_roles entry
+        # and one before/after nickname entry. Suppress the older granular
+        # copies so a single Discord event never produces two messages.
+        if event_type in {"user_roles_add", "user_roles_remove", "user_name_update"}:
+            return
+
         try:
             config = await self.settings.get(str(guild.id), "logging_settings")
             if not config or not config.get("enabled"):
