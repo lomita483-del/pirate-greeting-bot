@@ -51,7 +51,22 @@ class LogService:
         if guild is None:
             return
 
-        if event_type in {"user_roles_add", "user_roles_remove", "user_name_update"}:
+        # These events are rendered by ActivityEvents as one detailed audit
+        # entry. Suppressing the legacy copies prevents duplicate logs and,
+        # importantly, keeps role additions/removals in the same message.
+        if event_type in {
+            "user_join",
+            "user_leave",
+            "user_roles_add",
+            "user_roles_remove",
+            "user_name_update",
+            "user_avatar_update",
+            "user_timed_out",
+            "user_timeout_removed",
+            "voice_user_join",
+            "voice_user_leave",
+            "voice_user_switch",
+        }:
             return
 
         try:
@@ -134,10 +149,10 @@ class LogService:
         moderator_text = moderator.mention if moderator is not None else "AHOY AutoMod"
         title = f"Moderation · {action.title()}"
         description = (
-            f"**Action:** `/{action}`\n"
-            f"**Member:** {target_text}\n"
-            f"**Action by:** {moderator_text}\n"
-            f"**Reason:** {reason}"
+            f"Action: `/{action}`\n"
+            f"Member: {target_text}\n"
+            f"Action by: {moderator_text}\n"
+            f"Reason: {reason}"
             + (f"\n{extra}" if extra else "")
         )
         embed = embeds.info(title, description)
