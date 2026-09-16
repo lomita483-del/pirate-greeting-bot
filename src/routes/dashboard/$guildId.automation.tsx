@@ -1,36 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Shield } from "lucide-react";
+import { Workflow } from "lucide-react";
 
-import { CasesPanel } from "@/components/dashboard/cases-panel";
-import { ReportsPanel } from "@/components/dashboard/reports-panel";
-import { AppealsPanel } from "@/components/dashboard/appeals-panel";
-import { useGuild } from "@/components/dashboard/guild-context";
-import { ModuleHeader } from "@/components/dashboard/module-page";
+import { AnnouncementsPanel, StatChannelsPanel } from "@/components/dashboard/automation-panels";
+import { ModuleHeader, WithConfig } from "@/components/dashboard/module-page";
 
 export const Route = createFileRoute("/dashboard/$guildId/automation")({
   head: () => ({
     meta: [
-      { title: "Moderation — !PIRATE Control Center" },
-      { name: "description", content: "Manage all ban, kick, mute and warn cases handled by !PIRATE." },
-      { property: "og:title", content: "Moderation — !PIRATE Control Center" },
-      { property: "og:description", content: "Manage all ban, kick, mute and warn cases." },
+      { title: "Automation — ! HOY BOT Control Center" },
+      { name: "description", content: "Schedule recurring announcements and live server stat channels with ! HOY BOT." },
+      { property: "og:title", content: "Automation — ! HOY BOT Control Center" },
+      { property: "og:description", content: "Recurring announcements and live server statistics automation." },
     ],
   }),
-  component: ModerationPage,
-});
-
-function ModerationPage() {
-  const { guildId } = useGuild();
-  return (
-    <div className="space-y-6">
+  component: () => (
+    <div>
       <ModuleHeader
-        icon={Shield}
-        title="Moderation"
-        description="Manage cases, review member reports, and handle appeals from the dashboard."
+        icon={Workflow}
+        title="Automation"
+        description="Build recurring announcements and keep server statistics visible automatically."
       />
-      <CasesPanel guildId={guildId} />
-      <ReportsPanel guildId={guildId} />
-      <AppealsPanel guildId={guildId} />
+      <WithConfig>
+        {({ guildId, config, refresh }) => (
+          <div className="space-y-6">
+            <AnnouncementsPanel guildId={guildId} structure={config.structure} />
+            <StatChannelsPanel guildId={guildId} structure={config.structure} />
+          </div>
+        )}
+      </WithConfig>
     </div>
-  );
-}
+  ),
+});
