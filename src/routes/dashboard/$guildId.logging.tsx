@@ -7,23 +7,17 @@ import { LoggingPanel } from "@/components/dashboard/settings-panels";
 export const Route = createFileRoute("/dashboard/$guildId/logging")({
   head: () => ({
     meta: [
-      { title: "Logging — !PIRATE Control Center" },
+      { title: "Logging — ! HOY BOT Control Center" },
       { name: "description", content: "Log moderation actions, message edits, deletions and member updates." },
-      { property: "og:title", content: "Logging — !PIRATE Control Center" },
+      { property: "og:title", content: "Logging — ! HOY BOT Control Center" },
       { property: "og:description", content: "Log moderation, messages and member updates." },
     ],
   }),
   component: () => (
     <div>
-      <ModuleHeader
-        icon={ScrollText}
-        title="Logging"
-        description="Log all actions happening in this server to the channels you pick."
-      />
+      <ModuleHeader icon={ScrollText} title="Logging" description="Log all actions happening in this server to the channels you pick." />
       <WithConfig>
-        {({ guildId, config, refresh }) => (
-          <LoggingPanel guildId={guildId} config={config} onSaved={refresh} />
-        )}
+        {({ guildId, config, refresh }) => <LoggingPanel guildId={guildId} config={config} onSaved={refresh} />}
       </WithConfig>
     </div>
   ),
