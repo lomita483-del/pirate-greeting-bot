@@ -42,61 +42,34 @@ export const getGiveawayManager = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => guildInput.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    const { data: giveaways, error } = await supabaseAdmin
+    const db = supabaseAdmin as any;
+    const { data: giveaways, error } = await db
       .from("giveaways")
       .select("id, channel_id, message_id, prize, winner_count, ends_at, status, winner_ids, host_name, host_id, settings, created_at, updated_at")
       .eq("guild_id", data.guildId)
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) throw new Error("Could not load giveaways.");
-
-    const ids = (giveaways ?? []).map((g) => g.id);
+    const ids = (giveaways ?? []).map((g: any) => g.id);
     let entries: Array<{ giveaway_id: string; user_id: string; weight: number; created_at: string }> = [];
     if (ids.length) {
-      const result = await supabaseAdmin
-        .from("giveaway_entries")
-        .select("giveaway_id, user_id, weight, created_at")
-        .in("giveaway_id", ids)
-        .order("created_at", { ascending: false })
-        .limit(50000);
+      const result = await db.from("giveaway_entries").select("giveaway_id, user_id, weight, created_at").in("giveaway_id", ids).order("created_at", { ascending: false }).limit(50000);
       entries = result.data ?? [];
     }
     const counts = new Map<string, number>();
     for (const entry of entries) counts.set(entry.giveaway_id, (counts.get(entry.giveaway_id) ?? 0) + 1);
-    return {
-      giveaways: (giveaways ?? []).map((g) => ({ ...g, entry_count: counts.get(g.id) ?? 0 })),
-    };
+    return { giveaways: (giveaways ?? []).map((g: any) => ({ ...g, entry_count: counts.get(g.id) ?? 0 })) };
   });
 
 export const createGiveawayFromDashboard = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => createInput.parse(data))
   .handler(async ({ data }) => {
     const { session, supabaseAdmin } = await authorize(data.guildId);
+    const db = supabaseAdmin as any;
     const endsAt = new Date(data.ends_at);
-    if (Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now() + 30_000) {
-      throw new Error("Giveaway end time must be at least 30 seconds in the future.");
-    }
-    const settings = settingsSchema.parse({
-      description: data.description,
-      required_role_id: data.required_role_id,
-      bonus_role_id: data.bonus_role_id,
-      bonus_entries: data.bonus_entries,
-      min_account_age_days: data.min_account_age_days,
-      entry_mode: "button",
-    });
-    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
-      guild_id: data.guildId,
-      action: "giveaway_create",
-      payload: {
-        channel_id: data.channel_id,
-        prize: data.prize.trim(),
-        winner_count: data.winner_count,
-        ends_at: endsAt.toISOString(),
-        settings,
-      },
-      requested_by: session.userId,
-      status: "pending",
-    });
+    if (Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now() + 30_000) throw new Error("Giveaway end time must be at least 30 seconds in the future.");
+    const settings = settingsSchema.parse({ description: data.description, required_role_id: data.required_role_id, bonus_role_id: data.bonus_role_id, bonus_entries: data.bonus_entries, min_account_age_days: data.min_account_age_days, entry_mode: "button" });
+    const { error } = await db.from("bot_action_queue").insert({ guild_id: data.guildId, action: "giveaway_create", payload: { channel_id: data.channel_id, prize: data.prize.trim(), winner_count: data.winner_count, ends_at: endsAt.toISOString(), settings }, requested_by: session.userId, status: "pending" });
     if (error) throw new Error("Could not queue that giveaway.");
     return { ok: true };
   });
@@ -107,58 +80,42 @@ export const updateGiveawayFromDashboard = createServerFn({ method: "POST" })
   .inputValidator((data: unknown) => updateInput.parse(data))
   .handler(async ({ data }) => {
     const { session, supabaseAdmin } = await authorize(data.guildId);
-    const existing = await supabaseAdmin.from("giveaways").select("id, status").eq("id", data.id).eq("guild_id", data.guildId).maybeSingle();
+    const db = supabaseAdmin as any;
+    const existing = await db.from("giveaways").select("id, status").eq("id", data.id).eq("guild_id", data.guildId).maybeSingle();
     if (!existing.data) throw new Error("Giveaway not found.");
     if (existing.data.status !== "running") throw new Error("Only running giveaways can be edited.");
+    const endsAt = new Date(data.ends_at);
+    if (Number.isNaN(endsAt.getTime()) || endsAt.getTime() <= Date.now() + 30_000) throw new Error("Giveaway end time must be at least 30 seconds in the future.");
     const settings = settingsSchema.parse({ description: data.description, required_role_id: data.required_role_id, bonus_role_id: data.bonus_role_id, bonus_entries: data.bonus_entries, min_account_age_days: data.min_account_age_days, entry_mode: "button" });
-    const { error } = await supabaseAdmin.from("bot_action_queue").insert({
-      guild_id: data.guildId,
-      action: "giveaway_edit",
-      target_id: data.id,
-      payload: { prize: data.prize.trim(), winner_count: data.winner_count, ends_at: new Date(data.ends_at).toISOString(), settings },
-      requested_by: session.userId,
-      status: "pending",
-    });
+    const { error } = await db.from("bot_action_queue").insert({ guild_id: data.guildId, action: "giveaway_edit", target_id: data.id, payload: { prize: data.prize.trim(), winner_count: data.winner_count, ends_at: endsAt.toISOString(), settings }, requested_by: session.userId, status: "pending" });
     if (error) throw new Error("Could not queue that giveaway edit.");
     return { ok: true };
   });
 
 async function queueGiveawayAction(guildId: string, id: string, action: string) {
   const { session, supabaseAdmin } = await authorize(guildId);
-  const { data: row } = await supabaseAdmin.from("giveaways").select("id, status").eq("id", id).eq("guild_id", guildId).maybeSingle();
+  const db = supabaseAdmin as any;
+  const { data: row } = await db.from("giveaways").select("id, status").eq("id", id).eq("guild_id", guildId).maybeSingle();
   if (!row) throw new Error("Giveaway not found.");
-  if (action === "giveaway_end" && row.status !== "running") throw new Error("That giveaway is not running.");
-  if (action === "giveaway_cancel" && row.status !== "running") throw new Error("That giveaway is not running.");
+  if ((action === "giveaway_end" || action === "giveaway_cancel") && row.status !== "running") throw new Error("That giveaway is not running.");
   if (action === "giveaway_reroll" && row.status !== "ended") throw new Error("Only ended giveaways can be rerolled.");
-  const { error } = await supabaseAdmin.from("bot_action_queue").insert({ guild_id: guildId, action, target_id: id, payload: { giveaway_id: id }, requested_by: session.userId, status: "pending" });
+  const { error } = await db.from("bot_action_queue").insert({ guild_id: guildId, action, target_id: id, payload: { giveaway_id: id }, requested_by: session.userId, status: "pending" });
   if (error) throw new Error("Could not queue that giveaway action.");
   return { ok: true };
 }
 
-export const endGiveawayFromDashboard = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => rowInput.parse(data))
-  .handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_end"));
-
-export const cancelGiveawayFromDashboard = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => rowInput.parse(data))
-  .handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_cancel"));
-
-export const rerollGiveawayFromDashboard = createServerFn({ method: "POST" })
-  .inputValidator((data: unknown) => rowInput.parse(data))
-  .handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_reroll"));
+export const endGiveawayFromDashboard = createServerFn({ method: "POST" }).inputValidator((data: unknown) => rowInput.parse(data)).handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_end"));
+export const cancelGiveawayFromDashboard = createServerFn({ method: "POST" }).inputValidator((data: unknown) => rowInput.parse(data)).handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_cancel"));
+export const rerollGiveawayFromDashboard = createServerFn({ method: "POST" }).inputValidator((data: unknown) => rowInput.parse(data)).handler(async ({ data }) => queueGiveawayAction(data.guildId, data.id, "giveaway_reroll"));
 
 export const getGiveawayEntries = createServerFn({ method: "GET" })
   .inputValidator((data: unknown) => rowInput.parse(data))
   .handler(async ({ data }) => {
     const { supabaseAdmin } = await authorize(data.guildId);
-    const { data: giveaway } = await supabaseAdmin.from("giveaways").select("id").eq("id", data.id).eq("guild_id", data.guildId).maybeSingle();
+    const db = supabaseAdmin as any;
+    const { data: giveaway } = await db.from("giveaways").select("id").eq("id", data.id).eq("guild_id", data.guildId).maybeSingle();
     if (!giveaway) throw new Error("Giveaway not found.");
-    const { data: entries, error } = await supabaseAdmin
-      .from("giveaway_entries")
-      .select("user_id, weight, created_at, updated_at")
-      .eq("giveaway_id", data.id)
-      .order("created_at", { ascending: true })
-      .limit(50000);
+    const { data: entries, error } = await db.from("giveaway_entries").select("user_id, weight, created_at, updated_at").eq("giveaway_id", data.id).order("created_at", { ascending: true }).limit(50000);
     if (error) throw new Error("Could not load giveaway entries.");
     return { entries: entries ?? [] };
   });
