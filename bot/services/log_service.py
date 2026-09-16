@@ -1,4 +1,4 @@
-"""Server event logging with clean, readable, professional audit formatting."""
+"""Server event logging with clean, compact, professional Discord formatting."""
 
 from __future__ import annotations
 
@@ -27,15 +27,13 @@ GRANULAR_TO_CATEGORY: dict[str, str] = {
     "moderation_automod": "moderation_actions", "moderation_report": "moderation_actions",
 }
 
-# ActivityEvents owns member/voice events. GuildEvents owns structural events
-# so each Discord action produces one detailed audit message, not duplicates.
+# ActivityEvents owns member/message/voice events. GuildEvents owns structural
+# events. This prevents the same Discord action from being posted twice.
 _ACTIVITY_OWNED = {
-    "user_join", "user_leave", "user_roles_add", "user_roles_remove",
-    "user_name_update", "user_avatar_update", "user_timed_out", "user_timeout_removed",
-    "voice_user_join", "voice_user_leave", "voice_user_switch",
-    "channel_create", "channel_delete", "channel_name_update", "channel_topic_update",
-    "channel_nsfw_update", "channel_parent_update", "channel_slow_mode_update",
-    "invite_create", "invite_delete",
+    "user_join", "user_leave", "user_roles_add", "user_roles_remove", "user_name_update", "user_avatar_update",
+    "user_timed_out", "user_timeout_removed", "voice_user_join", "voice_user_leave", "voice_user_switch",
+    "channel_create", "channel_delete", "channel_name_update", "channel_topic_update", "channel_nsfw_update",
+    "channel_parent_update", "channel_slow_mode_update", "invite_create", "invite_delete",
 }
 
 _LEADING_MARKS = re.compile(r"^[\s\u200b]*(?:[\U0001F1E6-\U0001FAFF\u2600-\u27BF\u2300-\u23FF\u2B00-\u2BFF]|[\uFE0F\u200D])+\s*")
@@ -53,6 +51,11 @@ def _clean_field_name(name: str) -> str:
     name = _LEADING_MARKS.sub("", name or "").strip()
     name = name.replace("**", "").replace("*_", "").replace("_*", "").strip()
     return name or "Details"
+
+
+def _italic(text: str) -> str:
+    text = text.strip().strip("_")
+    return f"_{text}_" if text else ""
 
 
 class LogService:
@@ -115,7 +118,10 @@ class LogService:
         return None
 
     async def _deliver(self, guild: discord.Guild, channel_id: str, embed: discord.Embed, event_type: str) -> None:
-        channel = guild.get_channel(int(channel_id))
+        try:
+            channel = guild.get_channel(int(channel_id))
+        except (TypeError, ValueError):
+            channel = None
         if not isinstance(channel, discord.TextChannel):
             return
         perms = channel.permissions_for(guild.me)
@@ -125,21 +131,23 @@ class LogService:
         audit = embed.copy()
         title = _clean_title(audit.title)
         if title:
-            audit.title = f"*_{title}_*"
+            # Requested format: *Title* — not *_Title_*
+            audit.title = f"*{title}*"
         if audit.description:
             description = audit.description.strip()
-            if not (description.startswith("_") and description.endswith("_")):
-                audit.description = f"_{description.strip('_')}_"
+            # Keep code blocks and links readable; only wrap ordinary prose.
+            if not description.startswith("```") and not (description.startswith("_") and description.endswith("_")):
+                audit.description = _italic(description)
 
         for field in audit.fields:
-            field.name = f"*_{_clean_field_name(field.name)}_*"
-
-        audit.add_field(name="*_Server_*", value=guild.name, inline=True)
-        audit.add_field(name="*_Log type_*", value=f"`{event_type}`", inline=True)
+            field.name = f"*{_clean_field_name(field.name)}*"
 
         if event_type in {"message_delete", "message_bulk_delete"}:
             deleter = await self._find_message_deleter(guild, embed)
-            audit.add_field(name="*_Deleted by_*", value=deleter.mention if deleter is not None else "Audit actor unavailable", inline=True)
+            # ActivityService normally supplies this already. Only add it here
+            # for legacy message-delete embeds that lack an actor field.
+            if deleter is not None and not any("Deleted by" in f.name for f in audit.fields):
+                audit.add_field(name="*Deleted by*", value=deleter.mention, inline=True)
 
         audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
         await channel.send(embed=audit)
@@ -148,6 +156,9 @@ class LogService:
                          moderator: discord.abc.User | None, reason: str, extra: str = "") -> None:
         target_text = target.mention if target is not None else "Unknown member"
         moderator_text = moderator.mention if moderator is not None else "AHOY AutoMod"
-        title = f"Moderation · {action.title()}"
-        description = f"Action: `/{action}`\nMember: {target_text}\nAction by: {moderator_text}\nReason: {reason}" + (f"\n{extra}" if extra else "")
-        await self.log(guild, f"moderation_{action}", embeds.info(title, description))
+        description = f"{target_text} was {action.lower()} from the server by {moderator_text}."
+        if reason and reason != "No reason recorded":
+            description += f"\nReason: {reason}"
+        if extra:
+            description += f"\n{extra}"
+        await self.log(guild, f"moderation_{action}", embeds.info(f"Member {action.title()}", description))
