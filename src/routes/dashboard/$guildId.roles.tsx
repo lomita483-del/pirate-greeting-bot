@@ -8,9 +8,9 @@ import { RolesPanel } from "@/components/dashboard/roles-panel";
 export const Route = createFileRoute("/dashboard/$guildId/roles")({
   head: () => ({
     meta: [
-      { title: "Roles — !PIRATE Control Center" },
+      { title: "Roles — ! HOY BOT Control Center" },
       { name: "description", content: "Configure join roles and level-based role rewards for your members." },
-      { property: "og:title", content: "Roles — !PIRATE Control Center" },
+      { property: "og:title", content: "Roles — ! HOY BOT Control Center" },
       { property: "og:description", content: "Join roles and level-based role rewards." },
     ],
   }),
