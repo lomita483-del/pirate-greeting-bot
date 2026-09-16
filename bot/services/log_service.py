@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 import discord
@@ -50,9 +51,6 @@ class LogService:
         if guild is None:
             return
 
-        # activity_events.py creates one combined, detailed member_roles entry
-        # and one before/after nickname entry. Suppress the older granular
-        # copies so a single Discord event never produces two messages.
         if event_type in {"user_roles_add", "user_roles_remove", "user_name_update"}:
             return
 
@@ -72,6 +70,29 @@ class LogService:
         except Exception as exc:
             log.warning("Failed to write granular log '%s' for guild %s: %s", event_type, guild.id, exc)
 
+    async def _find_message_deleter(self, guild: discord.Guild, embed: discord.Embed) -> Optional[discord.abc.User]:
+        """Resolve the moderator who deleted a message from Discord audit logs."""
+        if not guild.me.guild_permissions.view_audit_log:
+            return None
+        description = embed.description or ""
+        author_match = re.search(r"<@!?([0-9]+)>", description)
+        channel_match = re.search(r"<#([0-9]+)>", description)
+        author_id = int(author_match.group(1)) if author_match else None
+        channel_id = int(channel_match.group(1)) if channel_match else None
+        try:
+            async for entry in guild.audit_logs(limit=12, action=discord.AuditLogAction.message_delete):
+                target_id = getattr(entry.target, "id", None)
+                extra = getattr(entry, "extra", None)
+                extra_channel_id = getattr(getattr(extra, "channel", None), "id", None)
+                if author_id is not None and target_id != author_id:
+                    continue
+                if channel_id is not None and extra_channel_id not in {None, channel_id}:
+                    continue
+                return entry.user
+        except (discord.Forbidden, discord.HTTPException, discord.ClientException):
+            return None
+        return None
+
     async def _deliver(self, guild: discord.Guild, channel_id: str, embed: discord.Embed, event_type: str) -> None:
         channel = guild.get_channel(int(channel_id))
         if not isinstance(channel, discord.TextChannel):
@@ -88,6 +109,15 @@ class LogService:
             audit.description = f"_{audit.description.strip('_')}_"
         audit.add_field(name="Server", value=f"**{guild.name}**", inline=True)
         audit.add_field(name="Log type", value=f"`{event_type}`", inline=True)
+
+        if event_type in {"message_delete", "message_bulk_delete"}:
+            deleter = await self._find_message_deleter(guild, embed)
+            audit.add_field(
+                name="Deleted by",
+                value=deleter.mention if deleter is not None else "Discord audit actor unavailable",
+                inline=True,
+            )
+
         audit.set_footer(text="!HOY BOT  •  Detailed Audit Log")
         await channel.send(embed=audit)
 
