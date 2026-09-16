@@ -145,4 +145,10 @@
   .relative.z-10 > [class*="min-h-screen"] {
     background-color: transparent !important;
   }
+
+  /* Owner Console already has the hamburger command menu above, so the
+     duplicate bottom tab bar is intentionally hidden. */
+  nav[aria-label="Owner console navigation"] {
+    display: none !important;
+  }
 }
