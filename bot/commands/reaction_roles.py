@@ -10,13 +10,7 @@ from discord import app_commands
 from discord.ext import commands, tasks
 
 from ..utils import embeds
-from ..utils.checks import (
-    ActionRefused,
-    ensure_assignable_role,
-    ensure_bot_permission,
-    ensure_guild,
-    ensure_permission,
-)
+from ..utils.checks import ActionRefused, ensure_assignable_role, ensure_bot_permission, ensure_guild, ensure_permission
 from ..utils.logger import get_logger
 from ..utils.parsing import clean_text
 
@@ -36,9 +30,7 @@ def normalise_emoji(raw: str) -> str:
 
 
 def display_emoji(value: str) -> str | discord.PartialEmoji:
-    if str(value).isdigit():
-        return discord.PartialEmoji(name="role", id=int(value))
-    return value
+    return discord.PartialEmoji(name="role", id=int(value)) if str(value).isdigit() else value
 
 
 class ReactionRoleView(discord.ui.View):
@@ -51,11 +43,9 @@ class ReactionRoleView(discord.ui.View):
             role_id = str(row.get("role_id") or "")
             if not role_id.isdigit():
                 continue
-            emoji = str(row.get("emoji") or "")
-            label = str(row.get("description") or "Role")[:80]
             button = discord.ui.Button(
-                label=label,
-                emoji=display_emoji(emoji),
+                label=str(row.get("description") or "Role")[:80],
+                emoji=display_emoji(str(row.get("emoji") or "")),
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"hoy:role:{row.get('message_id')}:{role_id}",
             )
@@ -78,16 +68,13 @@ class ReactionRoleView(discord.ui.View):
                 member = interaction.user
                 if role in member.roles:
                     await member.remove_roles(role, reason="! HOY role picker")
-                    action = "removed"
-                    detail = f"Removed {role.mention} from {member.mention}."
+                    action, detail = "removed", f"Removed {role.mention} from {member.mention}."
                 else:
                     await member.add_roles(role, reason="! HOY role picker")
-                    action = "added"
-                    detail = f"Added {role.mention} to {member.mention}."
+                    action, detail = "added", f"Added {role.mention} to {member.mention}."
                 try:
                     await self.bot.repo.log_activity({
-                        "guild_id": str(guild.id),
-                        "kind": "reaction_role_toggle",
+                        "guild_id": str(guild.id), "kind": "reaction_role_toggle",
                         "summary": f"{member} {action} role {role.name}",
                         "metadata": {"user_id": str(member.id), "role_id": str(role.id), "action": action},
                     })
@@ -95,24 +82,14 @@ class ReactionRoleView(discord.ui.View):
                     log.warning("Could not record role toggle", exc_info=True)
                 await interaction.response.send_message(embed=embeds.success("Role updated", detail), ephemeral=True)
             except (ActionRefused, discord.Forbidden) as exc:
-                await interaction.response.send_message(
-                    embed=embeds.error("Role could not be updated", str(exc) or "Discord rejected the role change."),
-                    ephemeral=True,
-                )
+                await interaction.response.send_message(embed=embeds.error("Role could not be updated", str(exc) or "Discord rejected the role change."), ephemeral=True)
             except discord.HTTPException:
-                await interaction.response.send_message(
-                    embed=embeds.error("Discord error", "Discord rejected that role change. Check the bot's role position."),
-                    ephemeral=True,
-                )
+                await interaction.response.send_message(embed=embeds.error("Discord error", "Discord rejected that role change. Check the bot's role position."), ephemeral=True)
         return callback
 
 
 class ReactionRoles(commands.Cog):
-    group = app_commands.Group(
-        name="reactionrole",
-        description="Let members self-assign roles with persistent buttons.",
-        guild_only=True,
-    )
+    group = app_commands.Group(name="reactionrole", description="Let members self-assign roles with persistent buttons.", guild_only=True)
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
@@ -121,9 +98,18 @@ class ReactionRoles(commands.Cog):
     def cog_unload(self) -> None:
         self._restore_task.cancel()
 
-    async def _restore_views(self) -> None:
+    async def _register_view(self, message_id: str, rows: list[dict[str, Any]]) -> None:
+        view = ReactionRoleView(self.bot, rows)
+        if not view.children or not message_id.isdigit():
+            return
         try:
-            for guild in self.bot.guilds:
+            self.bot.add_view(view, message_id=int(message_id))
+        except ValueError:
+            pass
+
+    async def _restore_views(self) -> None:
+        for guild in self.bot.guilds:
+            try:
                 rows = await self.bot.repo.guild_reaction_roles(str(guild.id))  # type: ignore[attr-defined]
                 grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
                 for row in rows:
@@ -131,11 +117,9 @@ class ReactionRoles(commands.Cog):
                     if message_id.isdigit():
                         grouped[message_id].append(row)
                 for message_id, message_rows in grouped.items():
-                    view = ReactionRoleView(self.bot, message_rows)
-                    if view.children:
-                        self.bot.add_view(view, message_id=int(message_id))
-        except Exception:
-            log.exception("Failed to restore reaction-role button views")
+                    await self._register_view(message_id, message_rows)
+            except Exception:
+                log.warning("Could not restore role pickers for guild %s", guild.id, exc_info=True)
 
     @tasks.loop(seconds=15)
     async def _restore_task(self) -> None:
@@ -153,7 +137,10 @@ class ReactionRoles(commands.Cog):
         rows = await self.bot.repo.reaction_roles_for_message(str(message.id))  # type: ignore[attr-defined]
         view = ReactionRoleView(self.bot, rows)
         if view.children:
-            self.bot.add_view(view, message_id=message.id)
+            try:
+                self.bot.add_view(view, message_id=message.id)
+            except ValueError:
+                pass
         await message.edit(view=view if view.children else None)
 
     @group.command(name="create", description="Post a role-picker panel with persistent buttons.")
@@ -163,9 +150,8 @@ class ReactionRoles(commands.Cog):
         ensure_permission(interaction, "manage_roles")
         ensure_bot_permission(guild, "manage_roles")
         await interaction.response.defer(ephemeral=True)
-        embed = embeds.brand(clean_text(title, 200), clean_text(description, 2000))
         try:
-            message = await channel.send(embed=embed)
+            message = await channel.send(embed=embeds.brand(clean_text(title, 200), clean_text(description, 2000)))
         except discord.HTTPException as exc:
             raise ActionRefused("I could not post in that channel.") from exc
         await interaction.followup.send(embed=embeds.success("Role picker posted", f"Message ID `{message.id}` in {channel.mention}. Add buttons with `/reactionrole add message_id:{message.id} emoji:… role:…`."), ephemeral=True)
@@ -191,12 +177,8 @@ class ReactionRoles(commands.Cog):
         except discord.Forbidden as exc:
             raise ActionRefused("I cannot read messages in that channel.") from exc
         await self.bot.repo.add_reaction_role({
-            "guild_id": str(guild.id),
-            "channel_id": str(target_channel.id),
-            "message_id": str(message.id),
-            "emoji": stored,
-            "role_id": str(role.id),
-            "created_by": str(interaction.user.id),
+            "guild_id": str(guild.id), "channel_id": str(target_channel.id), "message_id": str(message.id),
+            "emoji": stored, "role_id": str(role.id), "created_by": str(interaction.user.id),
             "description": clean_text(label or role.name, 80),
         })
         await self._refresh_message_view(target_channel, message)
