@@ -2,12 +2,19 @@ import { createFileRoute } from "@tanstack/react-router";
 
 import { authorizeUrl, sealState } from "@/lib/discord.server";
 
+function getDiscordRedirectUri(request: Request): string {
+  const configured = process.env.DISCORD_REDIRECT_URI?.trim();
+  if (configured) return configured;
+
+  const url = new URL(request.url);
+  return `${url.origin}/api/public/auth/discord/callback`;
+}
+
 export const Route = createFileRoute("/api/public/auth/discord/start")({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const url = new URL(request.url);
-        const redirectUri = `${url.origin}/api/public/auth/discord/callback`;
+        const redirectUri = getDiscordRedirectUri(request);
 
         try {
           const state = await sealState();
