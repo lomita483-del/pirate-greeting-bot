@@ -1,3 +1,4 @@
+
 @import "tailwindcss" source(none);
 @source "../src";
 @import "tw-animate-css";
@@ -140,7 +141,7 @@
 
 /* Keep the shared pirate artwork visible behind route shells. */
 @layer components {
-  .relative.z-10 > [class*="min-h-screen"] {
+  .relative.z-10 > .min-h-screen {
     background-color: transparent !important;
   }
 }
