@@ -121,6 +121,22 @@ async def delete_command_records(self,guild_id,namespace,label=None):
     for row in targets: await self.db.try_run(lambda c,i=row["id"]:c.table("command_records").delete().eq("id",i).execute())
     return len(targets)
 
+# Feature commands use a dedicated command_usage table. These methods are
+# installed onto Repository at import time, just like the other compatibility
+# helpers above. Keeping them here preserves the core repository API while
+# allowing older deployments to pick up the missing methods safely.
+async def log_command_usage(self, guild_id: str, command: str, category: str, user_id: str) -> None:
+    await self.db.try_run(lambda c: c.table("command_usage").insert({
+        "guild_id": guild_id,
+        "command": command,
+        "category": category,
+        "user_id": user_id,
+    }).execute())
+
+async def command_usage_count(self, guild_id: str, command: str) -> int:
+    rows = await self.db.try_run(lambda c: c.table("command_usage").select("id").eq("guild_id", guild_id).eq("command", command).limit(5000).execute())
+    return len(getattr(rows, "data", None) or [])
+
 
 def install_repository_compat() -> None:
     methods = {name: value for name, value in globals().items() if callable(value) and name not in {"Repository","install_repository_compat"} and not name.startswith("_")}
