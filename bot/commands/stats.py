@@ -1,97 +1,122 @@
-"""Server-side statistics commands."""
-
+"""Privileged XP/rank controls; public overall statistics commands are removed."""
 from __future__ import annotations
-
+import re
 import discord
 from discord import app_commands
 from discord.ext import commands
-
+from ..services.level_service import LevelService, level_for_xp, xp_for_level
 from ..utils import embeds
 from ..utils.checks import ensure_guild
-from ..utils.parsing import humanize
+
+def _tokens(raw: str) -> list[str]:
+    return [x.strip() for x in raw.split(",") if x.strip()] if "," in raw else [raw.strip()]
+
+def _id(raw: str) -> int | None:
+    m = re.fullmatch(r"<@!?(\d{5,25})>", raw.strip()) or re.fullmatch(r"(\d{5,25})", raw.strip())
+    return int(m.group(1)) if m else None
+
+async def resolve_targets(guild: discord.Guild, raw: str) -> tuple[list[discord.Member], list[str]]:
+    found, missing, seen = [], [], set()
+    for token in _tokens(raw):
+        uid = _id(token); member = guild.get_member(uid) if uid else None
+        if member is None:
+            needle = token.lstrip("@").casefold()
+            member = discord.utils.find(lambda m: m.name.casefold() == needle or m.display_name.casefold() == needle or str(m).casefold() == needle, guild.members)
+        if member is None: missing.append(token)
+        elif member.id not in seen: found.append(member); seen.add(member.id)
+    return found, missing
 
 
-class Stats(commands.Cog):
-    def __init__(self, bot: commands.Bot) -> None:
-        self.bot = bot
+def admin_check():
+    return app_commands.checks.has_permissions(manage_guild=True)
 
-    @app_commands.command(name="serverstats", description="Live statistics for this server.")
+class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrator XP management"):
+    def __init__(self, bot: commands.Bot): self.bot = bot
+
+    @app_commands.command(name="give", description="Give XP to one or multiple users by username.")
+    @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames", amount="XP to add")
+    @admin_check()
     @app_commands.guild_only()
-    async def serverstats(self, interaction: discord.Interaction) -> None:
-        guild = ensure_guild(interaction)
-        await interaction.response.defer()
+    async def give(self, interaction: discord.Interaction, targets: str, amount: app_commands.Range[int, 1, 1_000_000]) -> None:
+        guild = ensure_guild(interaction); await interaction.response.defer(ephemeral=True); users, missing = await resolve_targets(guild, targets)
+        if not users: await interaction.followup.send(embed=embeds.error("No users found", "Use a username, mention, ID, or comma-separated usernames."), ephemeral=True); return
+        repo = self.bot.repo; lines = []
+        for member in users:
+            p = await repo.get_xp(str(guild.id), str(member.id)); xp = int(p.get("xp", 0) or 0) + int(amount); level = level_for_xp(xp)
+            await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": xp, "level": level, "messages": int(p.get("messages", 0) or 0), "last_awarded_at": p.get("last_awarded_at")})
+            await self.bot.levels.apply_rewards(member, level); lines.append(f"{member.mention} → **{xp:,} XP** · Lv **{level}**")
+        if missing: lines.append("\nUnresolved: " + ", ".join(f"`{x}`" for x in missing[:10]))
+        await interaction.followup.send(embed=embeds.success("XP awarded", "\n".join(lines[:21])), ephemeral=True)
 
-        text = len([c for c in guild.channels if isinstance(c, discord.TextChannel)])
-        voice = len([c for c in guild.channels if isinstance(c, discord.VoiceChannel)])
-        stage = len([c for c in guild.channels if isinstance(c, discord.StageChannel)])
-        categories = len(guild.categories)
-        humans = sum(1 for m in guild.members if not m.bot)
-        bots = sum(1 for m in guild.members if m.bot)
-        online = sum(
-            1 for m in guild.members if m.status is not discord.Status.offline and not m.bot
-        )
-        in_voice = sum(len(c.members) for c in guild.voice_channels)
-
-        embed = embeds.brand(
-            f"{guild.name} · server stats",
-            f"Created {discord.utils.format_dt(guild.created_at, 'D')} "
-            f"({discord.utils.format_dt(guild.created_at, 'R')})",
-        )
-        if guild.icon:
-            embed.set_thumbnail(url=guild.icon.url)
-        embed.add_field(
-            name="Members",
-            value=f"**{guild.member_count:,}** total\n{humans:,} humans · {bots:,} bots",
-        )
-        embed.add_field(name="Online", value=f"{online:,} now\n{in_voice:,} in voice")
-        embed.add_field(
-            name="Boosts",
-            value=f"Level {guild.premium_tier} · {guild.premium_subscription_count or 0} boosts",
-        )
-        embed.add_field(
-            name="Channels",
-            value=f"{text} text · {voice} voice\n{stage} stage · {categories} categories",
-        )
-        embed.add_field(name="Roles", value=f"{len(guild.roles) - 1}")
-        embed.add_field(name="Emojis", value=f"{len(guild.emojis)} · {len(guild.stickers)} stickers")
-        owner = guild.owner
-        embed.set_footer(text=f"Owner: {owner} ⚓" if owner else "AHOY ⚓")
-        await interaction.followup.send(embed=embed)
-
-    @app_commands.command(name="voicestats", description="Who is in voice right now.")
+    @app_commands.command(name="remove", description="Remove XP from one or multiple users by username.")
+    @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames", amount="XP to remove")
+    @admin_check()
     @app_commands.guild_only()
-    async def voicestats(self, interaction: discord.Interaction) -> None:
-        guild = ensure_guild(interaction)
-        await interaction.response.defer()
+    async def remove(self, interaction: discord.Interaction, targets: str, amount: app_commands.Range[int, 1, 1_000_000]) -> None:
+        guild = ensure_guild(interaction); await interaction.response.defer(ephemeral=True); users, missing = await resolve_targets(guild, targets)
+        if not users: await interaction.followup.send(embed=embeds.error("No users found"), ephemeral=True); return
+        repo = self.bot.repo; lines = []
+        for member in users:
+            p = await repo.get_xp(str(guild.id), str(member.id)); xp = max(0, int(p.get("xp", 0) or 0) - int(amount)); level = level_for_xp(xp)
+            await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": xp, "level": level, "messages": int(p.get("messages", 0) or 0), "last_awarded_at": p.get("last_awarded_at")}); lines.append(f"{member.mention} → **{xp:,} XP** · Lv **{level}**")
+        if missing: lines.append("\nUnresolved: " + ", ".join(f"`{x}`" for x in missing[:10]))
+        await interaction.followup.send(embed=embeds.success("XP removed", "\n".join(lines[:21])), ephemeral=True)
 
-        active = [c for c in guild.voice_channels if c.members]
-        lines = [
-            f"**{channel.name}** — {len(channel.members)} "
-            + ", ".join(m.display_name for m in channel.members[:10])
-            for channel in active
-        ]
+    @app_commands.command(name="level-up", description="Advance one or multiple users by exactly one level.")
+    @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames")
+    @admin_check()
+    @app_commands.guild_only()
+    async def level_up(self, interaction: discord.Interaction, targets: str) -> None:
+        guild = ensure_guild(interaction); await interaction.response.defer(ephemeral=True); users, missing = await resolve_targets(guild, targets)
+        if not users: await interaction.followup.send(embed=embeds.error("No users found"), ephemeral=True); return
+        repo = self.bot.repo; lines = []
+        for member in users:
+            p = await repo.get_xp(str(guild.id), str(member.id)); old = level_for_xp(int(p.get("xp", 0) or 0)); new = old + 1; xp = max(int(p.get("xp", 0) or 0), xp_for_level(new))
+            await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": xp, "level": new, "messages": int(p.get("messages", 0) or 0), "last_awarded_at": p.get("last_awarded_at")}); await self.bot.levels.apply_rewards(member, new); lines.append(f"{member.mention} → **Level {new}**")
+        await interaction.followup.send(embed=embeds.success("Level advanced", "\n".join(lines[:20])), ephemeral=True)
 
-        repo = self.bot.repo  # type: ignore[attr-defined]
-        top = await repo.voice_leaderboard(str(guild.id), 5)
-        if top:
-            lines.append("")
-            lines.append("**All-time voice time**")
-            lines += [
-                f"**{i}.** <@{row['user_id']}> — {humanize(int(row.get('voice_seconds', 0)))}"
-                for i, row in enumerate(top, start=1)
-            ]
+class RankAdmin(commands.GroupCog, group_name="rank", group_description="Rank display and administrator role management"):
+    def __init__(self, bot: commands.Bot): self.bot = bot
 
-        embed = embeds.brand(
-            "Voice activity",
-            "\n".join(lines) or "Nobody is in a voice channel right now.",
-        )
-        embed.add_field(name="Channels in use", value=str(len(active)))
-        embed.add_field(
-            name="Members connected",
-            value=str(sum(len(c.members) for c in active)),
-        )
-        await interaction.followup.send(embed=embed)
+    @app_commands.command(name="show", description="Show a member's XP rank card in Discord.")
+    @app_commands.describe(member="Member to inspect")
+    @app_commands.guild_only()
+    async def show(self, interaction: discord.Interaction, member: discord.Member | None = None) -> None:
+        guild = ensure_guild(interaction); target = member or interaction.user; repo = self.bot.repo
+        settings = await repo.get_settings(str(guild.id))
+        if not settings.get("xp_enabled", True): await interaction.response.send_message(embed=embeds.warning("XP disabled", "The XP system is disabled in this server."), ephemeral=True); return
+        await interaction.response.defer(); p = await repo.get_xp(str(guild.id), str(target.id)); xp = int(p.get("xp", 0) or 0); level = level_for_xp(xp); current, needed = LevelService.progress(xp, level); rank = await repo.xp_rank(str(guild.id), xp); percent = min(100, round(current / max(1, needed) * 100))
+        e = embeds.brand(f"⚓ {target.display_name} · Rank Card", f"**LEVEL {level}**  ·  **RANK #{rank}**\n\n{LevelService.bar(current, needed, 24)}\n`{current:,} / {needed:,} XP`  ·  **{percent}%**\n\n**{xp:,} total XP**  ·  **{int(p.get('messages', 0) or 0):,} messages**")
+        e.set_thumbnail(url=target.display_avatar.url); await interaction.followup.send(embed=e)
 
+    async def _role(self, guild: discord.Guild, raw: str) -> discord.Role | None:
+        m = re.fullmatch(r"<@&(\d{5,25})>", raw.strip())
+        return guild.get_role(int(m.group(1))) if m else discord.utils.find(lambda r: r.name.casefold() == raw.lstrip("@").casefold(), guild.roles)
+
+    @app_commands.command(name="give", description="Give a Discord rank role to one or multiple users.")
+    @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames", role="Role name or role mention")
+    @admin_check()
+    @app_commands.guild_only()
+    async def give(self, interaction: discord.Interaction, targets: str, role: str) -> None:
+        guild = ensure_guild(interaction); await interaction.response.defer(ephemeral=True); r = await self._role(guild, role); users, missing = await resolve_targets(guild, targets)
+        if r is None: await interaction.followup.send(embed=embeds.error("Role not found", f"Could not resolve `{role}`."), ephemeral=True); return
+        if r.managed or guild.me is None or r >= guild.me.top_role: await interaction.followup.send(embed=embeds.error("Role cannot be managed", "Move the target role below the bot's highest role."), ephemeral=True); return
+        changed = 0
+        for member in users:
+            if r not in member.roles: await member.add_roles(r, reason="AHOY admin rank grant"); changed += 1
+        await interaction.followup.send(embed=embeds.success("Rank granted", f"**{r.name}** applied to **{changed}** user(s)." + (f" Unresolved: {', '.join(missing[:10])}" if missing else "")), ephemeral=True)
+
+    @app_commands.command(name="remove", description="Remove a Discord rank role from one or multiple users.")
+    @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames", role="Role name or role mention")
+    @admin_check()
+    @app_commands.guild_only()
+    async def remove(self, interaction: discord.Interaction, targets: str, role: str) -> None:
+        guild = ensure_guild(interaction); await interaction.response.defer(ephemeral=True); r = await self._role(guild, role); users, missing = await resolve_targets(guild, targets)
+        if r is None: await interaction.followup.send(embed=embeds.error("Role not found"), ephemeral=True); return
+        changed = 0
+        for member in users:
+            if r in member.roles: await member.remove_roles(r, reason="AHOY admin rank revoke"); changed += 1
+        await interaction.followup.send(embed=embeds.success("Rank removed", f"**{r.name}** removed from **{changed}** user(s)." + (f" Unresolved: {', '.join(missing[:10])}" if missing else "")), ephemeral=True)
 
 async def setup(bot: commands.Bot) -> None:
-    await bot.add_cog(Stats(bot))
+    await bot.add_cog(XPAdmin(bot)); await bot.add_cog(RankAdmin(bot))
