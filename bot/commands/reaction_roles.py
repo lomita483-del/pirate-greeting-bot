@@ -7,7 +7,7 @@ from typing import Any
 
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from ..utils import embeds
 from ..utils.checks import (
@@ -24,7 +24,6 @@ log = get_logger("reactionroles")
 
 
 def normalise_emoji(raw: str) -> str:
-    """Store custom emoji by id and unicode emoji by character."""
     value = (raw or "").strip()
     if not value:
         raise ActionRefused("Provide an emoji for members to use.")
@@ -43,7 +42,7 @@ def display_emoji(value: str) -> str | discord.PartialEmoji:
 
 
 class ReactionRoleView(discord.ui.View):
-    """Persistent button view used by newly-created reaction-role panels."""
+    """Persistent role-picker buttons. Legacy reaction listeners remain supported."""
 
     def __init__(self, bot: commands.Bot, rows: list[dict[str, Any]]) -> None:
         super().__init__(timeout=None)
@@ -54,14 +53,14 @@ class ReactionRoleView(discord.ui.View):
                 continue
             emoji = str(row.get("emoji") or "")
             label = str(row.get("description") or "Role")[:80]
-            item = discord.ui.Button(
+            button = discord.ui.Button(
                 label=label,
                 emoji=display_emoji(emoji),
                 style=discord.ButtonStyle.secondary,
                 custom_id=f"hoy:role:{row.get('message_id')}:{role_id}",
             )
-            item.callback = self._make_callback(role_id)
-            self.add_item(item)
+            button.callback = self._make_callback(role_id)
+            self.add_item(button)
 
     def _make_callback(self, role_id: str):
         async def callback(interaction: discord.Interaction) -> None:
@@ -105,7 +104,6 @@ class ReactionRoleView(discord.ui.View):
                     embed=embeds.error("Discord error", "Discord rejected that role change. Check the bot's role position."),
                     ephemeral=True,
                 )
-
         return callback
 
 
@@ -118,20 +116,34 @@ class ReactionRoles(commands.Cog):
 
     def __init__(self, bot: commands.Bot) -> None:
         self.bot = bot
+        self._restore_task.start()
+
+    def cog_unload(self) -> None:
+        self._restore_task.cancel()
 
     async def _restore_views(self) -> None:
-        """Restore persistent role-picker buttons after a bot restart."""
         try:
             for guild in self.bot.guilds:
                 rows = await self.bot.repo.guild_reaction_roles(str(guild.id))  # type: ignore[attr-defined]
                 grouped: dict[str, list[dict[str, Any]]] = defaultdict(list)
                 for row in rows:
-                    grouped[str(row.get("message_id"))].append(row)
+                    message_id = str(row.get("message_id") or "")
+                    if message_id.isdigit():
+                        grouped[message_id].append(row)
                 for message_id, message_rows in grouped.items():
                     view = ReactionRoleView(self.bot, message_rows)
-                    self.bot.add_view(view, message_id=int(message_id))
+                    if view.children:
+                        self.bot.add_view(view, message_id=int(message_id))
         except Exception:
             log.exception("Failed to restore reaction-role button views")
+
+    @tasks.loop(seconds=15)
+    async def _restore_task(self) -> None:
+        await self._restore_views()
+
+    @_restore_task.before_loop
+    async def _before_restore(self) -> None:
+        await self.bot.wait_until_ready()
 
     @commands.Cog.listener()
     async def on_ready(self) -> None:
@@ -140,22 +152,13 @@ class ReactionRoles(commands.Cog):
     async def _refresh_message_view(self, channel: discord.TextChannel, message: discord.Message) -> None:
         rows = await self.bot.repo.reaction_roles_for_message(str(message.id))  # type: ignore[attr-defined]
         view = ReactionRoleView(self.bot, rows)
-        self.bot.add_view(view, message_id=message.id)
+        if view.children:
+            self.bot.add_view(view, message_id=message.id)
         await message.edit(view=view if view.children else None)
 
     @group.command(name="create", description="Post a role-picker panel with persistent buttons.")
-    @app_commands.describe(
-        channel="Where the panel should be posted",
-        title="Embed title",
-        description="Embed body shown above the role buttons",
-    )
-    async def create(
-        self,
-        interaction: discord.Interaction,
-        channel: discord.TextChannel,
-        title: str = "Choose your roles",
-        description: str = "Use the buttons below to add or remove roles. Your choice survives bot restarts.",
-    ) -> None:
+    @app_commands.describe(channel="Where the panel should be posted", title="Embed title", description="Embed body shown above the role buttons")
+    async def create(self, interaction: discord.Interaction, channel: discord.TextChannel, title: str = "Choose your roles", description: str = "Use the buttons below to add or remove roles. Your choice survives bot restarts.") -> None:
         guild = ensure_guild(interaction)
         ensure_permission(interaction, "manage_roles")
         ensure_bot_permission(guild, "manage_roles")
@@ -165,31 +168,11 @@ class ReactionRoles(commands.Cog):
             message = await channel.send(embed=embed)
         except discord.HTTPException as exc:
             raise ActionRefused("I could not post in that channel.") from exc
-        await interaction.followup.send(
-            embed=embeds.success(
-                "Role picker posted",
-                f"Message ID `{message.id}` in {channel.mention}.\nAdd buttons with `/reactionrole add message_id:{message.id} emoji:… role:…`. ",
-            ),
-            ephemeral=True,
-        )
+        await interaction.followup.send(embed=embeds.success("Role picker posted", f"Message ID `{message.id}` in {channel.mention}. Add buttons with `/reactionrole add message_id:{message.id} emoji:… role:…`."), ephemeral=True)
 
     @group.command(name="add", description="Attach an emoji → role button to a panel.")
-    @app_commands.describe(
-        message_id="ID of the role-picker message",
-        emoji="Emoji displayed on the button",
-        role="Role handed out when the button is pressed",
-        channel="Channel the message lives in (defaults to this one)",
-        label="Optional button label",
-    )
-    async def add(
-        self,
-        interaction: discord.Interaction,
-        message_id: str,
-        emoji: str,
-        role: discord.Role,
-        channel: discord.TextChannel | None = None,
-        label: str | None = None,
-    ) -> None:
+    @app_commands.describe(message_id="ID of the role-picker message", emoji="Emoji displayed on the button", role="Role handed out when the button is pressed", channel="Channel the message lives in (defaults to this one)", label="Optional button label")
+    async def add(self, interaction: discord.Interaction, message_id: str, emoji: str, role: discord.Role, channel: discord.TextChannel | None = None, label: str | None = None) -> None:
         guild = ensure_guild(interaction)
         ensure_permission(interaction, "manage_roles")
         ensure_bot_permission(guild, "manage_roles")
@@ -217,20 +200,11 @@ class ReactionRoles(commands.Cog):
             "description": clean_text(label or role.name, 80),
         })
         await self._refresh_message_view(target_channel, message)
-        await interaction.followup.send(
-            embed=embeds.success("Role button saved", f"{emoji.strip()} → {role.mention} on message `{message.id}`."),
-            ephemeral=True,
-        )
+        await interaction.followup.send(embed=embeds.success("Role button saved", f"{emoji.strip()} → {role.mention} on message `{message.id}`."), ephemeral=True)
 
     @group.command(name="remove", description="Remove a role button from a panel.")
     @app_commands.describe(message_id="ID of the role-picker message", emoji="Emoji to unlink", channel="Channel holding the message")
-    async def remove(
-        self,
-        interaction: discord.Interaction,
-        message_id: str,
-        emoji: str,
-        channel: discord.TextChannel | None = None,
-    ) -> None:
+    async def remove(self, interaction: discord.Interaction, message_id: str, emoji: str, channel: discord.TextChannel | None = None) -> None:
         guild = ensure_guild(interaction)
         ensure_permission(interaction, "manage_roles")
         if not message_id.isdigit():
@@ -239,8 +213,7 @@ class ReactionRoles(commands.Cog):
         if not isinstance(target_channel, discord.TextChannel):
             raise ActionRefused("Pick the text channel that holds the message.")
         await interaction.response.defer(ephemeral=True)
-        stored = normalise_emoji(emoji)
-        await self.bot.repo.remove_reaction_role(str(guild.id), message_id, stored)  # type: ignore[attr-defined]
+        await self.bot.repo.remove_reaction_role(str(guild.id), message_id, normalise_emoji(emoji))  # type: ignore[attr-defined]
         try:
             message = await target_channel.fetch_message(int(message_id))
             await self._refresh_message_view(target_channel, message)
