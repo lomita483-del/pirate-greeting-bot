@@ -1,4 +1,4 @@
-"""AHOY — Discord bot entry point.
+"""! HOY — Discord bot entry point.
 
 Startup sequence:
   1. Load environment configuration
@@ -46,7 +46,7 @@ log = get_logger("core")
 class AhoyBot(commands.Bot):
     def __init__(self, config: Config) -> None:
         intents = discord.Intents.default(); intents.members = True; intents.message_content = True; intents.voice_states = True; intents.reactions = True; intents.presences = True
-        super().__init__(command_prefix=commands.when_mentioned_or("!PIRATE ", "!pirate ", "!Pirate "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
+        super().__init__(command_prefix=commands.when_mentioned_or("!HOY ", "!hoy ", "!Hoy "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
         self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._runtime_task: Optional[asyncio.Task[None]] = None; self._runtime_instance_id = f"discord-{id(self)}"; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
 
     async def setup_hook(self) -> None:
@@ -54,9 +54,9 @@ class AhoyBot(commands.Bot):
         runtime = await bot_runtime_start(self.db, self._runtime_instance_id)
         if runtime is not None:
             self._runtime_task = asyncio.create_task(self._runtime_heartbeat_loop())
-            log.info("Persisted !HOY BOT runtime session %s.", self._runtime_instance_id)
+            log.info("Persisted ! HOY BOT runtime session %s.", self._runtime_instance_id)
         else:
-            log.warning("Could not persist !HOY BOT runtime session; dashboard presence will remain offline.")
+            log.warning("Could not persist ! HOY BOT runtime session; dashboard presence will remain offline.")
         for extension in EXTENSIONS:
             try: await self.load_extension(extension); log.info("Loaded extension %s", extension)
             except Exception as exc: log.exception("Failed to load %s: %s", extension, exc)
@@ -71,10 +71,8 @@ class AhoyBot(commands.Bot):
     async def _runtime_heartbeat_loop(self) -> None:
         await self.wait_until_ready()
         while not self.is_closed():
-            try:
-                await bot_runtime_heartbeat(self.db, self._runtime_instance_id)
-            except Exception as exc:
-                log.warning("Runtime heartbeat failed: %s", exc)
+            try: await bot_runtime_heartbeat(self.db, self._runtime_instance_id)
+            except Exception as exc: log.warning("Runtime heartbeat failed: %s", exc)
             await asyncio.sleep(20)
 
     async def sync_guild_commands(self, guild: discord.Guild) -> None:
@@ -101,7 +99,7 @@ class AhoyBot(commands.Bot):
             await asyncio.sleep(30)
 
     async def _deliver_one(self, item: dict) -> None:
-        title = item.get("title") or "Notice from AHOY"; body = item.get("body") or ""; embed = embeds.info(title, body); sent = False; error = None
+        title = item.get("title") or "Notice from ! HOY"; body = item.get("body") or ""; embed = embeds.info(title, body); sent = False; error = None
         if item.get("via_dm"):
             targets: list[int] = []
             if item.get("target_type") == "user" and item.get("target_user_id"): targets = [int(item["target_user_id"])]
@@ -122,10 +120,9 @@ class AhoyBot(commands.Bot):
         await self.repo.mark_notification(item["id"], "sent" if sent else "failed", None if sent else (error or "No reachable target"))
 
     async def on_ready(self) -> None:
-        log.info("AHOY is online as %s (%s) across %d server(s).", self.user, getattr(self.user, "id", "?"), len(self.guilds))
+        log.info("! HOY is online as %s (%s) across %d server(s).", self.user, getattr(self.user, "id", "?"), len(self.guilds))
         if self._notification_task is None: self._notification_task = asyncio.create_task(self._deliver_notifications())
-        if self._runtime_task is None:
-            self._runtime_task = asyncio.create_task(self._runtime_heartbeat_loop())
+        if self._runtime_task is None: self._runtime_task = asyncio.create_task(self._runtime_heartbeat_loop())
         for guild in self.guilds:
             await self.sync_guild_commands(guild)
             await self.repo.upsert_server(str(guild.id), guild.name, guild.icon.key if guild.icon else None, str(guild.owner_id) if guild.owner_id else None, guild.member_count or 0)
@@ -158,12 +155,12 @@ class AhoyBot(commands.Bot):
         if isinstance(original, ActionRefused): embed = embeds.warning("Action not allowed", str(original))
         elif isinstance(error, app_commands.CommandOnCooldown): embed = embeds.warning("Slow down", f"Try again in {error.retry_after:.0f} seconds.")
         elif isinstance(error, (app_commands.MissingPermissions, app_commands.CheckFailure)): embed = embeds.warning("Missing permissions", "You do not have permission to use that command.")
-        elif isinstance(original, app_commands.BotMissingPermissions): embed = embeds.error("AHOY is missing permissions", "Please grant AHOY the permissions needed for this action.")
-        elif isinstance(original, discord.Forbidden): embed = embeds.error("Discord refused that action", "AHOY lacks permission or role position to complete it.")
+        elif isinstance(original, app_commands.BotMissingPermissions): embed = embeds.error("! HOY is missing permissions", "Please grant ! HOY the permissions needed for this action.")
+        elif isinstance(original, discord.Forbidden): embed = embeds.error("Discord refused that action", "! HOY lacks permission or role position to complete it.")
         elif isinstance(original, discord.RateLimited): embed = embeds.warning("Rate limited", "Discord is throttling requests. Please retry shortly.")
-        elif isinstance(original, DatabaseError): embed = embeds.error("Storage unavailable", "AHOY could not reach its database. The action was not saved.")
+        elif isinstance(original, DatabaseError): embed = embeds.error("Storage unavailable", "! HOY could not reach its database. The action was not saved.")
         elif isinstance(original, discord.HTTPException): embed = embeds.error("Discord API error", "Discord returned an error. Please try again.")
-        else: embed = embeds.error("Something went wrong", "AHOY hit an unexpected problem. The crew has been notified.")
+        else: embed = embeds.error("Something went wrong", "! HOY hit an unexpected problem. The crew has been notified.")
         log.exception("Command error in /%s: %s", getattr(interaction.command, "name", "unknown"), original)
         try:
             if interaction.response.is_done(): await interaction.followup.send(embed=embed, ephemeral=True)
@@ -171,17 +168,15 @@ class AhoyBot(commands.Bot):
         except discord.HTTPException: pass
 
     async def close(self) -> None:
-        log.info("AHOY is shutting down gracefully…")
+        log.info("! HOY is shutting down gracefully…")
         if self._runtime_task is not None:
             self._runtime_task.cancel()
             try: await self._runtime_task
             except asyncio.CancelledError: pass
             except Exception: pass
             self._runtime_task = None
-        try:
-            await bot_runtime_stop(self.db, self._runtime_instance_id)
-        except Exception as exc:
-            log.warning("Could not mark runtime offline cleanly: %s", exc)
+        try: await bot_runtime_stop(self.db, self._runtime_instance_id)
+        except Exception as exc: log.warning("Could not mark runtime offline cleanly: %s", exc)
         if self._health_runner is not None:
             try: await self._health_runner.cleanup()
             except Exception: pass
@@ -198,6 +193,6 @@ async def run() -> None:
 def main() -> None:
     try: asyncio.run(run())
     except ConfigError as exc: print(f"Configuration error: {exc}")
-    except KeyboardInterrupt: print("AHOY stopped.")
+    except KeyboardInterrupt: print("! HOY stopped.")
 
 if __name__ == "__main__": main()
