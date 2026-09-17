@@ -141,9 +141,17 @@ export async function exchangeCode(code: string, redirectUri: string) {
   return (await response.json()) as { access_token: string; expires_in: number };
 }
 
-async function discordFetch<T>(path: string, accessToken: string): Promise<T> {
-  const response = await fetch(`${DISCORD_API}${path}`, { headers: { authorization: `Bearer ${accessToken}` } });
-  if (response.status === 429) throw new Error("Discord is rate limiting us. Try again shortly.");
+async function discordFetch<T>(path: string, accessToken: string, retries = 2): Promise<T> {
+  const response = await fetch(`${DISCORD_API}${path}`, { headers: { authorization: `Bearer ${accessToken}` }, cache: "no-store" });
+  if (response.status === 429) {
+    const retryAfterHeader = response.headers.get("retry-after");
+    const retryAfter = retryAfterHeader ? Math.min(Math.max(Number(retryAfterHeader) * 1000, 250), 5000) : 1000;
+    if (retries > 0) {
+      await new Promise((resolve) => setTimeout(resolve, retryAfter));
+      return discordFetch<T>(path, accessToken, retries - 1);
+    }
+    throw new Error("Discord is temporarily rate limiting the Control Center. Please wait a moment and refresh.");
+  }
   if (!response.ok) {
     console.error("Discord API error", path, response.status);
     throw new Error("Your Discord session expired. Please sign in again.");
@@ -155,21 +163,38 @@ export async function fetchCurrentUser(accessToken: string) {
   return discordFetch<{ id: string; username: string; global_name: string | null; avatar: string | null }>("/users/@me", accessToken);
 }
 
+const GUILD_CACHE_MS = 2 * 60_000;
 const guildCache = new Map<string, { at: number; guilds: DiscordGuildSummary[] }>();
+const guildRequests = new Map<string, Promise<DiscordGuildSummary[]>>();
 
 export async function fetchUserGuilds(session: AhoySession): Promise<DiscordGuildSummary[]> {
   const cached = guildCache.get(session.userId);
-  if (cached && Date.now() - cached.at < 30_000) return cached.guilds;
-  const guilds = await discordFetch<DiscordGuildSummary[]>("/users/@me/guilds", session.accessToken);
-  guildCache.set(session.userId, { at: Date.now(), guilds });
-  return guilds;
+  if (cached && Date.now() - cached.at < GUILD_CACHE_MS) return cached.guilds;
+
+  const existing = guildRequests.get(session.userId);
+  if (existing) return existing;
+
+  const request = discordFetch<DiscordGuildSummary[]>("/users/@me/guilds", session.accessToken)
+    .then((guilds) => {
+      guildCache.set(session.userId, { at: Date.now(), guilds });
+      return guilds;
+    })
+    .catch((error) => {
+      const stale = guildCache.get(session.userId);
+      if (stale) return stale.guilds;
+      throw error;
+    })
+    .finally(() => guildRequests.delete(session.userId));
+
+  guildRequests.set(session.userId, request);
+  return request;
 }
 
 async function fetchMemberRoles(guildId: string, userId: string): Promise<string[]> {
   const token = process.env["DISCORD_TOKEN"];
   if (!token) return [];
   try {
-    const res = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${userId}`, { headers: { authorization: `Bot ${token}` } });
+    const res = await fetch(`${DISCORD_API}/guilds/${guildId}/members/${userId}`, { headers: { authorization: `Bot ${token}` }, cache: "no-store" });
     if (!res.ok) return [];
     const member = (await res.json()) as { roles?: string[] };
     return member.roles ?? [];
