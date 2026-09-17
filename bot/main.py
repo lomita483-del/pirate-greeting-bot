@@ -33,13 +33,14 @@ from .services.activity_service import ActivityService
 from .services.starboard_service import StarboardService
 from .services.feature_service import FeatureService
 from .services.settings_service import SettingsService
+from .services.command_actions_bridge import install as install_command_actions_bridge
 from .utils import embeds
 from .utils.checks import ActionRefused
 from .utils.logger import get_logger, setup_logging
 
 EXTENSIONS = (
     "bot.commands.general", "bot.commands.moderation", "bot.commands.channel_lock", "bot.commands.levels", "bot.commands.economy", "bot.commands.tickets", "bot.commands.reminders", "bot.commands.reaction_roles", "bot.commands.giveaways", "bot.commands.polls", "bot.commands.profile", "bot.commands.stats", "bot.commands.statahoy", "bot.commands.calendar", "bot.commands.send", "bot.commands.reports", "bot.commands.activity", "bot.commands.rollcall", "bot.commands.library",
-    "bot.events.guild_events", "bot.events.member_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler", "bot.events.xp_events",
+    "bot.events.guild_events", "bot.events.member_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler", "bot.events.xp_events", "bot.events.mention_events",
 )
 log = get_logger("core")
 
@@ -47,7 +48,7 @@ class AhoyBot(commands.Bot):
     def __init__(self, config: Config) -> None:
         intents = discord.Intents.default(); intents.members = True; intents.message_content = True; intents.voice_states = True; intents.reactions = True; intents.presences = True
         super().__init__(command_prefix=commands.when_mentioned_or("!HOY ", "!hoy ", "!Hoy "), intents=intents, help_command=None, activity=discord.Activity(type=discord.ActivityType.watching, name="the horizon ⚓"))
-        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); self._notification_task: Optional[asyncio.Task[None]] = None; self._runtime_task: Optional[asyncio.Task[None]] = None; self._runtime_instance_id = f"discord-{id(self)}"; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
+        self.config = config; self.started_at = datetime.now(timezone.utc); self.db = Database(config.supabase_url, config.supabase_key); self.repo = Repository(self.db); self.settings = SettingsService(self.repo); self.logs = LogService(self, self.settings); self.moderation = ModerationService(self.repo, self.logs); self.levels = LevelService(self.repo, self.settings); self.automod = AutoModService(self.settings, self.moderation); self.platform = PlatformService(self.repo); self.starboard = StarboardService(self, self.repo); self.activity_log = ActivityService(self.repo, self.logs); self.features = FeatureService(self.repo); install_command_actions_bridge(self); self._notification_task: Optional[asyncio.Task[None]] = None; self._runtime_task: Optional[asyncio.Task[None]] = None; self._runtime_instance_id = f"discord-{id(self)}"; self._health_runner = None; self._synced_guild_ids: set[int] = set(); self._recent_error_keys: dict[str, float] = {}; self._error_dedupe_seconds = 60.0
 
     async def setup_hook(self) -> None:
         await self.db.connect()
