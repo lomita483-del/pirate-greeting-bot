@@ -2,7 +2,8 @@ name: Advance Owner Console
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
       - 'src/routes/owner-console.tsx'
       - '.github/workflows/advance-owner-console.yml'
@@ -13,7 +14,6 @@ permissions:
 
 jobs:
   advance:
-    if: ${{ !contains(github.event.head_commit.message, 'Advance owner console implementation') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,75 +22,32 @@ jobs:
           fetch-depth: 0
 
       - name: Inject operations cockpit
-        shell: python
         run: |
+          python - <<'PY'
           from pathlib import Path
-          import re
-
           path = Path('src/routes/owner-console.tsx')
           text = path.read_text()
           marker = 'data-testid="owner-operations-cockpit"'
           if marker in text:
               print('Operations cockpit already present.')
               raise SystemExit(0)
-
-          text = text.replace(
-              '    <section className="rounded-3xl border border-white/[0.09] bg-white/[0.025] p-5 backdrop-blur-xl">',
-              '''    <section data-testid="owner-operations-cockpit" className="relative overflow-hidden rounded-3xl border border-primary/15 bg-[#061321]/55 p-5 shadow-[0_20px_80px_rgba(0,0,0,.24)] backdrop-blur-2xl sm:p-6">
+          needle = '    <section className="rounded-3xl border border-white/[0.09] bg-white/[0.025] p-5 backdrop-blur-xl">'
+          cockpit = r'''    <section data-testid="owner-operations-cockpit" className="relative overflow-hidden rounded-3xl border border-primary/15 bg-[#061321]/55 p-5 shadow-[0_20px_80px_rgba(0,0,0,.24)] backdrop-blur-2xl sm:p-6">
       <div aria-hidden className="pointer-events-none absolute -right-24 -top-24 size-72 rounded-full bg-primary/[0.07] blur-3xl" />
-      <div className="relative flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-[.28em] text-primary">Live operations</p>
-          <h2 className="mt-1 text-xl font-black tracking-tight">Platform pulse</h2>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-white/40">A live operator view of the fleet, support queue, engagement footprint and system health.</p>
-        </div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-semibold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />Live data · 15s refresh</span>
-      </div>
-      <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[["Live servers", data.liveServers, Server], ["Open tickets", data.openTickets, ListChecks], ["Pending notifications", data.pendingNotifications, Bell], ["Tracked XP profiles", data.trackedProfiles, Users]].map(([label, value, Icon]) => (
-          <article key={String(label)} className="rounded-2xl border border-white/[0.08] bg-black/20 p-4 transition hover:border-primary/25 hover:bg-primary/[0.045]">
-            <div className="flex items-center justify-between"><span className="text-[9px] font-bold uppercase tracking-[.18em] text-white/35">{String(label)}</span><Icon className="size-4 text-primary/80" /></div>
-            <p className="mt-3 text-2xl font-black">{Number(value).toLocaleString()}</p>
-          </article>
-        ))}
-      </div>
-      <div className="relative mt-4 grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
-        <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
-          <div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">Attention queue</p><p className="mt-1 text-sm font-semibold">What needs an operator</p></div><Gauge className="size-4 text-white/35" /></div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            <button type="button" onClick={() => onJump("notifications")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Notification queue</span><span className="text-[10px] text-white/35">{data.pendingNotifications} pending</span></span><ArrowRight className="size-4 text-primary" /></button>
-            <button type="button" onClick={() => onJump("reports")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">User reports</span><span className="text-[10px] text-white/35">Open support workspace</span></span><ArrowRight className="size-4 text-primary" /></button>
-            <button type="button" onClick={() => onJump("errors")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Diagnostics</span><span className="text-[10px] text-white/35">{data.moderationLast7Days} moderation actions / 7d</span></span><ArrowRight className="size-4 text-primary" /></button>
-            <button type="button" onClick={() => onJump("servers")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Fleet health</span><span className="text-[10px] text-white/35">{data.liveServers}/{data.totalServers} servers live</span></span><ArrowRight className="size-4 text-primary" /></button>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
-          <div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">System matrix</p><p className="mt-1 text-sm font-semibold">Service health</p></div><Shield className="size-4 text-white/35" /></div>
-          <div className="mt-4 space-y-2">
-            {[['Bot runtime', online], ['Database', true], ['Dashboard', true], ['Diagnostics', true]].map(([label, healthy]) => <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"><span className="text-xs text-white/55">{String(label)}</span><span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${healthy ? 'text-emerald-300' : 'text-red-300'}`}><span className={`size-1.5 rounded-full ${healthy ? 'bg-emerald-400' : 'bg-red-400'}`} />{healthy ? 'Operational' : 'Offline'}</span></div>)}
-          </div>
-        </div>
-      </div>
-      <div className="relative mt-4 rounded-2xl border border-white/[0.08] bg-black/15 p-4">
-        <div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">Recent platform activity</p><p className="mt-1 text-sm font-semibold">Latest operator and dashboard events</p></div><Activity className="size-4 text-white/35" /></div>
-        <div className="mt-3 divide-y divide-white/[0.06]">
-          {data.recentActivity.slice(0, 6).map((item, index) => <div key={`${item.created_at}-${index}`} className="flex items-center justify-between gap-4 py-2.5"><div className="min-w-0"><p className="truncate text-xs font-medium text-white/70">{item.action || 'Platform activity'}</p><p className="truncate text-[10px] text-white/30">{item.discord_username || 'System'}{item.guild_id ? ` · ${item.guild_id}` : ''}</p></div><span className="shrink-0 text-[9px] text-white/25">{new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span></div>)}
-          {!data.recentActivity.length ? <p className="py-4 text-xs text-white/30">No recent platform activity recorded.</p> : null}
-        </div>
-      </div>
+      <div className="relative flex flex-wrap items-end justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.28em] text-primary">Live operations</p><h2 className="mt-1 text-xl font-black tracking-tight">Platform pulse</h2><p className="mt-1 max-w-2xl text-xs leading-5 text-white/40">A live operator view of the fleet, support queue, engagement footprint and system health.</p></div><span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-semibold text-emerald-300"><span className="size-1.5 animate-pulse rounded-full bg-emerald-400" />Live data · 15s refresh</span></div>
+      <div className="relative mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{[["Live servers", data.liveServers, Server], ["Open tickets", data.openTickets, ListChecks], ["Pending notifications", data.pendingNotifications, Bell], ["Tracked XP profiles", data.trackedProfiles, Users]].map(([label, value, Icon]) => <article key={String(label)} className="rounded-2xl border border-white/[0.08] bg-black/20 p-4 transition hover:border-primary/25 hover:bg-primary/[0.045]"><div className="flex items-center justify-between"><span className="text-[9px] font-bold uppercase tracking-[.18em] text-white/35">{String(label)}</span><Icon className="size-4 text-primary/80" /></div><p className="mt-3 text-2xl font-black">{Number(value).toLocaleString()}</p></article>)}</div>
+      <div className="relative mt-4 grid gap-4 lg:grid-cols-[1.15fr_.85fr]"><div className="rounded-2xl border border-white/[0.08] bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">Attention queue</p><p className="mt-1 text-sm font-semibold">What needs an operator</p></div><Gauge className="size-4 text-white/35" /></div><div className="mt-4 grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => onJump("notifications")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Notification queue</span><span className="text-[10px] text-white/35">{data.pendingNotifications} pending</span></span><ArrowRight className="size-4 text-primary" /></button><button type="button" onClick={() => onJump("reports")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">User reports</span><span className="text-[10px] text-white/35">Open support workspace</span></span><ArrowRight className="size-4 text-primary" /></button><button type="button" onClick={() => onJump("errors")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Diagnostics</span><span className="text-[10px] text-white/35">{data.moderationLast7Days} moderation actions / 7d</span></span><ArrowRight className="size-4 text-primary" /></button><button type="button" onClick={() => onJump("servers")} className="flex items-center justify-between rounded-xl border border-white/[0.07] bg-white/[0.025] px-3 py-3 text-left hover:border-primary/25"><span><span className="block text-xs font-semibold">Fleet health</span><span className="text-[10px] text-white/35">{data.liveServers}/{data.totalServers} servers live</span></span><ArrowRight className="size-4 text-primary" /></button></div></div><div className="rounded-2xl border border-white/[0.08] bg-black/15 p-4"><div className="flex items-center justify-between"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">System matrix</p><p className="mt-1 text-sm font-semibold">Service health</p></div><Shield className="size-4 text-white/35" /></div><div className="mt-4 space-y-2">{[["Bot runtime", online], ["Database", true], ["Dashboard", true], ["Diagnostics", true]].map(([label, healthy]) => <div key={String(label)} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5"><span className="text-xs text-white/55">{String(label)}</span><span className={`inline-flex items-center gap-1.5 text-[10px] font-semibold ${healthy ? "text-emerald-300" : "text-red-300"}`}><span className={`size-1.5 rounded-full ${healthy ? "bg-emerald-400" : "bg-red-400"}`} />{healthy ? "Operational" : "Offline"}</span></div>)}</div></div></div>
+      <div className="relative mt-4 rounded-2xl border border-white/[0.08] bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-[9px] font-bold uppercase tracking-[.22em] text-primary">Recent platform activity</p><p className="mt-1 text-sm font-semibold">Latest operator and dashboard events</p></div><Activity className="size-4 text-white/35" /></div><div className="mt-3 divide-y divide-white/[0.06]">{data.recentActivity.slice(0, 6).map((item, index) => <div key={`${item.created_at}-${index}`} className="flex items-center justify-between gap-4 py-2.5"><div className="min-w-0"><p className="truncate text-xs font-medium text-white/70">{item.action || "Platform activity"}</p><p className="truncate text-[10px] text-white/30">{item.discord_username || "System"}{item.guild_id ? ` · ${item.guild_id}` : ""}</p></div><span className="shrink-0 text-[9px] text-white/25">{new Date(item.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span></div>)}{!data.recentActivity.length ? <p className="py-4 text-xs text-white/30">No recent platform activity recorded.</p> : null}</div></div>
     </section>
-''',
-              1,
-          )
+'''
+          if needle not in text:
+              raise SystemExit('Owner console anchor not found')
+          path.write_text(text.replace(needle, cockpit + needle, 1))
+          PY
 
-          path.write_text(text)
       - name: Commit advanced console
-        shell: bash
         run: |
-          if git diff --quiet; then
-            echo "No owner-console changes needed."
-            exit 0
-          fi
+          if git diff --quiet; then echo "No owner-console changes needed."; exit 0; fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src/routes/owner-console.tsx
