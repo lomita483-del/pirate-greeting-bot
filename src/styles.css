@@ -151,4 +151,92 @@
   nav[aria-label="Owner console navigation"] {
     display: none !important;
   }
+
+  /* Luxury Owner Console treatment: this only skins the console shell and
+     its cards. The shared pirate background above is intentionally untouched. */
+  div[class*="bg-[#01060d]"] {
+    isolation: isolate;
+  }
+
+  div[class*="bg-[#01060d]"] > .relative.z-10 {
+    background: linear-gradient(180deg, rgba(4, 12, 22, 0.32), rgba(4, 12, 22, 0.12));
+  }
+
+  div[class*="bg-[#01060d]"] header {
+    border-bottom-color: rgba(255, 255, 255, 0.11) !important;
+    background: linear-gradient(180deg, rgba(3, 11, 21, 0.92), rgba(3, 11, 21, 0.72)) !important;
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.28), 0 1px 0 rgba(255, 255, 255, 0.05) inset;
+  }
+
+  div[class*="bg-[#01060d]"] header > div {
+    max-width: 1440px !important;
+  }
+
+  div[class*="bg-[#01060d]"] main {
+    max-width: 1440px !important;
+    padding-top: 24px !important;
+  }
+
+  div[class*="bg-[#01060d]"] main > * {
+    animation: ahoy-console-enter 420ms ease-out both;
+  }
+
+  div[class*="bg-[#01060d]"] main article,
+  div[class*="bg-[#01060d]"] main section {
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+  }
+
+  div[class*="bg-[#01060d]"] main article:hover,
+  div[class*="bg-[#01060d]"] main section:hover {
+    border-color: rgba(245, 197, 87, 0.18) !important;
+  }
+
+  /* Overview hero becomes the visual command bridge: richer glass, fine
+     inner highlight, and restrained gold/teal depth without replacing the
+     pirate artwork. */
+  div[class*="bg-[#01060d]"] main section:first-child {
+    box-shadow: 0 32px 90px rgba(0, 0, 0, 0.42), 0 1px 0 rgba(255, 255, 255, 0.08) inset !important;
+  }
+
+  /* Compact metric cards get a luxury instrument-panel treatment. */
+  div[class*="bg-[#01060d]"] main article {
+    position: relative;
+    overflow: hidden;
+    box-shadow: 0 18px 55px rgba(0, 0, 0, 0.2), 0 1px 0 rgba(255, 255, 255, 0.045) inset !important;
+  }
+
+  div[class*="bg-[#01060d]"] main article::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: linear-gradient(120deg, rgba(255,255,255,0.035), transparent 42%, rgba(245,197,87,0.025));
+  }
+
+  /* Navigation controls read as a premium command rail rather than generic
+     dashboard buttons. */
+  div[class*="bg-[#01060d]"] header button,
+  div[class*="bg-[#01060d]"] header a {
+    transition: transform 160ms ease, border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  }
+
+  div[class*="bg-[#01060d]"] header button:hover,
+  div[class*="bg-[#01060d]"] header a:hover {
+    transform: translateY(-1px);
+    border-color: rgba(245, 197, 87, 0.28) !important;
+    background-color: rgba(255, 255, 255, 0.065) !important;
+  }
+
+  @keyframes ahoy-console-enter {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    div[class*="bg-[#01060d"]] main > * { animation: none; }
+    div[class*="bg-[#01060d"]] main article,
+    div[class*="bg-[#01060d"]] main section,
+    div[class*="bg-[#01060d"]] header button,
+    div[class*="bg-[#01060d"]] header a { transition: none; }
+  }
 }
