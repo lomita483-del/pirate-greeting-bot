@@ -10,7 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..services.card_service import render_profile_card
-from ..services.level_service import LevelService
+from ..services.level_service import LevelService, level_for_xp
 from ..utils.checks import ActionRefused, ensure_guild
 from ..utils.logger import get_logger
 from ..utils.parsing import humanize
@@ -43,8 +43,12 @@ class Profile(commands.Cog):
 
         xp_profile = await repo.get_xp(guild_id, str(target.id))
         voice = await repo.get_voice_stats(guild_id, str(target.id))
+
+        # Total XP is the source of truth. Derive the current level from it
+        # instead of trusting a potentially stale cached/stored level. This
+        # keeps the level, XP progress, progress bar and rank card consistent.
         xp = int(xp_profile.get("xp", 0) or 0)
-        level = int(xp_profile.get("level", 0) or 0)
+        level = level_for_xp(xp)
         rank = await repo.xp_rank(guild_id, xp)
         current, needed = LevelService.progress(xp, level)
 
