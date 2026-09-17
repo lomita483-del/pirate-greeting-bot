@@ -39,7 +39,7 @@ from .utils.logger import get_logger, setup_logging
 
 EXTENSIONS = (
     "bot.commands.general", "bot.commands.moderation", "bot.commands.channel_lock", "bot.commands.levels", "bot.commands.economy", "bot.commands.tickets", "bot.commands.reminders", "bot.commands.reaction_roles", "bot.commands.giveaways", "bot.commands.polls", "bot.commands.profile", "bot.commands.stats", "bot.commands.statahoy", "bot.commands.calendar", "bot.commands.send", "bot.commands.reports", "bot.commands.activity", "bot.commands.rollcall", "bot.commands.library",
-    "bot.events.guild_events", "bot.events.member_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler",
+    "bot.events.guild_events", "bot.events.member_events", "bot.events.custom_command_events", "bot.events.reaction_events", "bot.events.activity_events", "bot.events.stats_events", "bot.events.calendar_events", "bot.events.scheduler", "bot.events.xp_events",
 )
 log = get_logger("core")
 
