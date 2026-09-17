@@ -4,6 +4,7 @@ from __future__ import annotations
 import discord
 from discord.ext import commands
 
+from ..services.command_actions_bridge import install as install_command_actions
 from ..utils.parsing import render_template
 from ..utils import embeds
 from ..utils.logger import get_logger
@@ -80,7 +81,6 @@ class CustomCommandEvents(commands.Cog):
 
         if self.bot.user is not None and self.bot.user in message.mentions:
             await self._respond_to_mention(message)
-            # A direct mention is a conversational interaction, not a custom-command invocation.
             return
 
         repo = self.bot.repo  # type: ignore[attr-defined]
@@ -141,4 +141,5 @@ class CustomCommandEvents(commands.Cog):
 
 
 async def setup(bot: commands.Bot) -> None:
+    install_command_actions(bot)
     await bot.add_cog(CustomCommandEvents(bot))
