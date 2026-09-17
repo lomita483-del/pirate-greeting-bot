@@ -37,15 +37,12 @@ class Database:
         try:return await self.run(fn)
         except DatabaseError:return default
 
-# Keep older repository features available while the diagnostics work is
+# Keep older repository features available while the diagnostics work
 # maintained separately. client.py is loaded before repository.py, so the
-# compatibility installer is invoked only after Repository can be imported.
+# compatibility installers are invoked only after Repository can be imported.
 try:
     from .repository_compat import install_repository_compat
     install_repository_compat()
-    # repository_compat is intentionally optional for the core repository.
-    # Install the critical case lookup explicitly as a final fallback so a
-    # partial compatibility load can never leave /case broken.
     from .repository import Repository
 
     async def _recent_cases(self, guild_id: str, limit: int = 10):
@@ -61,5 +58,8 @@ try:
 
     if not hasattr(Repository, "recent_cases"):
         setattr(Repository, "recent_cases", _recent_cases)
+
+    from .ticket_repository_compat import install_ticket_repository_compat
+    install_ticket_repository_compat()
 except Exception:
     log.exception("Failed to load repository compatibility helpers")
