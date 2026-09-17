@@ -1,10 +1,8 @@
-"""General AHOY commands: /ahoy, /ping, /help, /server, /profile, /stats."""
+"""General AHOY commands: /ahoy, /ping, /help, /server, /profile."""
 
 from __future__ import annotations
 
-import platform
 import time
-from datetime import datetime, timezone
 
 import discord
 from discord import app_commands
@@ -22,7 +20,6 @@ HELP_SECTIONS: dict[str, tuple[str, list[tuple[str, str]]]] = {
             ("/help", "Open this interactive command menu."),
             ("/server", "Server information at a glance."),
             ("/profile", "Your AHOY profile for this server."),
-            ("/stats", "AHOY runtime statistics."),
         ],
     ),
     "moderation": (
@@ -206,32 +203,6 @@ class General(commands.Cog):
             value=discord.utils.format_dt(target.joined_at, "D") if target.joined_at else "—",
         )
         await interaction.followup.send(embed=embed)
-
-    @app_commands.command(name="stats", description="Show AHOY statistics.")
-    async def stats(self, interaction: discord.Interaction) -> None:
-        started: datetime = getattr(self.bot, "started_at", datetime.now(timezone.utc))
-        uptime = datetime.now(timezone.utc) - started
-        hours, remainder = divmod(int(uptime.total_seconds()), 3600)
-        minutes = remainder // 60
-
-        embed = embeds.brand(
-            "AHOY statistics",
-            "Sailing steady and ready to serve. ⚓",
-        )
-        embed.add_field(name="Servers", value=str(len(self.bot.guilds)))
-        embed.add_field(
-            name="Members (cached)",
-            value=f"{sum(g.member_count or 0 for g in self.bot.guilds):,}",
-        )
-        embed.add_field(name="Uptime", value=f"{hours}h {minutes}m")
-        embed.add_field(name="Latency", value=f"{round(self.bot.latency * 1000)} ms")
-        embed.add_field(name="discord.py", value=discord.__version__)
-        embed.add_field(name="Python", value=platform.python_version())
-        embed.add_field(
-            name="Database",
-            value="Connected" if self.bot.db.connected else "Offline",  # type: ignore[attr-defined]
-        )
-        await interaction.response.send_message(embed=embed)
 
 
 async def setup(bot: commands.Bot) -> None:
