@@ -37,29 +37,13 @@ class Database:
         try:return await self.run(fn)
         except DatabaseError:return default
 
-# Keep older repository features available while the diagnostics work
-# maintained separately. client.py is loaded before repository.py, so the
-# compatibility installers are invoked only after Repository can be imported.
-try:
-    from .repository_compat import install_repository_compat
-    install_repository_compat()
-    from .repository import Repository
-
-    async def _recent_cases(self, guild_id: str, limit: int = 10):
-        rows = await self.db.try_run(
-            lambda c: c.table("moderation_cases")
-            .select("*")
-            .eq("guild_id", guild_id)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-        )
-        return getattr(rows, "data", None) or []
-
-    if not hasattr(Repository, "recent_cases"):
-        setattr(Repository, "recent_cases", _recent_cases)
-
-    from .ticket_repository_compat import install_ticket_repository_compat
-    install_ticket_repository_compat()
-except Exception:
-    log.exception("Failed to load repository compatibility helpers")
+# NOTE: Repository compatibility installers (repository_compat,
+# ticket_repository_compat, and the recent_cases shim) used to be installed
+# here as an import-time side effect. That created a fragile circular
+# import: if anything imported bot.database.repository before
+# bot.database.client had ever been imported, the install would silently
+# fail (swallowed by a bare except) and Repository would end up missing
+# methods like log_command_usage and active_ticket_panels at runtime.
+# That installation now lives at the bottom of repository.py instead,
+# where it is safe regardless of import order. client.py no longer reaches
+# into Repository at all.
