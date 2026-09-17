@@ -51,9 +51,8 @@ class MentionEvents(commands.Cog):
         if any(word in request for word in ("help", "command", "commands", "what can you do")):
             description = (
                 f"Ahoy, {message.author.mention}. I'm on deck.\n\n"
-                "Try `/help` for the command navigator, `/profile` for your crew profile, "
-                "or `/stats` for live bot status. Server managers can configure this mention response "
-                "from the web control center."
+                "Try `/help` for the command navigator or `/profile` for your crew profile. "
+                "Server managers can configure this mention response from the web control center."
             )
         elif any(word in request for word in ("ping", "online", "alive", "status")):
             latency = round(self.bot.latency * 1000)
