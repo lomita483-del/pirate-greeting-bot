@@ -10,17 +10,17 @@ import type { PanelProps } from "./types";
 import { useDraft } from "./use-draft";
 
 export function BotMentionPanel({ guildId, config, onSaved }: PanelProps) {
-  const s = config.settings;
+  const s = (config.settings ?? {}) as Record<string, any>;
   const form = useDraft(
     guildId,
     "general",
     {
-      mention_enabled: s?.mention_enabled ?? true,
-      mention_response_mode: s?.mention_response_mode ?? "reply",
+      mention_enabled: s.mention_enabled ?? true,
+      mention_response_mode: s.mention_response_mode ?? "reply",
       mention_response:
-        s?.mention_response ??
+        s.mention_response ??
         "Ahoy {user}! I'm on deck. Ask me for **help** or **status**, or use `/help` to explore the command navigator.",
-      mention_cooldown_seconds: s?.mention_cooldown_seconds ?? 3,
+      mention_cooldown_seconds: s.mention_cooldown_seconds ?? 3,
     },
     onSaved,
   );
