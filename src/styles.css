@@ -1,7 +1,5 @@
 @import "tailwindcss" source(none);
-@source "../src/components/**/*.{js,jsx,ts,tsx}";
-@source "../src/routes/**/*.{js,jsx,ts,tsx}";
-@source "../src/hooks/**/*.{js,jsx,ts,tsx}";
+@source "../src";
 @import "tw-animate-css";
 
 @custom-variant dark (&:is(.dark *));
@@ -43,6 +41,7 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-gold: var(--gold);
