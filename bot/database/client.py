@@ -36,14 +36,3 @@ class Database:
         if self._client is None:return default
         try:return await self.run(fn)
         except DatabaseError:return default
-
-# NOTE: Repository compatibility installers (repository_compat,
-# ticket_repository_compat, and the recent_cases shim) used to be installed
-# here as an import-time side effect. That created a fragile circular
-# import: if anything imported bot.database.repository before
-# bot.database.client had ever been imported, the install would silently
-# fail (swallowed by a bare except) and Repository would end up missing
-# methods like log_command_usage and active_ticket_panels at runtime.
-# That installation now lives at the bottom of repository.py instead,
-# where it is safe regardless of import order. client.py no longer reaches
-# into Repository at all.
