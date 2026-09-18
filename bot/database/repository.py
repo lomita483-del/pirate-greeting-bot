@@ -172,43 +172,19 @@ class Repository:
     async def top_streaks(self,guild_id:str,limit:int=10)->list[dict[str,Any]]:
         rows=await self.db.try_run(lambda c:c.table("roll_call_streaks").select("*").eq("guild_id",guild_id).order("current_streak",desc=True).limit(limit).execute()); return getattr(rows,"data",None) or []
 
-# --- Compatibility installers -------------------------------------------
-# These used to be installed from the bottom of client.py as an import-time
-# side effect wrapped in a bare `except Exception`. That created a fragile
-# circular import: if anything ever imported bot.database.repository before
-# bot.database.client had been imported, repository_compat.py's own
-# `from .repository import Repository` would hit this module mid-import
-# (Repository not defined yet), raise ImportError, get silently swallowed,
-# and leave Repository missing methods like log_command_usage and
-# active_ticket_panels at runtime.
-#
-# Installing them here instead is safe regardless of import order, because
-# Repository is already fully defined above by the time this code runs.
-
-async def _recent_cases(self, guild_id: str, limit: int = 10):
-    rows = await self.db.try_run(
-        lambda c: c.table("moderation_cases")
-        .select("*")
-        .eq("guild_id", guild_id)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-    return getattr(rows, "data", None) or []
-
-if not hasattr(Repository, "recent_cases"):
-    setattr(Repository, "recent_cases", _recent_cases)
-
+# Install the compatibility helpers now that Repository is fully defined
+# above. Doing the install here — instead of as an import-time side effect
+# inside client.py — removes a circular-import order dependency: both
+# repository_compat.py and ticket_repository_compat.py import Repository
+# from this module, and by this point in the file Repository already exists
+# in this module's namespace, so the import succeeds no matter which module
+# a caller happens to import first (client.py or repository.py).
 try:
     from .repository_compat import install_repository_compat
     install_repository_compat()
-except Exception:
-    log.exception("Failed to load repository_compat helpers")
-
-try:
     from .ticket_repository_compat import install_ticket_repository_compat
     install_ticket_repository_compat()
 except Exception:
-    log.exception("Failed to load ticket_repository_compat helpers")
+    log.exception("Failed to load repository compatibility helpers")
 
 __all__=["Repository","DatabaseError"]
