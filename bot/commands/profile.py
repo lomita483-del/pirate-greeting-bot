@@ -1,4 +1,4 @@
-"""/profile — a rendered PNG stat card for a member."""
+""" /profile — a rendered PNG stat card for a member."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..services.card_service import render_profile_card
-from ..services.level_service import LevelService, level_for_xp
+from ..services.level_service import LevelService, level_for_messages
 from ..utils.checks import ActionRefused, ensure_guild
 from ..utils.logger import get_logger
 from ..utils.parsing import humanize
@@ -44,13 +44,11 @@ class Profile(commands.Cog):
         xp_profile = await repo.get_xp(guild_id, str(target.id))
         voice = await repo.get_voice_stats(guild_id, str(target.id))
 
-        # Total XP is the source of truth. Derive the current level from it
-        # instead of trusting a potentially stale cached/stored level. This
-        # keeps the level, XP progress, progress bar and rank card consistent.
         xp = int(xp_profile.get("xp", 0) or 0)
-        level = level_for_xp(xp)
+        messages = int(xp_profile.get("messages", 0) or 0)
+        level = level_for_messages(messages)
         rank = await repo.xp_rank(guild_id, xp)
-        current, needed = LevelService.progress(xp, level)
+        current, needed = LevelService.progress(messages, level)
 
         try:
             avatar_bytes = await target.display_avatar.replace(size=256, format="png").read()
@@ -79,12 +77,12 @@ class Profile(commands.Cog):
                 xp_needed=needed,
                 total_xp=xp,
                 rank=rank,
-                messages=int(xp_profile.get("messages", 0) or 0),
+                messages=messages,
                 voice_time=humanize(voice_seconds) if voice_seconds else "0m",
                 joined_server=_date(target.joined_at),
                 joined_discord=_date(target.created_at),
             )
-        except Exception as exc:  # pragma: no cover - Pillow/runtime issues
+        except Exception as exc:
             log.exception("Profile card render failed: %s", exc)
             raise ActionRefused("I couldn't render that profile card just now.") from exc
 
