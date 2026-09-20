@@ -162,6 +162,107 @@ def render_profile_card(
     return buffer
 
 
+def render_level_up_card(
+    *,
+    username: str,
+    avatar_bytes: Optional[bytes],
+    level: int,
+    rank: int,
+    progress_current: float,
+    progress_needed: int,
+    total_xp: float,
+    message: str,
+) -> io.BytesIO:
+    """Premium cinematic glassmorphism level-up card for Discord."""
+    w, h = 1200, 650
+    base = Image.new("RGB", (w, h), (7, 13, 20))
+    draw = ImageDraw.Draw(base)
+
+    # Deep harbour gradient.
+    for y in range(h):
+        t = y / h
+        draw.line([(0, y), (w, y)], fill=(7 + int(7*t), 13 + int(14*t), 20 + int(18*t)))
+
+    glow = Image.new("RGB", (w, h), (0, 0, 0))
+    gd = ImageDraw.Draw(glow)
+    gd.ellipse((-180, -220, 560, 500), fill=(0, 110, 105))
+    gd.ellipse((760, 270, 1380, 850), fill=(92, 63, 20))
+    glow = glow.filter(ImageFilter.GaussianBlur(110))
+    base = Image.blend(base, glow, 0.38)
+
+    # Outer glass panel + inner highlight.
+    panel = (34, 34, w - 34, h - 34)
+    _glass(base, panel, 38)
+    overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    od = ImageDraw.Draw(overlay)
+    od.rounded_rectangle(panel, 38, outline=(255, 255, 255, 55), width=2)
+    od.line([(72, 96), (w - 72, 96)], fill=(255, 255, 255, 28), width=1)
+    base_rgba = base.convert("RGBA")
+    base_rgba.alpha_composite(overlay)
+    draw = ImageDraw.Draw(base_rgba, "RGBA")
+
+    # Gold/teal cinematic edge accents.
+    _gradient_border(base_rgba, (34, 34, w - 34, h - 34), 38, 3)
+
+    # Avatar halo.
+    cx, cy, d = 155, 190, 150
+    halo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    hd = ImageDraw.Draw(halo)
+    hd.ellipse((cx-d//2-16, cy-d//2-16, cx+d//2+16, cy+d//2+16), outline=(31, 182, 166, 85), width=8)
+    halo = halo.filter(ImageFilter.GaussianBlur(8))
+    base_rgba.alpha_composite(halo)
+    if avatar_bytes:
+        try:
+            avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGB").resize((d, d))
+            base_rgba.paste(avatar, (cx-d//2, cy-d//2), _rounded((d, d), d//2))
+        except Exception as exc:
+            log.warning("Level-up avatar render failed: %s", exc)
+    draw = ImageDraw.Draw(base_rgba, "RGBA")
+    draw.ellipse((cx-d//2, cy-d//2, cx+d//2, cy+d//2), outline=TEAL, width=5)
+
+    # Header / identity.
+    draw.text((265, 82), "LEVEL UP", font=_font(24), fill=(180, 195, 204, 210))
+    draw.text((265, 116), username[:26], font=_font(40), fill=INK)
+    draw.text((265, 164), message[:62], font=_font(20), fill=(185, 201, 210, 235))
+
+    # Level + rank display.
+    draw.text((770, 82), f"LEVEL {level}", font=_font(54), fill=TEAL)
+    draw.text((773, 145), f"RANK #{rank}", font=_font(30), fill=GOLD)
+
+    # Progress panel.
+    bx0, by0, bx1, by1 = 72, 330, w - 72, 378
+    draw.rounded_rectangle((bx0, by0, bx1, by1), 24, fill=(255, 255, 255, 22), outline=(255,255,255,45), width=1)
+    ratio = 0 if progress_needed <= 0 else max(0.0, min(1.0, progress_current / progress_needed))
+    filled = bx0 + int((bx1 - bx0) * ratio)
+    if filled > bx0 + 10:
+        draw.rounded_rectangle((bx0, by0, filled, by1), 24, fill=TEAL)
+    draw.text((72, 398), f"{format_xp(progress_current)} / {format_xp(progress_needed)} XP", font=_font(28), fill=INK)
+    draw.text((w - 270, 403), f"{int(ratio * 100)}%", font=_font(22), fill=MUTED)
+
+    # Stat glass tiles.
+    tiles = [
+        (72, 480, 318, 585, "TOTAL XP", format_xp(total_xp)),
+        (336, 480, 582, 585, "CREW RANK", f"#{rank}"),
+        (600, 480, 846, 585, "NEW LEVEL", str(level)),
+        (864, 480, 1128, 585, "STATUS", "PROMOTED"),
+    ]
+    for x0, y0, x1, y1, label, value in tiles:
+        layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        ld = ImageDraw.Draw(layer)
+        ld.rounded_rectangle((x0, y0, x1, y1), 22, fill=(255,255,255,18), outline=(255,255,255,38), width=1)
+        base_rgba.alpha_composite(layer)
+        draw = ImageDraw.Draw(base_rgba, "RGBA")
+        draw.text((x0 + 18, y0 + 16), label, font=_font(16), fill=MUTED)
+        draw.text((x0 + 18, y0 + 48), value, font=_font(28), fill=INK)
+
+    # Decorative anchor, but no footer text.
+    draw.text((w - 78, h - 66), "⚓", font=_font(32), fill=(31, 182, 166, 180), anchor="mm")
+
+    buffer = io.BytesIO()
+    base_rgba.convert("RGB").save(buffer, format="PNG", optimize=True)
+    buffer.seek(0)
+    return buffer
+
 def render_welcome_card(
     *,
     username: str,
