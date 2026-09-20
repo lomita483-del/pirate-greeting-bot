@@ -9,7 +9,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from ..services.card_service import render_profile_card
-from ..services.level_service import LevelService, level_for_messages
+from ..services.level_service import LevelService, format_xp, level_for_xp, rank_for_level
 from ..utils.checks import ActionRefused, ensure_guild
 from ..utils.logger import get_logger
 from ..utils.parsing import humanize
@@ -43,11 +43,11 @@ class Profile(commands.Cog):
         xp_profile = await repo.get_xp(guild_id, str(target.id))
         voice = await repo.get_voice_stats(guild_id, str(target.id))
 
-        xp = int(xp_profile.get("xp", 0) or 0)
+        xp = xp_profile.get("xp", 0) or 0
         messages = int(xp_profile.get("messages", 0) or 0)
-        level = level_for_messages(messages)
-        rank = await repo.xp_rank(guild_id, xp)
-        current, needed = LevelService.progress(messages, level)
+        level = level_for_xp(xp)
+        rank = rank_for_level(level)
+        current, needed = LevelService.progress(xp, level)
 
         try:
             avatar_bytes = await target.display_avatar.replace(size=256, format="png").read()
