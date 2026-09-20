@@ -142,26 +142,72 @@ def render_profile_card(
         sd.line(pts, fill=(31, 182, 166, max(10, 28 - row * 3)), width=2)
     base = Image.alpha_composite(base.convert("RGBA"), sea).convert("RGB")
 
-    # Ghost ship silhouette in the center-right background.
-    ship = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    sh = ImageDraw.Draw(ship)
-    sx, sy = 980, 210
-    sh.polygon(
-        [(sx - 190, sy + 92), (sx + 180, sy + 92), (sx + 125, sy + 128), (sx - 145, sy + 128)],
-        fill=(1, 7, 13, 175),
+    # Cinematic pirate artwork: moon, clouds, stars, ghost ship, sea haze and
+    # faint nautical chart lines. Kept deliberately low-contrast so the HUD text stays readable.
+    art = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ad = ImageDraw.Draw(art)
+
+    # Moon halo.
+    ad.ellipse((1050, -65, 1325, 210), fill=(92, 182, 196, 20))
+    ad.ellipse((1095, -25, 1280, 160), fill=(205, 225, 215, 35))
+    ad.ellipse((1120, 0, 1260, 140), fill=(235, 225, 180, 48))
+
+    # Stars / navigation lights.
+    for sx, sy, r, a in [
+        (760, 72, 2, 115), (842, 122, 1, 95), (910, 66, 2, 100),
+        (974, 150, 1, 85), (1315, 92, 2, 100), (1390, 138, 1, 90),
+        (720, 168, 1, 80), (1215, 205, 1, 75),
+    ]:
+        ad.ellipse((sx-r, sy-r, sx+r, sy+r), fill=(222, 241, 236, a))
+
+    # Wispy clouds.
+    cloud = (2, 11, 18, 90)
+    for box in [(735, 105, 970, 170), (1235, 110, 1490, 185), (860, 185, 1120, 235)]:
+        ad.ellipse(box, fill=cloud)
+
+    # Ghost ship: hull, stern, masts, sails and rigging.
+    sx, sy = 1050, 228
+    hull = (1, 8, 14, 170)
+    sail = (5, 18, 25, 105)
+    rope = (118, 150, 150, 65)
+    ad.polygon(
+        [(sx-245, sy+58), (sx+205, sy+58), (sx+155, sy+100),
+         (sx-185, sy+105), (sx-245, sy+58)], fill=hull
     )
-    sh.polygon(
-        [(sx - 40, sy + 92), (sx - 24, sy - 112), (sx - 5, sy - 124), (sx + 15, sy + 92)],
-        fill=(1, 7, 13, 175),
-    )
-    sh.polygon(
-        [(sx + 40, sy + 92), (sx + 58, sy - 58), (sx + 73, sy - 68), (sx + 90, sy + 92)],
-        fill=(1, 7, 13, 145),
-    )
-    sh.polygon([(sx - 23, sy - 100), (sx - 170, sy - 6), (sx - 23, sy + 10)], fill=(1, 6, 12, 150))
-    sh.polygon([(sx + 4, sy - 88), (sx + 168, sy - 5), (sx + 4, sy + 12)], fill=(1, 6, 12, 150))
-    ship = ship.filter(ImageFilter.GaussianBlur(1.1))
-    base = Image.alpha_composite(base.convert("RGBA"), ship).convert("RGB")
+    ad.line([(sx-205, sy+76), (sx+160, sy+76)], fill=(31,182,166,65), width=3)
+    # main mast
+    ad.line([(sx-45, sy+60), (sx-45, sy-145)], fill=rope, width=5)
+    ad.line([(sx+70, sy+60), (sx+70, sy-95)], fill=rope, width=4)
+    # sails
+    ad.polygon([(sx-42, sy-135), (sx-42, sy+35), (sx-185, sy+25)], fill=sail)
+    ad.polygon([(sx-34, sy-125), (sx-34, sy+34), (sx+88, sy+18)], fill=(4,16,24,95))
+    ad.polygon([(sx+77, sy-83), (sx+77, sy+33), (sx+172, sy+22)], fill=(4,16,24,82))
+    # rigging
+    for ex, ey in [(sx-190, sy+25), (sx+170, sy+22), (sx+88, sy+18)]:
+        ad.line([(sx-45, sy-140), (ex, ey)], fill=rope, width=2)
+    # lanterns / portholes
+    for px in [sx-155, sx-85, sx-10, sx+70, sx+135]:
+        ad.ellipse((px, sy+62, px+8, sy+70), fill=(224,177,92,100))
+
+    # Distant horizon and layered waves.
+    ad.rectangle((0, 330, w, 480), fill=(0, 10, 18, 28))
+    import math
+    for row in range(8):
+        pts = []
+        for x in range(-20, w + 20, 14):
+            yy = 326 + row * 18 + int(7 * math.sin(x / 72 + row * 0.8))
+            pts.append((x, yy))
+        ad.line(pts, fill=(31, 182, 166, max(8, 30-row*3)), width=2)
+
+    # Subtle nautical chart arcs / compass geometry.
+    for radius, alpha in [(240, 18), (330, 12), (420, 8)]:
+        ad.arc((1180-radius, 215-radius, 1180+radius, 215+radius), 195, 345,
+               fill=(224,177,92,alpha), width=2)
+    ad.line([(700, 300), (1450, 300)], fill=(224,177,92,18), width=1)
+    ad.line([(820, 245), (1460, 360)], fill=(31,182,166,14), width=1)
+
+    art = art.filter(ImageFilter.GaussianBlur(1.2))
+    base = Image.alpha_composite(base.convert("RGBA"), art).convert("RGB")
 
     card = base.convert("RGBA")
     panel = (38, 22, w - 38, h - 24)
@@ -239,19 +285,34 @@ def render_profile_card(
     )
     _anchor_glyph(draw, (cx, badge_y), 14, TEAL)
 
-    # Identity block.
-    # Use simple geometric crown treatment instead of relying on emoji fonts.
-    crown_x, crown_y = 490, 118
-    draw.polygon(
-        [(crown_x, crown_y + 20), (crown_x + 12, crown_y - 3),
-         (crown_x + 30, crown_y + 14), (crown_x + 46, crown_y - 8),
-         (crown_x + 64, crown_y + 14), (crown_x + 78, crown_y - 3),
-         (crown_x + 88, crown_y + 20)],
-        fill=GOLD,
-    )
-    draw.rectangle((crown_x + 4, crown_y + 20, crown_x + 84, crown_y + 28), fill=GOLD)
-    draw.text((590, 108), username[:24], font=_font(48), fill=INK)
-    draw.text((592, 166), discriminator[:32], font=_font(25), fill=(150, 211, 220, 235))
+    # Identity block — polished crown insignia (font-independent).
+    crown = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    cd = ImageDraw.Draw(crown)
+    crown_glow = (490, 72, 620, 155)
+    cd.rounded_rectangle(crown_glow, 18, fill=(224, 177, 92, 24))
+    crown = crown.filter(ImageFilter.GaussianBlur(10))
+    card.alpha_composite(crown)
+
+    draw = ImageDraw.Draw(card, "RGBA")
+    cx0, cy0 = 550, 116
+    # Crown silhouette with five distinct points, curved base, and jewel highlights.
+    crown_poly = [
+        (cx0-62, cy0+28), (cx0-51, cy0-20), (cx0-18, cy0+4),
+        (cx0, cy0-34), (cx0+22, cy0+4), (cx0+56, cy0-20),
+        (cx0+62, cy0+28)
+    ]
+    draw.polygon(crown_poly, fill=(224, 177, 92, 255))
+    draw.rounded_rectangle((cx0-61, cy0+27, cx0+61, cy0+43), 7,
+                           fill=(248, 205, 111, 255), outline=(255, 235, 172, 220), width=2)
+    # Crown cutouts / dark inner arches so it reads as a crown, not a bat or bow.
+    for dx in (-38, 0, 38):
+        draw.ellipse((cx0+dx-10, cy0+8, cx0+dx+10, cy0+31), fill=(8, 18, 25, 210))
+    # Three jewel points.
+    for dx in (-51, 0, 56):
+        draw.ellipse((cx0+dx-5, cy0-22, cx0+dx+5, cy0-12), fill=(31, 182, 166, 255))
+
+    draw.text((635, 108), username[:24], font=_font(48), fill=INK)
+    draw.text((637, 166), discriminator[:32], font=_font(25), fill=(150, 211, 220, 235))
 
     # Level/rank capsule — right side, as in the supplied reference.
     capsule = (1035, 62, 1460, 177)
