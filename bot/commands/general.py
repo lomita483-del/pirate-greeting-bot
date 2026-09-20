@@ -8,7 +8,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ..services.level_service import LevelService
+from ..services.level_service import LevelService, level_for_messages
 from ..utils import embeds
 
 HELP_SECTIONS: dict[str, tuple[str, list[tuple[str, str]]]] = {
@@ -179,17 +179,19 @@ class General(commands.Cog):
         warnings = await repo.list_warnings(guild_id, str(target.id))
         settings = await repo.get_settings(guild_id)
 
-        level = int(xp.get("level", 0))
-        current, needed = LevelService.progress(int(xp.get("xp", 0)), level)
+        total_xp = int(xp.get("xp", 0) or 0)
+        messages = int(xp.get("messages", 0) or 0)
+        level = level_for_messages(messages)
+        current, needed = LevelService.progress(messages, level)
 
         embed = embeds.brand(f"{target.display_name}", "AHOY profile")
         embed.set_thumbnail(url=target.display_avatar.url)
         embed.add_field(name="Level", value=str(level))
-        embed.add_field(name="XP", value=f"{int(xp.get('xp', 0)):,}")
-        embed.add_field(name="Messages", value=f"{int(xp.get('messages', 0)):,}")
+        embed.add_field(name="XP", value=f"{total_xp:,}")
+        embed.add_field(name="Messages", value=f"{messages:,}")
         embed.add_field(
             name="Progress",
-            value=f"{LevelService.bar(current, needed)} {current}/{needed}",
+            value=f"{LevelService.bar(current, needed)} {current}/{needed} messages",
             inline=False,
         )
         if settings.get("economy_enabled"):
