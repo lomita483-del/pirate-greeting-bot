@@ -14,6 +14,7 @@ from typing import Optional
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 from ..utils.logger import get_logger
+from .level_service import format_xp
 
 log = get_logger("cards")
 
