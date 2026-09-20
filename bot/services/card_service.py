@@ -130,17 +130,51 @@ def render_profile_card(
     glow = glow.filter(ImageFilter.GaussianBlur(105))
     base = Image.blend(base, glow, 0.48)
 
-    # Ocean haze / wave bands.
+    # Cinematic maritime artwork: moon, stars, ropes, distant ship, spray and wave bands.
+    art = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ad = ImageDraw.Draw(art)
+    # Moon glow.
+    ad.ellipse((1050, 82, 1165, 197), fill=(220, 231, 222, 20), outline=(224, 177, 92, 75), width=2)
+    # Fine stars / sparks.
+    for x, y, r, a in [
+        (650, 72, 2, 115), (720, 112, 2, 90), (805, 70, 3, 105),
+        (900, 120, 2, 85), (980, 64, 2, 100), (1210, 72, 2, 95),
+        (1290, 118, 3, 90), (1360, 76, 2, 105), (1440, 128, 2, 80),
+        (850, 180, 1, 100), (1005, 168, 2, 75),
+    ]:
+        ad.ellipse((x-r, y-r, x+r, y+r), fill=(240, 224, 175, a))
+
+    # Ghost ship silhouette behind the HUD.
+    sx, sy = 1030, 205
+    ad.polygon(
+        [(sx-190, sy+82), (sx+185, sy+82), (sx+132, sy+118), (sx-150, sy+118)],
+        fill=(1, 7, 13, 165),
+    )
+    ad.rectangle((sx-8, sy-105, sx+8, sy+86), fill=(1, 7, 13, 160))
+    ad.rectangle((sx+54, sy-70, sx+64, sy+86), fill=(1, 7, 13, 135))
+    ad.polygon([(sx, sy-92), (sx-145, sy-12), (sx, sy+12)], fill=(1, 7, 13, 135))
+    ad.polygon([(sx+6, sy-76), (sx+145, sy-6), (sx+6, sy+14)], fill=(1, 7, 13, 120))
+
+    # Decorative rope arcs around the upper HUD.
+    ad.arc((420, -170, 1160, 420), 192, 346, fill=(224, 177, 92, 38), width=2)
+    ad.arc((520, -210, 1320, 470), 205, 338, fill=(31, 182, 166, 28), width=2)
+
+    # Gold spray / ember particles near the frame.
+    for x, y, r in [(480, 82, 3), (520, 62, 2), (560, 92, 2), (1260, 210, 3), (1320, 236, 2), (1380, 205, 2)]:
+        ad.ellipse((x-r, y-r, x+r, y+r), fill=(224, 177, 92, 75))
+
+    # Sea haze and wave bands.
     sea = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sea)
     import math
-    for row in range(6):
+    for row in range(7):
         pts = []
-        for x in range(-20, w + 20, 16):
-            yy = 270 + row * 24 + int(8 * math.sin(x / 66 + row * 0.7))
+        for x in range(390, w + 20, 16):
+            yy = 268 + row * 22 + int(8 * math.sin(x / 66 + row * 0.7))
             pts.append((x, yy))
-        sd.line(pts, fill=(31, 182, 166, max(10, 28 - row * 3)), width=2)
-    base = Image.alpha_composite(base.convert("RGBA"), sea).convert("RGB")
+        sd.line(pts, fill=(31, 182, 166, max(9, 34 - row * 4)), width=2)
+    base = Image.alpha_composite(base.convert("RGBA"), art).convert("RGB")
+
 
     # Cinematic pirate artwork: moon, clouds, stars, ghost ship, sea haze and
     # faint nautical chart lines. Kept deliberately low-contrast so the HUD text stays readable.
