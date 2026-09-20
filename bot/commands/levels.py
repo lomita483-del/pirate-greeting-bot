@@ -3,7 +3,7 @@ from __future__ import annotations
 import discord
 from discord import app_commands
 from discord.ext import commands
-from ..services.level_service import LevelService
+from ..services.level_service import LevelService, format_xp, rank_for_level
 from ..utils import embeds
 from ..utils.checks import ActionRefused, ensure_guild
 MEDALS = {1: "🥇", 2: "🥈", 3: "🥉"}
@@ -27,7 +27,7 @@ class Levels(commands.Cog):
             role = guild.get_role(int(rule.get("role_id") or 0))
             if role is not None: rows.append(f"**Level {int(rule.get('level', 0))}** → {role.mention}")
         xp_settings = await repo.get_settings(str(guild.id))
-        detail = f"XP per message: **{int(xp_settings.get('xp_per_message', 15))}** · every message counts"
+        detail = f"XP per message: **{format_xp(xp_settings.get('xp_per_message', 7.5))}** · 150 XP per level · +1 crew rank every 2 levels"
         await interaction.followup.send(embed=embeds.brand("Level rewards", ("\n".join(rows) or "No level role rewards configured yet.") + "\n\n" + detail), ephemeral=True)
 
     @app_commands.command(name="leaderboard", description="Top members in this server.")
