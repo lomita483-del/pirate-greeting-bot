@@ -72,20 +72,17 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
     async def settings(
         self,
         interaction: discord.Interaction,
-        xp_per_message: app_commands.Range[float, 0.1, 500] = 7.5,
-        xp_per_level: app_commands.Range[float, 1, 100000] = 200,
-        rank_every_levels: app_commands.Range[int, 1, 100] = 2,
+        xp_per_message: app_commands.Range[float, 0.1, 500] | None = None,
+        xp_per_level: app_commands.Range[float, 1, 100000] | None = None,
+        rank_every_levels: app_commands.Range[int, 1, 100] | None = None,
     ) -> None:
         guild = ensure_guild(interaction)
         await interaction.response.defer(ephemeral=True)
-        await self.bot.repo.update_settings(
-            str(guild.id),
-            {
-                "xp_per_message": float(xp_per_message),
-                "xp_per_level": float(xp_per_level),
-                "rank_every_levels": int(rank_every_levels),
-            },
-        )
+        current = await self.bot.levels.config(str(guild.id))  # type: ignore[attr-defined]
+        message_xp = float(xp_per_message if xp_per_message is not None else current.get("xp_per_message", 7.5))
+        level_xp = float(xp_per_level if xp_per_level is not None else current.get("xp_per_level", 200))
+        rank_interval = int(rank_every_levels if rank_every_levels is not None else current.get("rank_every_levels", 2))
+        await self.bot.repo.update_settings(str(guild.id), {"xp_per_message": message_xp, "xp_per_level": level_xp, "rank_every_levels": rank_interval})
         if hasattr(self.bot, "settings"):
             try:
                 self.bot.settings.invalidate(str(guild.id))
@@ -94,9 +91,9 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
         await interaction.followup.send(
             embed=embeds.success(
                 "XP settings updated",
-                f"**{format_xp(xp_per_message)} XP/message** · "
-                f"**{format_xp(xp_per_level)} XP/level** · "
-                f"**+1 crew rank every {int(rank_every_levels)} levels**\n\n"
+                f"**{format_xp(message_xp)} XP/message** · "
+                f"**{format_xp(level_xp)} XP/level** · "
+                f"**+1 crew rank every {rank_interval} levels**\n\n"
                 "Level 1 reaches **200/200 XP** by default; level 2 reaches **400/400 XP**.",
             ),
             ephemeral=True,
