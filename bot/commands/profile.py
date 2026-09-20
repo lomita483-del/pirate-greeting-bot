@@ -1,5 +1,4 @@
-""" /profile — a rendered PNG stat card for a member."""
-
+""" /profile — a rendered PNG stat card for a member. """
 from __future__ import annotations
 
 import asyncio
@@ -73,8 +72,8 @@ class Profile(commands.Cog):
                 discriminator=f"@{target.name}",
                 avatar_bytes=avatar_bytes,
                 level=level,
-                xp_current=current,
-                xp_needed=needed,
+                progress_current=current,
+                progress_needed=needed,
                 total_xp=xp,
                 rank=rank,
                 messages=messages,
