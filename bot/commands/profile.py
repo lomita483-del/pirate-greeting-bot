@@ -45,9 +45,12 @@ class Profile(commands.Cog):
 
         xp = xp_profile.get("xp", 0) or 0
         messages = int(xp_profile.get("messages", 0) or 0)
-        level = level_for_xp(xp)
-        rank = rank_for_level(level)
-        current, needed = LevelService.progress(xp, level)
+        settings = await self.bot.levels.config(guild_id)  # type: ignore[attr-defined]
+        xp_per_level = settings.get("xp_per_level", 200)
+        rank_every = int(settings.get("rank_every_levels", 2) or 2)
+        level = level_for_xp(xp, xp_per_level)
+        rank = rank_for_level(level, rank_every)
+        current, needed = LevelService.progress(xp, level, xp_per_level)
 
         try:
             avatar_bytes = await target.display_avatar.replace(size=256, format="png").read()
