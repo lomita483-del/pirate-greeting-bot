@@ -138,7 +138,7 @@ def render_profile_card(
         draw.rounded_rectangle([bar_x0, bar_y0, filled, bar_y1], 15, fill=TEAL)
     draw.text(
         (bar_x0, bar_y1 + 10),
-        f"{progress_current:g}/{progress_needed:,} XP  ·  {total_xp:g} total XP",
+        f"{progress_current:,.0f}/{progress_needed:,} XP  ·  {total_xp:,.0f} total XP",
         font=_font(20),
         fill=MUTED,
     )
