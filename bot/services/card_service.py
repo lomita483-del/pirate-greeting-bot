@@ -319,34 +319,10 @@ def render_profile_card(
     )
     _anchor_glyph(draw, (cx, badge_y), 14, TEAL)
 
-    # Identity block — polished crown insignia (font-independent).
-    crown = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    cd = ImageDraw.Draw(crown)
-    crown_glow = (490, 72, 620, 155)
-    cd.rounded_rectangle(crown_glow, 18, fill=(224, 177, 92, 24))
-    crown = crown.filter(ImageFilter.GaussianBlur(10))
-    card.alpha_composite(crown)
-
+    # Identity block — clean premium nameplate, with no crown/crown icon.
     draw = ImageDraw.Draw(card, "RGBA")
-    cx0, cy0 = 550, 116
-    # Crown silhouette with five distinct points, curved base, and jewel highlights.
-    crown_poly = [
-        (cx0-62, cy0+28), (cx0-51, cy0-20), (cx0-18, cy0+4),
-        (cx0, cy0-34), (cx0+22, cy0+4), (cx0+56, cy0-20),
-        (cx0+62, cy0+28)
-    ]
-    draw.polygon(crown_poly, fill=(224, 177, 92, 255))
-    draw.rounded_rectangle((cx0-61, cy0+27, cx0+61, cy0+43), 7,
-                           fill=(248, 205, 111, 255), outline=(255, 235, 172, 220), width=2)
-    # Crown cutouts / dark inner arches so it reads as a crown, not a bat or bow.
-    for dx in (-38, 0, 38):
-        draw.ellipse((cx0+dx-10, cy0+8, cx0+dx+10, cy0+31), fill=(8, 18, 25, 210))
-    # Three jewel points.
-    for dx in (-51, 0, 56):
-        draw.ellipse((cx0+dx-5, cy0-22, cx0+dx+5, cy0-12), fill=(31, 182, 166, 255))
-
-    draw.text((635, 108), username[:24], font=_font(48), fill=INK)
-    draw.text((637, 166), discriminator[:32], font=_font(25), fill=(150, 211, 220, 235))
+    draw.text((520, 108), username[:24], font=_font(48), fill=INK)
+    draw.text((522, 166), discriminator[:32], font=_font(25), fill=(150, 211, 220, 235))
 
     # Level/rank capsule — right side, as in the supplied reference.
     capsule = (1035, 62, 1460, 177)
