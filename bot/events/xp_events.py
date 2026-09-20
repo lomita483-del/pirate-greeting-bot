@@ -27,12 +27,13 @@ class XPEvents(commands.Cog):
             if not isinstance(channel, discord.TextChannel): return
             xp_profile = await self.bot.repo.get_xp(str(message.guild.id), str(message.author.id))  # type: ignore[attr-defined]
             xp = int(xp_profile.get("xp", 0) or 0)
-            current, needed = LevelService.progress(xp, new_level)
+            messages = int(xp_profile.get("messages", 0) or 0)
+            current, needed = LevelService.progress(messages, new_level)
             rank = await self.bot.repo.xp_rank(str(message.guild.id), xp)  # type: ignore[attr-defined]
             template = settings.get("level_up_message") or "Ahoy {user}, you reached level {level}! ⚓"
             text = render_template(template, user=message.author.mention, username=message.author.display_name, server=message.guild.name, level=str(new_level))
             description = f"{text}\n\n"
-            if settings.get("level_up_card_show_progress", True): description += f"`{LevelService.bar(current, needed, 24)}`\n**{current:,} / {needed:,} XP** to the next level.\n"
+            if settings.get("level_up_card_show_progress", True): description += f"`{LevelService.bar(current, needed, 24)}`\n**{current:,} / {needed:,} messages** to the next level.\n"
             card = embeds.brand(f"⚓ LEVEL UP · {new_level}", description, embeds.GOLD)
             card.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
             if settings.get("level_up_card_show_rank", True): card.add_field(name="Crew rank", value=f"**#{rank}**", inline=True)
