@@ -97,9 +97,9 @@ def render_profile_card(
     discriminator: str,
     avatar_bytes: Optional[bytes],
     level: int,
-    progress_current: int,
+    progress_current: float,
     progress_needed: int,
-    total_xp: int,
+    total_xp: float,
     rank: int,
     messages: int,
     voice_time: str,
@@ -138,7 +138,7 @@ def render_profile_card(
         draw.rounded_rectangle([bar_x0, bar_y0, filled, bar_y1], 15, fill=TEAL)
     draw.text(
         (bar_x0, bar_y1 + 10),
-        f"{progress_current:,}/{progress_needed:,} messages  ·  {total_xp:,} total XP",
+        f"{progress_current:g}/{progress_needed:,} XP  ·  {total_xp:g} total XP",
         font=_font(20),
         fill=MUTED,
     )
