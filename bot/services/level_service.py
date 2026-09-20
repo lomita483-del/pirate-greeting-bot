@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from decimal import Decimal, InvalidOperation
 from typing import Any, Optional
 
 import discord
@@ -12,20 +13,35 @@ from .settings_service import SettingsService
 
 log = get_logger("levels")
 
-MESSAGES_PER_LEVEL = 10
+XP_PER_LEVEL = Decimal("150")
+DEFAULT_XP_PER_MESSAGE = Decimal("7.5")
 
 
-def level_for_messages(messages: int) -> int:
-    return max(0, int(messages)) // MESSAGES_PER_LEVEL
+def _xp(value: Any) -> Decimal:
+    try:
+        return Decimal(str(value or 0))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal("0")
 
 
-def messages_for_level(level: int) -> int:
-    return max(0, int(level)) * MESSAGES_PER_LEVEL
+def level_for_xp(xp: Any) -> int:
+    """Level 1 starts at 0 XP; each additional 150 XP advances one level."""
+    return max(1, int(_xp(xp) // XP_PER_LEVEL) + 1)
 
 
-# Back-compat aliases: leveling is intentionally message-count based.
-level_for_xp = level_for_messages
-xp_for_level = messages_for_level
+def xp_for_level(level: int) -> Decimal:
+    """XP floor for a level (level 1 starts at 0 XP)."""
+    return max(Decimal("0"), Decimal(max(1, int(level)) - 1) * XP_PER_LEVEL)
+
+
+def rank_for_level(level: int) -> int:
+    """Crew rank: +1 rank at every second level (Lv1=0, Lv2=1, Lv3=1...)."""
+    return max(0, int(level) // 2)
+
+
+# Back-compat names for callers that still import the old helpers.
+level_for_messages = level_for_xp
+messages_for_level = lambda level: max(0, int(level) - 1) * 20
 
 
 class LevelService:
@@ -34,28 +50,30 @@ class LevelService:
         self.settings = settings
 
     async def award(self, guild_id: str, member: Any) -> Optional[int]:
-        """Award configured XP for each message; every 10 messages advances one level."""
+        """Award XP for every eligible message and derive level from total XP."""
         config = await self.settings.get(guild_id)
         if config and not config.get("xp_enabled", True):
             return None
 
-        amount = max(1, int((config or {}).get("xp_per_message", 15)))
-        profile = await self.repo.get_xp(guild_id, str(member.id))
+        amount = _xp((config or {}).get("xp_per_message", DEFAULT_XP_PER_MESSAGE))
+        if amount <= 0:
+            amount = DEFAULT_XP_PER_MESSAGE
 
-        current_xp = int(profile.get("xp", 0) or 0)
+        profile = await self.repo.get_xp(guild_id, str(member.id))
+        current_xp = _xp(profile.get("xp", 0))
         current_messages = int(profile.get("messages", 0) or 0)
-        previous_level = level_for_messages(current_messages)
+        previous_level = level_for_xp(current_xp)
 
         new_messages = current_messages + 1
         new_xp = current_xp + amount
-        new_level = level_for_messages(new_messages)
+        new_level = level_for_xp(new_xp)
 
         await self.repo.save_xp(
             {
                 "guild_id": guild_id,
                 "user_id": str(member.id),
                 "username": member.name,
-                "xp": new_xp,
+                "xp": float(new_xp) if new_xp % 1 else int(new_xp),
                 "level": new_level,
                 "messages": new_messages,
                 "last_awarded_at": None,
@@ -103,13 +121,19 @@ class LevelService:
         return granted
 
     @staticmethod
-    def progress(messages: int, level: int) -> tuple[int, int]:
-        """Progress within the current level: 0..9 out of 10 messages."""
-        floor_messages = messages_for_level(level)
-        into_level = max(0, int(messages)) - floor_messages
-        return min(MESSAGES_PER_LEVEL - 1, max(0, into_level)), MESSAGES_PER_LEVEL
+    def progress(xp: Any, level: int) -> tuple[float, int]:
+        """Progress within the current 150-XP level."""
+        current = max(Decimal("0"), _xp(xp) - xp_for_level(level))
+        current = min(XP_PER_LEVEL, current)
+        return float(current), int(XP_PER_LEVEL)
 
     @staticmethod
-    def bar(current: int, total: int, width: int = 16) -> str:
+    def bar(current: float, total: int, width: int = 16) -> str:
         filled = max(0, min(width, math.floor(width * current / max(1, total))))
         return "█" * filled + "░" * (width - filled)
+
+
+def format_xp(value: Any) -> str:
+    """Display XP cleanly without showing unnecessary .0."""
+    number = _xp(value)
+    return f"{number:.1f}".rstrip("0").rstrip(".") if number % 1 else f"{int(number):,}"
