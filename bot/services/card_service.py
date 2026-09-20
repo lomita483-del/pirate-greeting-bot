@@ -107,120 +107,115 @@ def render_profile_card(
     joined_server: str,
     joined_discord: str,
 ) -> io.BytesIO:
-    """Premium cinematic AHOY profile card.
+    """Render the AHOY profile card in the supplied premium HUD reference style."""
 
-    The profile renderer is intentionally a true image card rather than a
-    plain Discord embed: layered glass panels, luminous teal/gold trim,
-    nautical silhouettes, an avatar medallion, XP HUD and stat tiles.
-    """
+    # The reference is a wide cinematic HUD rather than a tall profile panel.
+    w, h = 1536, 480
 
-    w, h = 1536, 820
-    base = Image.new("RGB", (w, h), (3, 10, 18))
+    # Deep-ocean base with teal/blue/gold cinematic blooms.
+    base = Image.new("RGB", (w, h), (2, 8, 14))
     draw = ImageDraw.Draw(base)
-
-    # Stormy ocean / deep-harbour atmosphere.
     for y in range(h):
-        t = y / h
+        t = y / max(1, h - 1)
         draw.line(
             [(0, y), (w, y)],
-            fill=(
-                int(3 + 5 * t),
-                int(11 + 12 * t),
-                int(19 + 18 * t),
-            ),
+            fill=(int(2 + 5 * t), int(9 + 13 * t), int(15 + 22 * t)),
         )
 
     glow = Image.new("RGB", (w, h), (0, 0, 0))
     gd = ImageDraw.Draw(glow)
-    gd.ellipse((-180, -220, 620, 560), fill=(0, 94, 91))
-    gd.ellipse((850, -120, 1600, 520), fill=(0, 76, 112))
-    gd.ellipse((700, 520, 1700, 1100), fill=(86, 56, 15))
-    glow = glow.filter(ImageFilter.GaussianBlur(125))
-    base = Image.blend(base, glow, 0.46)
+    gd.ellipse((-180, -170, 680, 520), fill=(0, 92, 94))
+    gd.ellipse((620, -130, 1570, 430), fill=(0, 72, 110))
+    gd.ellipse((800, 300, 1660, 650), fill=(92, 58, 17))
+    glow = glow.filter(ImageFilter.GaussianBlur(105))
+    base = Image.blend(base, glow, 0.48)
 
-    # Moon / sea-light bloom.
-    moon = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-    md = ImageDraw.Draw(moon)
-    md.ellipse((1190, 55, 1350, 215), fill=(126, 220, 231, 42))
-    md.ellipse((1210, 75, 1330, 195), fill=(210, 244, 244, 65))
-    moon = moon.filter(ImageFilter.GaussianBlur(18))
-    base = Image.alpha_composite(base.convert("RGBA"), moon).convert("RGB")
-
-    # Subtle ocean bands.
+    # Ocean haze / wave bands.
     sea = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sd = ImageDraw.Draw(sea)
     import math
-    for row in range(7):
+    for row in range(6):
         pts = []
-        for x in range(-20, w + 20, 18):
-            y = 560 + row * 27 + int(11 * math.sin(x / 70 + row * 0.8))
-            pts.append((x, y))
-        sd.line(pts, fill=(31, 182, 166, max(12, 34 - row * 3)), width=2)
+        for x in range(-20, w + 20, 16):
+            yy = 270 + row * 24 + int(8 * math.sin(x / 66 + row * 0.7))
+            pts.append((x, yy))
+        sd.line(pts, fill=(31, 182, 166, max(10, 28 - row * 3)), width=2)
     base = Image.alpha_composite(base.convert("RGBA"), sea).convert("RGB")
 
-    # Ghost-ship silhouettes behind the HUD.
+    # Ghost ship silhouette in the center-right background.
     ship = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     sh = ImageDraw.Draw(ship)
-    sx, sy = 1030, 285
+    sx, sy = 980, 210
     sh.polygon(
-        [(sx - 160, sy + 110), (sx + 155, sy + 110), (sx + 112, sy + 150), (sx - 120, sy + 150)],
-        fill=(2, 8, 14, 175),
+        [(sx - 190, sy + 92), (sx + 180, sy + 92), (sx + 125, sy + 128), (sx - 145, sy + 128)],
+        fill=(1, 7, 13, 175),
     )
-    sh.polygon([(sx - 35, sy + 105), (sx - 20, sy - 80), (sx + 2, sy - 95), (sx + 18, sy + 105)],
-               fill=(3, 9, 16, 170))
-    sh.polygon([(sx + 40, sy + 105), (sx + 62, sy - 35), (sx + 78, sy - 45), (sx + 88, sy + 105)],
-               fill=(3, 9, 16, 145))
-    sh.polygon([(sx - 20, sy - 70), (sx - 150, sy + 15), (sx - 20, sy + 28)], fill=(2, 7, 13, 160))
-    sh.polygon([(sx + 3, sy - 60), (sx + 150, sy + 15), (sx + 4, sy + 28)], fill=(2, 7, 13, 160))
-    ship = ship.filter(ImageFilter.GaussianBlur(1.2))
+    sh.polygon(
+        [(sx - 40, sy + 92), (sx - 24, sy - 112), (sx - 5, sy - 124), (sx + 15, sy + 92)],
+        fill=(1, 7, 13, 175),
+    )
+    sh.polygon(
+        [(sx + 40, sy + 92), (sx + 58, sy - 58), (sx + 73, sy - 68), (sx + 90, sy + 92)],
+        fill=(1, 7, 13, 145),
+    )
+    sh.polygon([(sx - 23, sy - 100), (sx - 170, sy - 6), (sx - 23, sy + 10)], fill=(1, 6, 12, 150))
+    sh.polygon([(sx + 4, sy - 88), (sx + 168, sy - 5), (sx + 4, sy + 12)], fill=(1, 6, 12, 150))
+    ship = ship.filter(ImageFilter.GaussianBlur(1.1))
     base = Image.alpha_composite(base.convert("RGBA"), ship).convert("RGB")
 
-    # Main glass chassis.
     card = base.convert("RGBA")
-    panel = (34, 36, w - 34, h - 34)
-    _glass(card, panel, 48)
-    _gradient_border(card, panel, 48, 5)
+    panel = (38, 22, w - 38, h - 24)
 
-    # Ornate luxury HUD frame.
+    # Dark glass chassis.
+    _glass(card, panel, 38)
+    _gradient_border(card, panel, 38, 5)
+
+    # Reference-style stepped gold/teal frame and luminous corner brackets.
     frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     fd = ImageDraw.Draw(frame)
-    gold = (*GOLD, 190)
-    teal = (*TEAL, 190)
-    fd.line([(74, 72), (360, 72)], fill=gold, width=3)
-    fd.line([(1176, 72), (1460, 72)], fill=teal, width=3)
-    fd.line([(74, h - 72), (360, h - 72)], fill=teal, width=3)
-    fd.line([(1176, h - 72), (1460, h - 72)], fill=gold, width=3)
-    for x, y, col in ((78, 78, gold), (w-78, 78, teal), (78, h-78, teal), (w-78, h-78, gold)):
-        dx = 38 if x < w/2 else -38
-        dy = 38 if y < h/2 else -38
-        fd.line([(x, y), (x + dx, y)], fill=col, width=4)
-        fd.line([(x, y), (x, y + dy)], fill=col, width=4)
-        fd.ellipse((x-7, y-7, x+7, y+7), fill=col)
-    fd.ellipse((w//2-11, 58, w//2+11, 80), outline=gold, width=3)
-    fd.ellipse((w//2-7, h-80, w//2+7, h-66), fill=teal)
-    frame = frame.filter(ImageFilter.GaussianBlur(0.35))
+    gold = (*GOLD, 215)
+    teal = (*TEAL, 220)
+    fd.line([(58, 58), (345, 58)], fill=gold, width=4)
+    fd.line([(1190, 58), (1478, 58)], fill=teal, width=4)
+    fd.line([(58, h - 58), (345, h - 58)], fill=teal, width=4)
+    fd.line([(1190, h - 58), (1478, h - 58)], fill=gold, width=4)
+    corners = [(64, 64, gold, 1, 1), (1472, 64, teal, -1, 1),
+               (64, h - 64, teal, 1, -1), (1472, h - 64, gold, -1, -1)]
+    for x, y, col, dx, dy in corners:
+        fd.line([(x, y), (x + dx * 46, y)], fill=col, width=5)
+        fd.line([(x, y), (x, y + dy * 46)], fill=col, width=5)
+        fd.ellipse((x - 7, y - 7, x + 7, y + 7), fill=col)
+    # Small central jewel / anchor plate.
+    fd.ellipse((w // 2 - 15, 42, w // 2 + 15, 72), outline=gold, width=3)
+    fd.ellipse((w // 2 - 9, h - 72, w // 2 + 9, h - 54), fill=teal)
+    frame = frame.filter(ImageFilter.GaussianBlur(0.45))
     card.alpha_composite(frame)
 
-    # Inner highlight and cinematic corner flares.
+    # Thin internal highlight rails.
     overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
-    od.rounded_rectangle(panel, 48, outline=(255, 255, 255, 42), width=2)
-    od.line([(84, 106), (w - 84, 106)], fill=(255, 255, 255, 24), width=2)
-    for px, py, col in ((112, 96, GOLD), (w - 118, 96, TEAL), (w - 108, h - 100, GOLD), (118, h - 100, TEAL)):
-        od.ellipse((px - 5, py - 5, px + 5, py + 5), fill=(*col, 180))
-    overlay = overlay.filter(ImageFilter.GaussianBlur(0.5))
+    od.rounded_rectangle(panel, 38, outline=(255, 255, 255, 45), width=2)
+    od.line([(88, 93), (w - 88, 93)], fill=(255, 255, 255, 24), width=2)
     card.alpha_composite(overlay)
 
-    # Avatar medallion.
-    cx, cy, d = 210, 280, 260
+    draw = ImageDraw.Draw(card, "RGBA")
+
+    # Avatar medallion: large, left aligned, with gold/teal cinematic halo.
+    cx, cy, d = 270, 230, 236
     halo = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     hd = ImageDraw.Draw(halo)
-    hd.ellipse((cx - d // 2 - 28, cy - d // 2 - 28, cx + d // 2 + 28, cy + d // 2 + 28),
-               outline=(31, 182, 166, 95), width=12)
+    hd.ellipse(
+        (cx - d // 2 - 26, cy - d // 2 - 26, cx + d // 2 + 26, cy + d // 2 + 26),
+        outline=(31, 182, 166, 95),
+        width=14,
+    )
     halo = halo.filter(ImageFilter.GaussianBlur(12))
     card.alpha_composite(halo)
-    _gradient_ring(card, (cx - d // 2 - 8, cy - d // 2 - 8, cx + d // 2 + 8, cy + d // 2 + 8), 7)
-
+    _gradient_ring(
+        card,
+        (cx - d // 2 - 7, cy - d // 2 - 7, cx + d // 2 + 7, cy + d // 2 + 7),
+        7,
+    )
     if avatar_bytes:
         try:
             avatar = Image.open(io.BytesIO(avatar_bytes)).convert("RGB").resize((d, d))
@@ -228,75 +223,150 @@ def render_profile_card(
         except Exception as exc:
             log.warning("Profile avatar render failed: %s", exc)
     draw = ImageDraw.Draw(card, "RGBA")
-    draw.ellipse((cx - d // 2, cy - d // 2, cx + d // 2, cy + d // 2), outline=GOLD, width=3)
+    draw.ellipse(
+        (cx - d // 2, cy - d // 2, cx + d // 2, cy + d // 2),
+        outline=GOLD,
+        width=3,
+    )
 
-    # Small anchor badge under avatar.
-    badge = (cx, cy + d // 2 + 8)
-    draw.ellipse((badge[0] - 30, badge[1] - 30, badge[0] + 30, badge[1] + 30),
-                 fill=(7, 20, 27, 235), outline=GOLD, width=3)
-    _anchor_glyph(draw, badge, 18, TEAL)
+    # Anchor medallion under the avatar.
+    badge_y = cy + d // 2 + 3
+    draw.ellipse(
+        (cx - 24, badge_y - 24, cx + 24, badge_y + 24),
+        fill=(3, 14, 21, 245),
+        outline=GOLD,
+        width=3,
+    )
+    _anchor_glyph(draw, (cx, badge_y), 14, TEAL)
 
-    # Identity HUD.
-    draw.text((380, 116), "☠", font=_font(38), fill=GOLD)
-    draw.text((430, 112), username[:26], font=_font(52), fill=INK)
-    draw.text((432, 177), discriminator[:32], font=_font(26), fill=(116, 211, 221, 235))
+    # Identity block.
+    # Use simple geometric crown treatment instead of relying on emoji fonts.
+    crown_x, crown_y = 490, 118
+    draw.polygon(
+        [(crown_x, crown_y + 20), (crown_x + 12, crown_y - 3),
+         (crown_x + 30, crown_y + 14), (crown_x + 46, crown_y - 8),
+         (crown_x + 64, crown_y + 14), (crown_x + 78, crown_y - 3),
+         (crown_x + 88, crown_y + 20)],
+        fill=GOLD,
+    )
+    draw.rectangle((crown_x + 4, crown_y + 20, crown_x + 84, crown_y + 28), fill=GOLD)
+    draw.text((590, 108), username[:24], font=_font(48), fill=INK)
+    draw.text((592, 166), discriminator[:32], font=_font(25), fill=(150, 211, 220, 235))
 
-    # Decorative captain crown.
-    draw.text((430, 235), "♛", font=_font(38), fill=GOLD)
-
-    # Level/rank capsule.
-    capsule = (1070, 105, 1450, 225)
+    # Level/rank capsule — right side, as in the supplied reference.
+    capsule = (1035, 62, 1460, 177)
     _glass(card, capsule, 30)
     draw = ImageDraw.Draw(card, "RGBA")
-    draw.text((1110, 124), f"LEVEL {level}", font=_font(44), fill=TEAL)
-    draw.text((1112, 177), f"RANK #{rank}", font=_font(29), fill=GOLD)
-    draw.text((1042, 130), "⚓", font=_font(42), fill=GOLD)
+    # Nautical anchor plate.
+    draw.ellipse((1060, 78, 1148, 166), fill=(5, 16, 23, 235), outline=GOLD, width=4)
+    _anchor_glyph(draw, (1104, 122), 27, GOLD)
+    draw.text((1172, 78), f"LEVEL {level}", font=_font(42), fill=TEAL)
+    draw.text((1174, 130), f"RANK #{rank}", font=_font(29), fill=GOLD)
 
-    # XP HUD.
-    bar_x0, bar_y0, bar_x1, bar_y1 = 430, 292, 1450, 344
-    draw.rounded_rectangle((bar_x0, bar_y0, bar_x1, bar_y1), 26,
-                           fill=(2, 14, 20, 210), outline=(255, 255, 255, 40), width=2)
-    ratio = 0.0 if progress_needed <= 0 else max(0.0, min(1.0, progress_current / progress_needed))
+    # XP bar and exact reference-style labels.
+    bar_x0, bar_y0, bar_x1, bar_y1 = 475, 220, 1455, 263
+    draw.rounded_rectangle(
+        (bar_x0 - 5, bar_y0 - 5, bar_x1 + 5, bar_y1 + 5),
+        25,
+        fill=(0, 0, 0, 85),
+        outline=(224, 177, 92, 110),
+        width=2,
+    )
+    draw.rounded_rectangle(
+        (bar_x0, bar_y0, bar_x1, bar_y1),
+        22,
+        fill=(2, 14, 20, 235),
+        outline=(31, 182, 166, 125),
+        width=2,
+    )
+    ratio = 0.0 if progress_needed <= 0 else max(
+        0.0, min(1.0, progress_current / progress_needed)
+    )
     filled = bar_x0 + int((bar_x1 - bar_x0) * ratio)
     if filled > bar_x0 + 8:
-        draw.rounded_rectangle((bar_x0 + 3, bar_y0 + 3, filled, bar_y1 - 3), 22, fill=TEAL)
-        shine = Image.new("RGBA", (w, h), (0, 0, 0, 0))
-        sd2 = ImageDraw.Draw(shine)
-        sd2.rounded_rectangle((bar_x0 + 3, bar_y0 + 3, filled, bar_y0 + 13), 8, fill=(255, 255, 255, 52))
-        card.alpha_composite(shine)
-    draw = ImageDraw.Draw(card, "RGBA")
-    draw.text((430, 366), f"{progress_current:,.0f} / {progress_needed:,.0f} XP", font=_font(31), fill=INK)
-    next_xp = max(progress_needed, progress_current)
-    if progress_current >= progress_needed:
-        next_xp = progress_needed
-    draw.text((1125, 373), f"NEXT: {next_xp:,.0f} XP", font=_font(21), fill=(116, 211, 221, 235))
+        # Glow under the fill.
+        glowbar = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        gbd = ImageDraw.Draw(glowbar)
+        gbd.rounded_rectangle(
+            (bar_x0, bar_y0, filled, bar_y1),
+            22,
+            fill=(0, 210, 220, 180),
+        )
+        glowbar = glowbar.filter(ImageFilter.GaussianBlur(9))
+        card.alpha_composite(glowbar)
+        draw = ImageDraw.Draw(card, "RGBA")
+        draw.rounded_rectangle(
+            (bar_x0 + 3, bar_y0 + 3, filled, bar_y1 - 3),
+            19,
+            fill=(18, 205, 196, 255),
+        )
+        draw.rounded_rectangle(
+            (bar_x0 + 9, bar_y0 + 7, max(bar_x0 + 10, filled - 8), bar_y0 + 14),
+            6,
+            fill=(210, 255, 252, 75),
+        )
 
-    # Glass stat tiles.
+    draw = ImageDraw.Draw(card, "RGBA")
+    draw.text(
+        (475, 278),
+        f"{format_xp(progress_current)} / {format_xp(progress_needed)} XP",
+        font=_font(28),
+        fill=INK,
+    )
+    # Target is the level threshold; keep the label visually aligned to the reference.
+    draw.text(
+        (1190, 283),
+        f"NEXT: {format_xp(progress_needed)} XP",
+        font=_font(20),
+        fill=(150, 211, 220, 235),
+    )
+
+    # Five compact glass stat tiles across the bottom.
     stats = [
-        ("💬", "MESSAGES", f"{messages:,}", TEAL),
-        ("ϟ", "TOTAL XP", f"{total_xp:,.0f}", GOLD),
-        ("♛", "CREW RANK", f"#{rank}", GOLD),
-        ("♜", "JOINED SERVER", joined_server, TEAL),
-        ("◉", "ON DISCORD", joined_discord, TEAL),
+        ("MESSAGES", f"{messages:,}", TEAL),
+        ("TOTAL XP", f"{total_xp:,.0f}", GOLD),
+        ("CREW RANK", f"#{rank}", GOLD),
+        ("JOINED SERVER", joined_server, TEAL),
+        ("ON DISCORD", joined_discord, TEAL),
     ]
-    tile_y0, tile_y1 = 500, 710
-    left, gap = 72, 18
-    tile_w = 264
-    for idx, (icon, label, value, accent) in enumerate(stats):
+    tile_y0, tile_y1 = 326, 444
+    left, gap, tile_w = 88, 8, 264
+    for idx, (label, value, accent) in enumerate(stats):
         x0 = left + idx * (tile_w + gap)
         x1 = x0 + tile_w
-        _glass(card, (x0, tile_y0, x1, tile_y1), 25)
+        _glass(card, (x0, tile_y0, x1, tile_y1), 18)
         draw = ImageDraw.Draw(card, "RGBA")
-        draw.text((x0 + 22, tile_y0 + 25), icon, font=_font(28), fill=accent)
-        draw.text((x0 + 64, tile_y0 + 27), label, font=_font(17), fill=MUTED)
-        draw.text((x0 + 24, tile_y0 + 88), value[:24], font=_font(27), fill=INK)
+        # Icon circles / simple glyphs for a consistent font-independent HUD.
+        icon_x = x0 + 35
+        icon_y = tile_y0 + 42
+        draw.ellipse((icon_x - 16, icon_y - 16, icon_x + 16, icon_y + 16),
+                     fill=(4, 18, 25, 230), outline=accent, width=2)
+        if idx == 0:
+            draw.ellipse((icon_x - 8, icon_y - 5, icon_x + 8, icon_y + 7), fill=accent)
+            draw.ellipse((icon_x - 11, icon_y + 8, icon_x - 5, icon_y + 13), fill=accent)
+        elif idx == 1:
+            draw.polygon(
+                [(icon_x - 5, icon_y - 15), (icon_x + 5, icon_y - 15),
+                 (icon_x - 1, icon_y - 3), (icon_x + 8, icon_y - 3),
+                 (icon_x - 5, icon_y + 16), (icon_x - 2, icon_y + 3),
+                 (icon_x - 10, icon_y + 3)],
+                fill=accent,
+            )
+        elif idx == 2:
+            draw.polygon(
+                [(icon_x, icon_y - 13), (icon_x + 8, icon_y - 4),
+                 (icon_x + 6, icon_y + 7), (icon_x, icon_y + 13),
+                 (icon_x - 6, icon_y + 7), (icon_x - 8, icon_y - 4)],
+                fill=accent,
+            )
+        else:
+            draw.ellipse((icon_x - 9, icon_y - 9, icon_x + 9, icon_y + 9),
+                         outline=accent, width=3)
+        draw.text((x0 + 68, tile_y0 + 23), label, font=_font(15), fill=MUTED)
+        draw.text((x0 + 68, tile_y0 + 58), value[:23], font=_font(23), fill=INK)
 
-    # Central anchor ornament — decorative only, no footer copy.
-    ornament_y = 755
-    draw = ImageDraw.Draw(card, "RGBA")
-    draw.line([(w // 2 - 80, ornament_y), (w // 2 - 28, ornament_y)], fill=TEAL, width=2)
-    draw.line([(w // 2 + 28, ornament_y), (w // 2 + 80, ornament_y)], fill=GOLD, width=2)
-    _anchor_glyph(draw, (w // 2, ornament_y), 20, GOLD)
+    # Center anchor jewel, decorative only; no footer text.
+    _anchor_glyph(draw, (w // 2, 462), 13, GOLD)
 
     buffer = io.BytesIO()
     card.convert("RGB").save(buffer, format="PNG", optimize=True)
