@@ -65,7 +65,8 @@ class HelpSelect(discord.ui.Select):
         super().__init__(placeholder="Choose a command category…", options=options)
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.edit_message(embed=build_help_embed(self.values[0]), view=self.view)
+        await interaction.response.defer()
+        await interaction.edit_original_response(embed=build_help_embed(self.values[0]), view=self.view)
 
 
 class HelpView(discord.ui.View):
@@ -75,11 +76,13 @@ class HelpView(discord.ui.View):
 
     @discord.ui.button(label="Overview", style=discord.ButtonStyle.secondary, emoji="⚓")
     async def overview(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        await interaction.response.edit_message(embed=build_help_embed("general"), view=self)
+        await interaction.response.defer()
+        await interaction.edit_original_response(embed=build_help_embed("general"), view=self)
 
     @discord.ui.button(label="Control Center", style=discord.ButtonStyle.primary, emoji="🧭")
     async def dashboard(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
-        await interaction.response.send_message(
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send(
             embed=embeds.brand(
                 "AHOY Control Center",
                 "Server administrators can configure every AHOY module from the web "
