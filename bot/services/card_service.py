@@ -253,7 +253,7 @@ def render_profile_card(
     # Glass stat tiles.
     stats = [
         ("💬", "MESSAGES", f"{messages:,}", TEAL),
-        ("ϟ", "TOTAL XP", format_xp(total_xp), GOLD),
+        ("ϟ", "TOTAL XP", f"{total_xp:,.0f}", GOLD),
         ("♛", "CREW RANK", f"#{rank}", GOLD),
         ("♜", "JOINED SERVER", joined_server, TEAL),
         ("◉", "ON DISCORD", joined_discord, TEAL),
