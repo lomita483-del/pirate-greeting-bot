@@ -28,8 +28,8 @@ class Levels(commands.Cog):
     async def xp_settings(
         self,
         interaction: discord.Interaction,
-        xp_per_message: app_commands.Range[float, 0.1, 500] | None = None,
-        xp_per_level: app_commands.Range[float, 1, 100000] | None = None,
+        xp_per_message: app_commands.Range[float, 0.1, 500.0] | None = None,
+        xp_per_level: app_commands.Range[float, 1.0, 100000.0] | None = None,
         rank_every_levels: app_commands.Range[int, 1, 100] | None = None,
     ) -> None:
         guild = ensure_guild(interaction)
