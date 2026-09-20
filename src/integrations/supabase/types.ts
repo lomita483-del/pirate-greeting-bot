@@ -2630,6 +2630,8 @@ export type Database = {
           xp_cooldown_seconds: number
           xp_enabled: boolean
           xp_per_message: number
+          xp_per_level: number
+          rank_every_levels: number
         }
         Insert: {
           created_at?: string
@@ -2664,6 +2666,10 @@ export type Database = {
           xp_cooldown_seconds?: number
           xp_enabled?: boolean
           xp_per_message?: number
+          xp_per_level?: number
+          rank_every_levels?: number
+          xp_per_level?: number
+          rank_every_levels?: number
         }
         Update: {
           created_at?: string
