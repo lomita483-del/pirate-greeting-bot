@@ -180,6 +180,26 @@ def render_profile_card(
     _glass(card, panel, 48)
     _gradient_border(card, panel, 48, 5)
 
+    # Ornate luxury HUD frame.
+    frame = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    fd = ImageDraw.Draw(frame)
+    gold = (*GOLD, 190)
+    teal = (*TEAL, 190)
+    fd.line([(74, 72), (360, 72)], fill=gold, width=3)
+    fd.line([(1176, 72), (1460, 72)], fill=teal, width=3)
+    fd.line([(74, h - 72), (360, h - 72)], fill=teal, width=3)
+    fd.line([(1176, h - 72), (1460, h - 72)], fill=gold, width=3)
+    for x, y, col in ((78, 78, gold), (w-78, 78, teal), (78, h-78, teal), (w-78, h-78, gold)):
+        dx = 38 if x < w/2 else -38
+        dy = 38 if y < h/2 else -38
+        fd.line([(x, y), (x + dx, y)], fill=col, width=4)
+        fd.line([(x, y), (x, y + dy)], fill=col, width=4)
+        fd.ellipse((x-7, y-7, x+7, y+7), fill=col)
+    fd.ellipse((w//2-11, 58, w//2+11, 80), outline=gold, width=3)
+    fd.ellipse((w//2-7, h-80, w//2+7, h-66), fill=teal)
+    frame = frame.filter(ImageFilter.GaussianBlur(0.35))
+    card.alpha_composite(frame)
+
     # Inner highlight and cinematic corner flares.
     overlay = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     od = ImageDraw.Draw(overlay)
@@ -248,7 +268,7 @@ def render_profile_card(
     next_xp = max(progress_needed, progress_current)
     if progress_current >= progress_needed:
         next_xp = progress_needed
-    draw.text((1125, 373), f"NEXT: {f"{next_xp:,.0f}"} XP", font=_font(21), fill=(116, 211, 221, 235))
+    draw.text((1125, 373), f"NEXT: {next_xp:,.0f} XP", font=_font(21), fill=(116, 211, 221, 235))
 
     # Glass stat tiles.
     stats = [
