@@ -16,6 +16,8 @@ class Repository:
     async def mark_server_left(self,guild_id:str)->None: await self.db.try_run(lambda c:c.table("servers").update({"bot_present":False}).eq("guild_id",guild_id).execute())
     async def get_settings(self,guild_id:str,table:str="server_settings")->dict[str,Any]:
         rows=await self.db.try_run(lambda c:c.table(table).select("*").eq("guild_id",guild_id).limit(1).execute()); data=getattr(rows,"data",None) or []; return data[0] if data else {}
+    async def update_settings(self,guild_id:str,values:dict[str,Any],table:str="server_settings")->None:
+        payload={"guild_id":guild_id,**values}; await self.db.try_run(lambda c,t=table:c.table(t).upsert(payload,on_conflict="guild_id").execute())
     async def upsert_member(self,guild_id:str,member:Any)->None:
         payload={"guild_id":guild_id,"user_id":str(member.id),"username":member.name,"display_name":member.display_name,"avatar":member.display_avatar.url if member.display_avatar else None,"is_bot":bool(member.bot),"joined_at":member.joined_at.isoformat() if getattr(member,"joined_at",None) else None,"left_at":None}; await self.db.try_run(lambda c:c.table("members").upsert(payload,on_conflict="guild_id,user_id").execute())
     async def mark_member_left(self,guild_id:str,user_id:str)->None: await self.db.try_run(lambda c:c.table("members").update({"left_at":_now()}).eq("guild_id",guild_id).eq("user_id",user_id).execute())
