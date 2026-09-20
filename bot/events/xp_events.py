@@ -45,8 +45,11 @@ class XPEvents(commands.Cog):
             xp_profile = await self.bot.repo.get_xp(str(message.guild.id), str(message.author.id))  # type: ignore[attr-defined]
             xp = xp_profile.get("xp", 0) or 0
             level = int(xp_profile.get("level", new_level) or new_level)
-            current, needed = LevelService.progress(xp, level)
-            rank = rank_for_level(level)
+            config = await self.bot.levels.config(str(message.guild.id))  # type: ignore[attr-defined]
+            xp_per_level = config.get("xp_per_level", 200)
+            rank_every = int(config.get("rank_every_levels", 2) or 2)
+            current, needed = LevelService.progress(xp, level, xp_per_level)
+            rank = rank_for_level(level, rank_every)
 
             template = settings.get("level_up_message") or "Ahoy {user}, you reached level {level}! ⚓"
             text = render_template(
@@ -61,7 +64,7 @@ class XPEvents(commands.Cog):
             if settings.get("level_up_card_show_progress", True):
                 description += (
                     f"{LevelService.bar(current, needed, 24)}\n"
-                    f"**{format_xp(current)} / {format_xp(needed)} XP** to the next level.\n"
+                    f"**{format_xp(current)} / {format_xp(needed)} XP** progress to the next level.\n"
                 )
 
             card = embeds.brand(f"⚓ LEVEL UP · {new_level}", description, embeds.GOLD)
