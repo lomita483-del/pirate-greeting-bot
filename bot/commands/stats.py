@@ -5,7 +5,7 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
-from ..services.level_service import LevelService, format_xp, level_for_xp, messages_for_level, rank_for_level
+from ..services.level_service import LevelService, format_xp, level_for_xp, messages_for_level, rank_for_level, xp_for_level
 from ..utils import embeds
 from ..utils.checks import ensure_guild
 
@@ -98,7 +98,8 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
             p = await repo.get_xp(str(guild.id), str(member.id))
             xp = int(p.get("xp", 0) or 0) + int(amount)
             messages = int(p.get("messages", 0) or 0)
-            level = level_for_messages(messages)
+            settings = await repo.get_settings(str(guild.id))
+            level = level_for_xp(xp, settings.get("xp_per_level", 200))
             await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": xp, "level": level, "messages": messages, "last_awarded_at": p.get("last_awarded_at")})
             lines.append(f"{member.mention} → **{xp:,} XP** · Lv **{level}**")
         if missing:
@@ -122,7 +123,8 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
             p = await repo.get_xp(str(guild.id), str(member.id))
             xp = max(0, int(p.get("xp", 0) or 0) - int(amount))
             messages = int(p.get("messages", 0) or 0)
-            level = level_for_messages(messages)
+            settings = await repo.get_settings(str(guild.id))
+            level = level_for_xp(xp, settings.get("xp_per_level", 200))
             await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": xp, "level": level, "messages": messages, "last_awarded_at": p.get("last_awarded_at")})
             lines.append(f"{member.mention} → **{xp:,} XP** · Lv **{level}**")
         if missing:
@@ -176,9 +178,12 @@ class RankAdmin(commands.GroupCog, group_name="rank", group_description="Rank di
         p = await repo.get_xp(str(guild.id), str(target.id))
         xp = int(p.get("xp", 0) or 0)
         messages = int(p.get("messages", 0) or 0)
-        level = level_for_messages(messages)
-        current, needed = LevelService.progress(messages, level)
-        rank = await repo.xp_rank(str(guild.id), xp)
+        settings = await repo.get_settings(str(guild.id))
+        xp_per_level = settings.get("xp_per_level", 200)
+        rank_every = int(settings.get("rank_every_levels", 2) or 2)
+        level = level_for_xp(xp, xp_per_level)
+        current, needed = LevelService.progress(xp, level, xp_per_level)
+        rank = rank_for_level(level, rank_every)
         percent = min(100, round(current / max(1, needed) * 100))
         e = embeds.brand(
             f"⚓ {target.display_name} · Rank Card",
