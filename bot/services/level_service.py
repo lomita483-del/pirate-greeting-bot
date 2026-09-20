@@ -31,15 +31,15 @@ def _config_number(config: dict[str, Any], key: str, default: Decimal) -> Decima
 
 
 def level_for_xp(xp: Any, xp_per_level: Any = DEFAULT_XP_PER_LEVEL) -> int:
-    """Level 1 covers 0..XP-per-level; each later level spans another block."""
+    """Each completed XP block is one level: 200 XP = Lv1, 400 XP = Lv2."""
     amount = _config_number({"value": xp_per_level}, "value", DEFAULT_XP_PER_LEVEL)
-    return max(1, int((_xp(xp) + amount - Decimal("0.0000001")) // amount))
+    return max(0, int(_xp(xp) // amount))
 
 
 def xp_for_level(level: int, xp_per_level: Any = DEFAULT_XP_PER_LEVEL) -> Decimal:
-    """Return the start of a level. Level 1 starts at 0 XP."""
+    """Return the XP threshold for a level: Lv1=200, Lv2=400 by default."""
     amount = _config_number({"value": xp_per_level}, "value", DEFAULT_XP_PER_LEVEL)
-    return max(Decimal("0"), Decimal(max(1, int(level)) - 1) * amount)
+    return max(Decimal("0"), Decimal(max(0, int(level))) * amount)
 
 
 def rank_for_level(level: int, every_levels: int = DEFAULT_RANK_EVERY_LEVELS) -> int:
@@ -129,7 +129,8 @@ class LevelService:
     ) -> tuple[float, int]:
         """Show progress inside the current XP block. Lv1 at 200 XP => 200/200."""
         amount = _config_number({"value": xp_per_level}, "value", DEFAULT_XP_PER_LEVEL)
-        current = max(Decimal("0"), _xp(xp) - xp_for_level(level, amount))
+        floor = Decimal(max(0, int(level) - 1)) * amount if int(level) > 0 else Decimal("0")
+        current = max(Decimal("0"), _xp(xp) - floor)
         current = min(amount, current)
         return float(current), int(amount) if amount % 1 == 0 else float(amount)
 
