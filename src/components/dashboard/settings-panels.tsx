@@ -25,7 +25,7 @@ import type { PanelProps } from "./types";
 import { useDraft } from "./use-draft";
 
 function num(value: string, fallback: number) {
-  const parsed = Number.parseInt(value, 10);
+  const parsed = Number(value);
   return Number.isFinite(parsed)
     ? parsed
     : fallback;
@@ -72,7 +72,7 @@ export function GeneralPanel({
         s?.xp_enabled ?? true,
 
       xp_per_message:
-        s?.xp_per_message ?? 15,
+        s?.xp_per_message ?? 7.5,
 
       xp_cooldown_seconds:
         s?.xp_cooldown_seconds ??
@@ -246,11 +246,12 @@ export function GeneralPanel({
           />
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="XP per message">
+            <Field label="XP per message" hint="Default: 7.5 XP per message = 75 XP every 10 messages. Levels advance every 150 XP.">
               <Input
                 type="number"
-                min={1}
+                min={0.1}
                 max={500}
+                step={0.1}
                 value={
                   draft.xp_per_message
                 }
@@ -259,7 +260,7 @@ export function GeneralPanel({
                     "xp_per_message",
                     num(
                       e.target.value,
-                      15,
+                      7.5,
                     ),
                   )
                 }
