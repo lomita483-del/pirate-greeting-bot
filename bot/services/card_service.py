@@ -248,7 +248,7 @@ def render_profile_card(
     next_xp = max(progress_needed, progress_current)
     if progress_current >= progress_needed:
         next_xp = progress_needed
-    draw.text((1125, 373), f"NEXT: {format_xp(next_xp)} XP", font=_font(21), fill=(116, 211, 221, 235))
+    draw.text((1125, 373), f"NEXT: {f"{next_xp:,.0f}"} XP", font=_font(21), fill=(116, 211, 221, 235))
 
     # Glass stat tiles.
     stats = [
