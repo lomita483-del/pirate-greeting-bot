@@ -34,6 +34,8 @@ CREATE TABLE public.server_settings (
   currency_symbol TEXT NOT NULL DEFAULT '🪙',
   xp_enabled BOOLEAN NOT NULL DEFAULT true,
   xp_per_message NUMERIC(6,1) NOT NULL DEFAULT 7.5 CHECK (xp_per_message BETWEEN 0.1 AND 500),
+    xp_per_level NUMERIC(10,1) NOT NULL DEFAULT 200 CHECK (xp_per_level > 0),
+    rank_every_levels INTEGER NOT NULL DEFAULT 2 CHECK (rank_every_levels > 0),
   xp_cooldown_seconds INTEGER NOT NULL DEFAULT 60 CHECK (xp_cooldown_seconds BETWEEN 0 AND 3600),
   level_up_message TEXT NOT NULL DEFAULT 'Ahoy {user}, you reached level {level}! ⚓',
   level_up_channel_id TEXT,
