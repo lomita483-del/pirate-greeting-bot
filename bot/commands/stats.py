@@ -5,7 +5,7 @@ import re
 import discord
 from discord import app_commands
 from discord.ext import commands
-from ..services.level_service import LevelService, level_for_messages, messages_for_level
+from ..services.level_service import LevelService, format_xp, level_for_xp, messages_for_level, rank_for_level
 from ..utils import embeds
 from ..utils.checks import ensure_guild
 
@@ -47,6 +47,39 @@ def admin_check():
 class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrator XP management"):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+
+    @app_commands.command(name="settings", description="Configure XP per message, XP per level and crew-rank progression.")
+    @app_commands.describe(
+        xp_per_message="XP awarded per eligible message (default 7.5).",
+        xp_per_level="XP threshold for each level (default 200).",
+        rank_every_levels="Increase crew rank every N levels (default 2).",
+    )
+    @app_commands.guild_only()
+    @admin_check()
+    async def settings(self, interaction: discord.Interaction, xp_per_message: app_commands.Range[float, 0.1, 500.0] | None = None, xp_per_level: app_commands.Range[float, 1.0, 100000.0] | None = None, rank_every_levels: app_commands.Range[int, 1, 100] | None = None) -> None:
+        guild = ensure_guild(interaction)
+        await interaction.response.defer(ephemeral=True)
+        repo = self.bot.repo
+        current = await repo.get_settings(str(guild.id))
+        message_xp = float(xp_per_message if xp_per_message is not None else current.get("xp_per_message", 7.5))
+        level_xp = float(xp_per_level if xp_per_level is not None else current.get("xp_per_level", 200))
+        rank_interval = int(rank_every_levels if rank_every_levels is not None else current.get("rank_every_levels", 2))
+        await repo.update_settings(str(guild.id), {"xp_per_message": message_xp, "xp_per_level": level_xp, "rank_every_levels": rank_interval})
+        try:
+            self.bot.settings.invalidate(str(guild.id))  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        await interaction.followup.send(
+            embed=embeds.success(
+                "XP settings updated",
+                f"**{format_xp(message_xp)} XP/message**\n"
+                f"**{format_xp(level_xp)} XP per level**\n"
+                f"**+1 crew rank every {rank_interval} levels**\n\n"
+                f"**{format_xp(level_xp)}/{format_xp(level_xp)} XP** = Level 1 = Rank 0\n"
+                f"**{format_xp(level_xp * 2)}/{format_xp(level_xp * 2)} XP** = Level 2 = Rank 1",
+            ),
+            ephemeral=True,
+        )
 
     @app_commands.command(name="give", description="Give XP to one or multiple users by username.")
     @app_commands.describe(targets="Username, mention, ID, or comma-separated usernames", amount="XP to add")
