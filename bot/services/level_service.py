@@ -1,10 +1,4 @@
-"""XP and level maths for message activity.
-
-Level progression is intentionally message-based: every 10 eligible messages
-advances one level. Each message still awards the configured XP amount, so
-with the default 15 XP/message the progression is 10 messages = 150 XP = 1
-level, 20 messages = 300 XP = 2 levels, and so on.
-"""
+"""XP and level maths for message activity."""
 from __future__ import annotations
 
 import math
@@ -29,7 +23,7 @@ def messages_for_level(level: int) -> int:
     return max(0, int(level)) * MESSAGES_PER_LEVEL
 
 
-# Compatibility aliases for callers that still use the old names.
+# Back-compat aliases: leveling is intentionally message-count based.
 level_for_xp = level_for_messages
 xp_for_level = messages_for_level
 
@@ -40,17 +34,18 @@ class LevelService:
         self.settings = settings
 
     async def award(self, guild_id: str, member: Any) -> Optional[int]:
-        """Award XP on each eligible message; level advances every 10 messages."""
+        """Award configured XP for each message; every 10 messages advances one level."""
         config = await self.settings.get(guild_id)
         if config and not config.get("xp_enabled", True):
             return None
 
         amount = max(1, int((config or {}).get("xp_per_message", 15)))
         profile = await self.repo.get_xp(guild_id, str(member.id))
+
         current_xp = int(profile.get("xp", 0) or 0)
         current_messages = int(profile.get("messages", 0) or 0)
-
         previous_level = level_for_messages(current_messages)
+
         new_messages = current_messages + 1
         new_xp = current_xp + amount
         new_level = level_for_messages(new_messages)
@@ -87,6 +82,7 @@ class LevelService:
                 continue
             if threshold <= 0 or level < threshold:
                 continue
+
             role = guild.get_role(role_id)
             if (
                 role is None
@@ -95,6 +91,7 @@ class LevelService:
                 or role in getattr(member, "roles", [])
             ):
                 continue
+
             try:
                 await member.add_roles(
                     role, reason=f"AHOY level reward (level {threshold})"
@@ -102,13 +99,15 @@ class LevelService:
                 granted.append(role)
             except discord.HTTPException as exc:
                 log.warning("Level reward failed in %s: %s", guild.id, exc)
+
         return granted
 
     @staticmethod
     def progress(messages: int, level: int) -> tuple[int, int]:
-        """Return messages into the current 10-message level and its size."""
-        into_level = max(0, int(messages)) - messages_for_level(level)
-        return max(0, into_level), MESSAGES_PER_LEVEL
+        """Progress within the current level: 0..9 out of 10 messages."""
+        floor_messages = messages_for_level(level)
+        into_level = max(0, int(messages)) - floor_messages
+        return min(MESSAGES_PER_LEVEL - 1, max(0, into_level)), MESSAGES_PER_LEVEL
 
     @staticmethod
     def bar(current: int, total: int, width: int = 16) -> str:
