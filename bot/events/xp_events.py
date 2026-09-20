@@ -5,6 +5,7 @@ import discord
 from discord.ext import commands
 
 from ..services.level_service import LevelService, format_xp, rank_for_level
+from ..services.card_service import render_level_up_card
 from ..utils import embeds
 from ..utils.logger import get_logger
 from ..utils.parsing import render_template
@@ -67,14 +68,26 @@ class XPEvents(commands.Cog):
                     f"**{format_xp(current)} / {format_xp(needed)} XP** progress to the next level.\n"
                 )
 
-            card = embeds.brand(f"⚓ LEVEL UP · {new_level}", description, embeds.GOLD)
-            card.set_author(name=message.author.display_name, icon_url=message.author.display_avatar.url)
-            if settings.get("level_up_card_show_rank", True):
-                card.add_field(name="Crew rank", value=f"**#{rank}**", inline=True)
-            card.add_field(name="Total XP", value=f"**{format_xp(xp)}**", inline=True)
-            card.set_thumbnail(url=message.author.display_avatar.url)
-            card.set_footer(text="!HOY BOT · Cinematic Glassmorphism Level Card ⚓")
-            await channel.send(embed=card)
+            avatar_bytes = None
+            try:
+                avatar_bytes = await message.author.display_avatar.read()
+            except Exception as exc:
+                log.warning("Level-up avatar download failed in %s: %s", message.guild.id, exc)
+
+            card_bytes = render_level_up_card(
+                username=message.author.display_name,
+                avatar_bytes=avatar_bytes,
+                level=new_level,
+                rank=rank,
+                progress_current=current,
+                progress_needed=needed,
+                total_xp=xp,
+                message=text,
+            )
+            card_file = discord.File(card_bytes, filename="ahoy-level-up.png")
+            card = embeds.brand("", "")
+            card.set_image(url="attachment://ahoy-level-up.png")
+            await channel.send(file=card_file, embed=card)
         except Exception as exc:
             log.warning("XP processing failed in %s: %s", message.guild.id, exc)
 
