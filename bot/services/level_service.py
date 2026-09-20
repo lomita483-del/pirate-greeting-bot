@@ -33,7 +33,7 @@ def _config_number(config: dict[str, Any], key: str, default: Decimal) -> Decima
 def level_for_xp(xp: Any, xp_per_level: Any = DEFAULT_XP_PER_LEVEL) -> int:
     """Each completed XP block is one level: 200 XP = Lv1, 400 XP = Lv2."""
     amount = _config_number({"value": xp_per_level}, "value", DEFAULT_XP_PER_LEVEL)
-    return max(0, int(_xp(xp) // amount))
+    return max(0, int((_xp(xp) + amount - Decimal("0.0000001")) // amount))
 
 
 def xp_for_level(level: int, xp_per_level: Any = DEFAULT_XP_PER_LEVEL) -> Decimal:
@@ -127,12 +127,11 @@ class LevelService:
         level: int,
         xp_per_level: Any = DEFAULT_XP_PER_LEVEL,
     ) -> tuple[float, int]:
-        """Show progress inside the current XP block. Lv1 at 200 XP => 200/200."""
+        """Show cumulative XP toward the level threshold: 200/200 = Lv1, 400/400 = Lv2."""
         amount = _config_number({"value": xp_per_level}, "value", DEFAULT_XP_PER_LEVEL)
-        floor = Decimal(max(0, int(level) - 1)) * amount if int(level) > 0 else Decimal("0")
-        current = max(Decimal("0"), _xp(xp) - floor)
-        current = min(amount, current)
-        return float(current), int(amount) if amount % 1 == 0 else float(amount)
+        target = xp_for_level(level, amount) if int(level) > 0 else amount
+        current = min(max(Decimal("0"), _xp(xp)), target)
+        return float(current), int(target) if target % 1 == 0 else float(target)
 
     @staticmethod
     def bar(current: float, total: float, width: int = 16) -> str:
