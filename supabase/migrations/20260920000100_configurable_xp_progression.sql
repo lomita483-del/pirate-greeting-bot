@@ -22,4 +22,4 @@ WHERE xp_per_level IS NULL
    OR xp_per_message = 15;
 
 UPDATE public.xp_profiles
-SET level = GREATEST(1, CEIL(xp / 200.0)::integer);
+SET level = FLOOR(xp / 200.0)::integer;
