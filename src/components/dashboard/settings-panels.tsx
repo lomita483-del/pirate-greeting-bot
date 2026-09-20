@@ -74,6 +74,12 @@ export function GeneralPanel({
       xp_per_message:
         s?.xp_per_message ?? 7.5,
 
+      xp_per_level:
+        s?.xp_per_level ?? 200,
+
+      rank_every_levels:
+        s?.rank_every_levels ?? 2,
+
       xp_cooldown_seconds:
         s?.xp_cooldown_seconds ??
         60,
@@ -246,23 +252,50 @@ export function GeneralPanel({
           />
 
           <div className="grid gap-5 md:grid-cols-2">
-            <Field label="XP per message" hint="Default: 7.5 XP per message = 75 XP every 10 messages. Levels advance every 150 XP.">
+            <Field
+              label="XP per message"
+              hint="Default: 7.5 XP. Every 10 messages = 75 XP."
+            >
               <Input
                 type="number"
                 min={0.1}
                 max={500}
                 step={0.1}
-                value={
-                  draft.xp_per_message
-                }
+                value={draft.xp_per_message}
                 onChange={(e) =>
-                  set(
-                    "xp_per_message",
-                    num(
-                      e.target.value,
-                      7.5,
-                    ),
-                  )
+                  set("xp_per_message", num(e.target.value, 7.5))
+                }
+              />
+            </Field>
+
+            <Field
+              label="XP required per level"
+              hint="Default: 200 XP. Level 1 reaches 200/200; level 2 reaches 400/400."
+            >
+              <Input
+                type="number"
+                min={1}
+                max={100000}
+                step={1}
+                value={draft.xp_per_level}
+                onChange={(e) =>
+                  set("xp_per_level", num(e.target.value, 200))
+                }
+              />
+            </Field>
+
+            <Field
+              label="Rank every N levels"
+              hint="Default: 2. Level 1 = rank 0, level 2 = rank 1, level 4 = rank 2."
+            >
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                step={1}
+                value={draft.rank_every_levels}
+                onChange={(e) =>
+                  set("rank_every_levels", num(e.target.value, 2))
                 }
               />
             </Field>
