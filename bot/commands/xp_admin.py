@@ -14,7 +14,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
-from ..services.level_service import LevelService, level_for_xp, xp_for_level
+from ..services.level_service import LevelService, format_xp, level_for_xp, xp_for_level
 from ..utils import embeds
 from ..utils.checks import ensure_guild
 
@@ -76,12 +76,12 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
         changed: list[str] = []
         for member in users:
             profile = await repo.get_xp(str(guild.id), str(member.id))
-            old_xp = int(profile.get("xp", 0) or 0)
+            old_xp = float(profile.get("xp", 0) or 0)
             new_xp = old_xp + int(amount)
             new_level = level_for_xp(new_xp)
             await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": new_xp, "level": new_level, "messages": int(profile.get("messages", 0) or 0), "last_awarded_at": profile.get("last_awarded_at")})
             await self.bot.levels.apply_rewards(member, new_level)  # type: ignore[attr-defined]
-            changed.append(f"{member.mention} → **{new_xp:,} XP** (Lv {new_level})")
+            changed.append(f"{member.mention} → **{format_xp(new_xp)} XP** (Lv {new_level})")
         text = "\n".join(changed[:20])
         if len(changed) > 20: text += f"\n…and {len(changed) - 20} more."
         if missing: text += "\n\nUnresolved: " + ", ".join(f"`{x}`" for x in missing[:10])
@@ -102,7 +102,7 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
         changed: list[str] = []
         for member in users:
             profile = await repo.get_xp(str(guild.id), str(member.id))
-            new_xp = max(0, int(profile.get("xp", 0) or 0) - int(amount))
+            new_xp = max(0, float(profile.get("xp", 0) or 0) - int(amount))
             new_level = level_for_xp(new_xp)
             await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": new_xp, "level": new_level, "messages": int(profile.get("messages", 0) or 0), "last_awarded_at": profile.get("last_awarded_at")})
             changed.append(f"{member.mention} → **{new_xp:,} XP** (Lv {new_level})")
@@ -125,10 +125,10 @@ class XPAdmin(commands.GroupCog, group_name="xp", group_description="Administrat
         changed: list[str] = []
         for member in users:
             profile = await repo.get_xp(str(guild.id), str(member.id))
-            old_xp = int(profile.get("xp", 0) or 0)
+            old_xp = float(profile.get("xp", 0) or 0)
             old_level = level_for_xp(old_xp)
             new_level = old_level + 1
-            new_xp = max(old_xp, xp_for_level(new_level))
+            new_xp = max(old_xp, float(xp_for_level(new_level)))
             await repo.save_xp({"guild_id": str(guild.id), "user_id": str(member.id), "username": member.name, "xp": new_xp, "level": new_level, "messages": int(profile.get("messages", 0) or 0), "last_awarded_at": profile.get("last_awarded_at")})
             await self.bot.levels.apply_rewards(member, new_level)  # type: ignore[attr-defined]
             changed.append(f"{member.mention} → **Level {new_level}**")
