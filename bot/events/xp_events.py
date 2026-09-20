@@ -61,13 +61,6 @@ class XPEvents(commands.Cog):
                 level=str(new_level),
             )
 
-            description = f"{text}\n\n"
-            if settings.get("level_up_card_show_progress", True):
-                description += (
-                    f"{LevelService.bar(current, needed, 24)}\n"
-                    f"**{format_xp(current)} / {format_xp(needed)} XP** progress to the next level.\n"
-                )
-
             avatar_bytes = None
             try:
                 avatar_bytes = await message.author.display_avatar.read()
@@ -87,7 +80,11 @@ class XPEvents(commands.Cog):
             card_file = discord.File(card_bytes, filename="ahoy-level-up.png")
             card = embeds.brand("", "")
             card.set_image(url="attachment://ahoy-level-up.png")
-            await channel.send(file=card_file, embed=card)
+
+            # Keep the personalized announcement OUTSIDE the artwork so Discord
+            # mentions the member normally, while the card itself only shows
+            # their username and progression data.
+            await channel.send(content=text, file=card_file, embed=card)
         except Exception as exc:
             log.warning("XP processing failed in %s: %s", message.guild.id, exc)
 
