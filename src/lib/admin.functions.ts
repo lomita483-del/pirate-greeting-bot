@@ -147,3 +147,31 @@ export const getMyEntitlements = createServerFn({ method: "GET" }).handler(async
   const features = Object.fromEntries(PREMIUM_FEATURES.map((feature) => [feature, flags[feature] === false ? false : owner || premium])) as Record<PremiumFeature, boolean>;
   return { signedIn: true as const, plan, premium, owner, features };
 });
+
+
+const appReleaseInput = z.object({
+  platform: z.enum(["android", "ios", "all"]),
+  version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  build: z.number().int().positive(),
+  minimum_supported_version: z.string().regex(/^\d+\.\d+\.\d+$/),
+  download_url: z.string().url().or(z.literal("")),
+  release_notes: z.array(z.string().min(1).max(500)).max(30),
+  force_update: z.boolean(),
+  published: z.boolean(),
+});
+export const listAppReleases = createServerFn({ method: "GET" }).handler(async () => {
+  const { requireAdmin } = await import("@/lib/admin.server");
+  const { supabaseAdmin } = await requireAdmin(cookie());
+  const { data, error } = await supabaseAdmin.from("app_releases").select("*").order("created_at", { ascending: false }).limit(100);
+  if (error) throw new Error("Could not load app releases.");
+  return data ?? [];
+});
+export const publishAppRelease = createServerFn({ method: "POST" }).inputValidator((data: unknown) => appReleaseInput.parse(data)).handler(async ({ data }) => {
+  const { requireAdmin } = await import("@/lib/admin.server");
+  const { session, supabaseAdmin } = await requireAdmin(cookie());
+  const payload = { ...data, published_at: data.published ? new Date().toISOString() : null, created_by: session.userId };
+  const { error } = await supabaseAdmin.from("app_releases").insert(payload);
+  if (error) throw new Error(error.message);
+  await supabaseAdmin.from("dashboard_access_log").insert({ discord_user_id: session.userId, discord_username: session.username, action: `admin:publish_app_release:${data.platform}:${data.version}:${data.build}` });
+  return { ok: true };
+});
