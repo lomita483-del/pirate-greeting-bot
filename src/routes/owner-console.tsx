@@ -1,9 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Activity, AlertTriangle, Bell, CheckCircle2, Crown, Database, Gauge, Home, Inbox, LayoutDashboard, ListChecks, Menu, RefreshCw, Server, Settings, Shield, ShieldBan, UserRound, Users, Wrench, X } from "lucide-react";
+import { Activity, AlertTriangle, Bell, CheckCircle2, Crown, Database, Gauge, Home, Inbox, LayoutDashboard, ListChecks, Menu, RefreshCw, Rocket, Server, Settings, Shield, ShieldBan, UserRound, Users, Wrench, X } from "lucide-react";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { AhoyWordmark } from "@/components/ahoy/brand";
 import { ErrorFeedbackPanel } from "@/components/admin/error-feedback-panel";
+import { AppUpdatesPanel } from "@/components/admin/app-updates-panel";
 import { NotificationsPanel } from "@/components/admin/notifications-panel";
 import { PlanTaskManager } from "@/components/admin/plan-task-manager";
 import { PremiumRequestsPanel } from "@/components/admin/premium-requests-panel";
@@ -24,6 +25,7 @@ const TABS = [
   { key: "users", label: "Users", icon: Users },
   { key: "servers", label: "Servers", icon: Server },
   { key: "notifications", label: "Send Notify", icon: Bell },
+  { key: "app-updates", label: "App Updates", icon: Rocket },
   { key: "tasks", label: "Premium Tasks", icon: ListChecks },
   { key: "premium", label: "Premium Requests", icon: Crown },
   { key: "errors", label: "Diagnostics", icon: AlertTriangle },
@@ -81,6 +83,7 @@ function AdminConsole() {
       {tab === "users" ? <Shell title="User Command" icon={Users}><UserManager /></Shell> : null}
       {tab === "servers" ? <Shell title="Fleet Command" icon={Server}><ServersPanel /></Shell> : null}
       {tab === "notifications" ? <Shell title="Notification Control" icon={Bell}><NotificationsPanel /></Shell> : null}
+      {tab === "app-updates" ? <Shell title="App Updates" icon={Rocket}><AppUpdatesPanel /></Shell> : null}
       {tab === "tasks" ? <Shell title="Premium Task Studio" icon={ListChecks}><PlanTaskManager /></Shell> : null}
       {tab === "premium" ? <Shell title="Premium Access" icon={Crown}><PremiumRequestsPanel /></Shell> : null}
       {tab === "errors" ? <Shell title="Diagnostics & Feedback" icon={AlertTriangle}><ErrorFeedbackPanel /></Shell> : null}
