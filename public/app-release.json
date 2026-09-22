@@ -1,0 +1,11 @@
+{
+  "app": "Ahoy",
+  "platform": "android",
+  "latestVersion": "1.0.0",
+  "latestBuild": 1,
+  "minimumSupportedVersion": "1.0.0",
+  "forceUpdate": false,
+  "downloadUrl": "",
+  "releaseNotes": [],
+  "publishedAt": null
+}
