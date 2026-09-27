@@ -74,18 +74,10 @@ class ActivityService:
     async def record(self, guild: Optional[discord.Guild], category: str, summary: str, *, actor: Optional[discord.abc.User] = None, target: Optional[discord.abc.User] = None, channel: Optional[Any] = None, metadata: Optional[dict[str, Any]] = None, embed: Optional[discord.Embed] = None) -> None:
         if guild is None:
             return
-        try:
-            await self.repo.log_activity({
-                "guild_id": str(guild.id), "category": category,
-                "actor_id": str(actor.id) if actor else None, "actor_name": _name(actor),
-                "target_id": str(target.id) if target else None, "target_name": _name(target),
-                "channel_id": str(channel.id) if channel is not None else None,
-                "channel_name": getattr(channel, "name", None), "summary": summary[:500],
-                "metadata": metadata or {},
-            })
-        except Exception as exc:
-            log.warning("Activity log write failed (%s): %s", category, exc)
-
+        # Dashboard activity history is intentionally not persisted.
+        # Discord moderator logging below remains enabled and is the source of
+        # live activity notifications. Keeping these paths separate prevents
+        # high-volume Discord events from filling Supabase.
         setting = CATEGORY_TO_SETTING.get(category)
         if not setting:
             return

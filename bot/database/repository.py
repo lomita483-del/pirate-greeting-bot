@@ -69,7 +69,10 @@ class Repository:
     async def mark_notification(self,notification_id:str,status:str,error:Optional[str]=None)->None: await self.db.try_run(lambda c:c.table("platform_notifications").update({"delivery_status":status,"delivery_error":error,"delivered_at":_now()}).eq("id",notification_id).execute())
     async def platform_user(self,user_id:str)->Optional[dict[str,Any]]:
         rows=await self.db.try_run(lambda c:c.table("platform_users").select("banned, bot_blocked, plan, feature_flags").eq("discord_user_id",user_id).limit(1).execute()); data=getattr(rows,"data",None) or []; return data[0] if data else None
-    async def log_activity(self,payload:dict[str,Any])->None: await self.db.try_run(lambda c:c.table("activity_logs").insert(payload).execute())
+    async def log_activity(self,payload:dict[str,Any])->None:
+        # Dashboard activity history is disabled to prevent high-volume growth.
+        # Live Discord moderator logging is handled separately by LogService.
+        return
     async def pending_bot_actions(self,limit:int=20)->list[dict[str,Any]]:
         rows=await self.db.try_run(lambda c:c.table("bot_action_queue").select("*").eq("status","pending").order("created_at").limit(limit).execute()); return getattr(rows,"data",None) or []
     async def finish_bot_action(self,action_id:str,status:str,error:Optional[str]=None)->None: await self.db.try_run(lambda c:c.table("bot_action_queue").update({"status":status,"error":error,"processed_at":_now()}).eq("id",action_id).execute())

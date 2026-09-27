@@ -98,8 +98,11 @@ async def user_cases(self,guild_id,user_id,limit=50):
     rows=await self.db.try_run(lambda c:c.table("moderation_cases").select("*").eq("guild_id",guild_id).eq("target_id",user_id).order("created_at",desc=True).limit(limit).execute()); return getattr(rows,"data",None) or []
 
 async def emit_event(self,payload):
-    rows=await self.db.try_run(lambda c:c.table("system_events").insert(payload).execute()); data=getattr(rows,"data",None) or []; return data[0].get("id") if data else None
-async def write_audit_log(self,payload): await self.db.try_run(lambda c:c.table("audit_logs").insert(payload).execute())
+    # Command audit history is intentionally not persisted.
+    return None
+async def write_audit_log(self,payload):
+    # Command audit history is intentionally not persisted.
+    return None
 async def recent_audit_logs(self,guild_id,limit=10):
     rows=await self.db.try_run(lambda c:c.table("audit_logs").select("*").eq("guild_id",guild_id).order("created_at",desc=True).limit(limit).execute()); return getattr(rows,"data",None) or []
 async def list_welcome_messages(self,guild_id):

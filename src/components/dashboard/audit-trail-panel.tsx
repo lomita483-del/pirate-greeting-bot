@@ -25,7 +25,7 @@ export function AuditTrailPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-4 pt-6">
         <SectionHeader
           title="Command audit trail"
-          description="Every configured command run in this server, with who ran it and what happened."
+          description="Historical command audit entries. New command activity is delivered to configured Discord log channels without being stored in Supabase."
           badge={`${entries.length} entries`}
         />
 
@@ -37,7 +37,7 @@ export function AuditTrailPanel({ guildId }: { guildId: string }) {
           </div>
         ) : entries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nothing recorded yet. Audit entries appear once commands with logging enabled are used.
+            No historical audit entries are available. New command activity is still delivered to configured Discord log channels.
           </p>
         ) : (
           <ul className="space-y-2">

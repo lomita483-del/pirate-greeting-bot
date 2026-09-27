@@ -158,7 +158,7 @@ export function ActivityLogPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-5 pt-6">
         <SectionHeader
           title="Activity log"
-          description="Everything !PIRATE sees: message edits and deletions, joins and leaves, nickname and role changes, channel changes, voice movement and invites."
+          description="Historical activity recorded before dashboard history persistence was disabled. Live activity continues to be sent to configured Discord moderator log channels."
           badge={`${total} entries`}
         />
 

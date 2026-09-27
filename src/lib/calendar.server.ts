@@ -704,10 +704,14 @@ export async function loadTemplate(
   return (raw as TemplateStructure | undefined) ?? null;
 }
 
-/** Structured audit entry — mirrored to the guild audit trail. */
+/**
+ * Dashboard audit history is intentionally disabled. The helper remains for
+ * call-site compatibility; calendar actions and their Discord notifications
+ * continue through their normal delivery paths.
+ */
 export async function writeCalendarAudit(
-  supabaseAdmin: Admin,
-  entry: {
+  _supabaseAdmin: Admin,
+  _entry: {
     guildId: string;
     action: string;
     actorId?: string | null;
@@ -717,43 +721,7 @@ export async function writeCalendarAudit(
     details?: Record<string, unknown>;
   },
 ) {
-  const metadata = {
-    endpoint: entry.endpoint ?? null,
-    status: "SUCCESS",
-    ...(entry.details ?? {}),
-  };
-  try {
-    const { data } = await supabaseAdmin
-      .from("system_events")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert({
-        guild_id: entry.guildId,
-        event_type: entry.action,
-        actor_id: entry.actorId ?? null,
-        resource_type: entry.resourceType ?? "calendar",
-        resource_id: entry.resourceId ?? null,
-        source: "dashboard",
-        metadata,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any)
-      .select("id")
-      .maybeSingle();
-    await supabaseAdmin
-      .from("audit_logs")
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert({
-        guild_id: entry.guildId,
-        event_id: (data as Record<string, unknown> | null)?.["id"] ?? null,
-        action: entry.action,
-        actor_id: entry.actorId ?? null,
-        resource_type: entry.resourceType ?? "calendar",
-        resource_id: entry.resourceId ?? null,
-        metadata,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      } as any);
-  } catch (error) {
-    console.error("Calendar audit write failed", error);
-  }
+  return;
 }
 
 /* ------------------------------------------------------------------ */

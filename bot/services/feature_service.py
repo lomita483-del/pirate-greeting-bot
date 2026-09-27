@@ -178,19 +178,9 @@ class FeatureService:
             "channel_category": getattr(category_obj, "name", None), "actor_id": str(actor.id),
             "target_id": str(member.id) if member else None, "timestamp": _now(),
         }
-        try:
-            event_id = await self.repo.emit_event({
-                "guild_id": guild_id, "event_type": f"command.{kind}.{outcome}", "actor_id": str(actor.id),
-                "target_id": str(member.id) if member else None, "resource_type": "command", "resource_id": command,
-                "channel_id": channel_id, "source": "discord", "metadata": metadata,
-            })
-            await self.repo.write_audit_log({
-                "guild_id": guild_id, "event_id": event_id, "action": f"{command} ({outcome})", "actor_id": str(actor.id),
-                "target_id": str(member.id) if member else None, "resource_type": "command", "resource_id": command,
-                "reason": value or None, "metadata": metadata,
-            })
-        except Exception:
-            log.warning("Could not write audit trail for /%s", command, exc_info=True)
+        # Command audit history is no longer persisted to Supabase.
+        # The Discord audit/log-channel delivery below remains active and is
+        # intentionally independent of dashboard history storage.
 
         log_id = config.get("log_channel_id")
         notify_id = config.get("notify_channel_id")
