@@ -37,7 +37,7 @@ export function AuditTrailPanel({ guildId }: { guildId: string }) {
           </div>
         ) : entries.length === 0 ? (
           <p className="py-8 text-center text-sm text-muted-foreground">
-            Nothing recorded yet. Audit entries appear once commands with logging enabled are used.
+            No historical audit entries are available. New command activity is still delivered to configured Discord log channels.
           </p>
         ) : (
           <ul className="space-y-2">
