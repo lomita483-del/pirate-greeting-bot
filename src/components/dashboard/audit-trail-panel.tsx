@@ -25,7 +25,7 @@ export function AuditTrailPanel({ guildId }: { guildId: string }) {
       <CardContent className="space-y-4 pt-6">
         <SectionHeader
           title="Command audit trail"
-          description="Every configured command run in this server, with who ran it and what happened."
+          description="Historical command audit entries. New command activity is delivered to configured Discord log channels without being stored in Supabase."
           badge={`${entries.length} entries`}
         />
 
