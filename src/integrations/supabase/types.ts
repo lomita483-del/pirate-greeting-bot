@@ -67,6 +67,51 @@ export type Database = {
           },
         ]
       }
+      app_releases: {
+        Row: {
+          build: number
+          created_at: string
+          created_by: string | null
+          download_url: string
+          force_update: boolean
+          id: string
+          minimum_supported_version: string
+          platform: string
+          published: boolean
+          published_at: string | null
+          release_notes: string[]
+          version: string
+        }
+        Insert: {
+          build: number
+          created_at?: string
+          created_by?: string | null
+          download_url?: string
+          force_update?: boolean
+          id?: string
+          minimum_supported_version: string
+          platform: string
+          published?: boolean
+          published_at?: string | null
+          release_notes?: string[]
+          version: string
+        }
+        Update: {
+          build?: number
+          created_at?: string
+          created_by?: string | null
+          download_url?: string
+          force_update?: boolean
+          id?: string
+          minimum_supported_version?: string
+          platform?: string
+          published?: boolean
+          published_at?: string | null
+          release_notes?: string[]
+          version?: string
+        }
+        Relationships: []
+      }
       audit_logs: {
         Row: {
           action: string
@@ -255,38 +300,56 @@ export type Database = {
       }
       bot_error_logs: {
         Row: {
+          cause: string | null
           channel_id: string | null
           command: string | null
+          context: string | null
           created_at: string
           error_type: string
           guild_id: string | null
           id: string
+          location: string | null
           message: string
+          resolved_at: string | null
+          resolved_by: string | null
           source: string
+          status: string
           traceback: string | null
           user_id: string | null
         }
         Insert: {
+          cause?: string | null
           channel_id?: string | null
           command?: string | null
+          context?: string | null
           created_at?: string
           error_type: string
           guild_id?: string | null
           id?: string
+          location?: string | null
           message: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           source: string
+          status?: string
           traceback?: string | null
           user_id?: string | null
         }
         Update: {
+          cause?: string | null
           channel_id?: string | null
           command?: string | null
+          context?: string | null
           created_at?: string
           error_type?: string
           guild_id?: string | null
           id?: string
+          location?: string | null
           message?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
           source?: string
+          status?: string
           traceback?: string | null
           user_id?: string | null
         }
@@ -861,6 +924,53 @@ export type Database = {
         }
         Relationships: []
       }
+      economy_admin_audit: {
+        Row: {
+          action: string
+          actor_user_id: string
+          amount: number
+          created_at: string
+          guild_id: string
+          id: string
+          new_balance: number
+          old_balance: number
+          reason: string | null
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          amount: number
+          created_at?: string
+          guild_id: string
+          id?: string
+          new_balance: number
+          old_balance: number
+          reason?: string | null
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          amount?: number
+          created_at?: string
+          guild_id?: string
+          id?: string
+          new_balance?: number
+          old_balance?: number
+          reason?: string | null
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "economy_admin_audit_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
       economy_profiles: {
         Row: {
           balance: number
@@ -913,6 +1023,7 @@ export type Database = {
           author_icon_url: string | null
           author_name: string | null
           author_url: string | null
+          buttons: Json
           color: string | null
           created_at: string
           created_by: string | null
@@ -934,6 +1045,7 @@ export type Database = {
           author_icon_url?: string | null
           author_name?: string | null
           author_url?: string | null
+          buttons?: Json
           color?: string | null
           created_at?: string
           created_by?: string | null
@@ -955,6 +1067,7 @@ export type Database = {
           author_icon_url?: string | null
           author_name?: string | null
           author_url?: string | null
+          buttons?: Json
           color?: string | null
           created_at?: string
           created_by?: string | null
@@ -1305,6 +1418,41 @@ export type Database = {
           },
         ]
       }
+      giveaway_entries: {
+        Row: {
+          created_at: string
+          giveaway_id: string
+          id: string
+          updated_at: string
+          user_id: string
+          weight: number
+        }
+        Insert: {
+          created_at?: string
+          giveaway_id: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          weight?: number
+        }
+        Update: {
+          created_at?: string
+          giveaway_id?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "giveaway_entries_giveaway_id_fkey"
+            columns: ["giveaway_id"]
+            isOneToOne: false
+            referencedRelation: "giveaways"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       giveaways: {
         Row: {
           channel_id: string
@@ -1316,6 +1464,7 @@ export type Database = {
           id: string
           message_id: string | null
           prize: string
+          settings: Json
           status: string
           updated_at: string
           winner_count: number
@@ -1331,6 +1480,7 @@ export type Database = {
           id?: string
           message_id?: string | null
           prize: string
+          settings?: Json
           status?: string
           updated_at?: string
           winner_count?: number
@@ -1346,6 +1496,7 @@ export type Database = {
           id?: string
           message_id?: string | null
           prize?: string
+          settings?: Json
           status?: string
           updated_at?: string
           winner_count?: number
@@ -1904,6 +2055,59 @@ export type Database = {
           },
         ]
       }
+      plan_unlock_requests: {
+        Row: {
+          guild_id: string | null
+          id: string
+          plan_id: string
+          requested_at: string
+          requester_user_id: string
+          requester_username: string | null
+          review_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          task_progress: Json
+          unlock_method: string
+        }
+        Insert: {
+          guild_id?: string | null
+          id?: string
+          plan_id: string
+          requested_at?: string
+          requester_user_id: string
+          requester_username?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          task_progress?: Json
+          unlock_method?: string
+        }
+        Update: {
+          guild_id?: string | null
+          id?: string
+          plan_id?: string
+          requested_at?: string
+          requester_user_id?: string
+          requester_username?: string | null
+          review_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          task_progress?: Json
+          unlock_method?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_unlock_requests_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plans: {
         Row: {
           created_at: string
@@ -2283,6 +2487,9 @@ export type Database = {
       }
       roll_call_responses: {
         Row: {
+          button_id: string
+          button_label: string | null
+          button_purpose: string | null
           display_name: string | null
           guild_id: string
           id: string
@@ -2292,6 +2499,9 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          button_id?: string
+          button_label?: string | null
+          button_purpose?: string | null
           display_name?: string | null
           guild_id: string
           id?: string
@@ -2301,6 +2511,9 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          button_id?: string
+          button_label?: string | null
+          button_purpose?: string | null
           display_name?: string | null
           guild_id?: string
           id?: string
@@ -2324,6 +2537,7 @@ export type Database = {
           created_at: string
           daily_description: string | null
           daily_duration_hours: number
+          daily_duration_minutes: number | null
           daily_enabled: boolean
           daily_hour_utc: number
           daily_target_role_ids: string[]
@@ -2339,6 +2553,7 @@ export type Database = {
           created_at?: string
           daily_description?: string | null
           daily_duration_hours?: number
+          daily_duration_minutes?: number | null
           daily_enabled?: boolean
           daily_hour_utc?: number
           daily_target_role_ids?: string[]
@@ -2354,6 +2569,7 @@ export type Database = {
           created_at?: string
           daily_description?: string | null
           daily_duration_hours?: number
+          daily_duration_minutes?: number | null
           daily_enabled?: boolean
           daily_hour_utc?: number
           daily_target_role_ids?: string[]
@@ -2405,12 +2621,14 @@ export type Database = {
       }
       roll_calls: {
         Row: {
+          buttons: Json
           channel_id: string | null
           closed_at: string | null
           closes_at: string | null
           created_at: string
           created_by: string | null
           description: string | null
+          duration_minutes: number | null
           guild_id: string
           id: string
           message_id: string | null
@@ -2423,12 +2641,14 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          buttons?: Json
           channel_id?: string | null
           closed_at?: string | null
           closes_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          duration_minutes?: number | null
           guild_id: string
           id?: string
           message_id?: string | null
@@ -2441,12 +2661,14 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          buttons?: Json
           channel_id?: string | null
           closed_at?: string | null
           closes_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          duration_minutes?: number | null
           guild_id?: string
           id?: string
           message_id?: string | null
@@ -2608,8 +2830,13 @@ export type Database = {
           level_up_message: string
           locale: string
           manager_role_ids: string[]
+          mention_cooldown_seconds: number
+          mention_enabled: boolean
+          mention_response: string
+          mention_response_mode: string
           mod_log_channel_id: string | null
           prefix: string
+          rank_every_levels: number
           rollcall_channel_id: string | null
           rollcall_daily_enabled: boolean
           rollcall_daily_last_posted_day: string | null
@@ -2629,9 +2856,8 @@ export type Database = {
           updated_at: string
           xp_cooldown_seconds: number
           xp_enabled: boolean
-          xp_per_message: number
           xp_per_level: number
-          rank_every_levels: number
+          xp_per_message: number
         }
         Insert: {
           created_at?: string
@@ -2644,8 +2870,13 @@ export type Database = {
           level_up_message?: string
           locale?: string
           manager_role_ids?: string[]
+          mention_cooldown_seconds?: number
+          mention_enabled?: boolean
+          mention_response?: string
+          mention_response_mode?: string
           mod_log_channel_id?: string | null
           prefix?: string
+          rank_every_levels?: number
           rollcall_channel_id?: string | null
           rollcall_daily_enabled?: boolean
           rollcall_daily_last_posted_day?: string | null
@@ -2665,11 +2896,8 @@ export type Database = {
           updated_at?: string
           xp_cooldown_seconds?: number
           xp_enabled?: boolean
+          xp_per_level?: number
           xp_per_message?: number
-          xp_per_level?: number
-          rank_every_levels?: number
-          xp_per_level?: number
-          rank_every_levels?: number
         }
         Update: {
           created_at?: string
@@ -2682,8 +2910,13 @@ export type Database = {
           level_up_message?: string
           locale?: string
           manager_role_ids?: string[]
+          mention_cooldown_seconds?: number
+          mention_enabled?: boolean
+          mention_response?: string
+          mention_response_mode?: string
           mod_log_channel_id?: string | null
           prefix?: string
+          rank_every_levels?: number
           rollcall_channel_id?: string | null
           rollcall_daily_enabled?: boolean
           rollcall_daily_last_posted_day?: string | null
@@ -2703,6 +2936,7 @@ export type Database = {
           updated_at?: string
           xp_cooldown_seconds?: number
           xp_enabled?: boolean
+          xp_per_level?: number
           xp_per_message?: number
         }
         Relationships: [
@@ -3379,6 +3613,57 @@ export type Database = {
         }
         Relationships: []
       }
+      user_support_reports: {
+        Row: {
+          admin_reply: string | null
+          category: string
+          created_at: string
+          display_name: string | null
+          id: string
+          message: string
+          priority: string
+          replied_at: string | null
+          replied_by: string | null
+          status: string
+          subject: string
+          updated_at: string
+          user_id: string
+          username: string | null
+        }
+        Insert: {
+          admin_reply?: string | null
+          category?: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          message: string
+          priority?: string
+          replied_at?: string | null
+          replied_by?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+          user_id: string
+          username?: string | null
+        }
+        Update: {
+          admin_reply?: string | null
+          category?: string
+          created_at?: string
+          display_name?: string | null
+          id?: string
+          message?: string
+          priority?: string
+          replied_at?: string | null
+          replied_by?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+          user_id?: string
+          username?: string | null
+        }
+        Relationships: []
+      }
       voice_activity: {
         Row: {
           channel_id: string
@@ -3626,6 +3911,59 @@ export type Database = {
             foreignKeyName: "welcome_settings_guild_id_fkey"
             columns: ["guild_id"]
             isOneToOne: true
+            referencedRelation: "servers"
+            referencedColumns: ["guild_id"]
+          },
+        ]
+      }
+      xp_admin_audit: {
+        Row: {
+          action: string
+          actor_user_id: string
+          amount: number
+          created_at: string
+          guild_id: string
+          id: string
+          new_level: number
+          new_xp: number
+          old_level: number
+          old_xp: number
+          reason: string | null
+          target_user_id: string
+        }
+        Insert: {
+          action: string
+          actor_user_id: string
+          amount: number
+          created_at?: string
+          guild_id: string
+          id?: string
+          new_level: number
+          new_xp: number
+          old_level: number
+          old_xp: number
+          reason?: string | null
+          target_user_id: string
+        }
+        Update: {
+          action?: string
+          actor_user_id?: string
+          amount?: number
+          created_at?: string
+          guild_id?: string
+          id?: string
+          new_level?: number
+          new_xp?: number
+          old_level?: number
+          old_xp?: number
+          reason?: string | null
+          target_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "xp_admin_audit_guild_id_fkey"
+            columns: ["guild_id"]
+            isOneToOne: false
             referencedRelation: "servers"
             referencedColumns: ["guild_id"]
           },
