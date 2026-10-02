@@ -12,10 +12,10 @@ import { saveMentionSettings } from "@/lib/mention.functions";
 
 export function BotMentionPanel({ guildId, config, onSaved }: PanelProps) {
   const s = (config.settings ?? {}) as Record<string, any>;
-  const [enabled, setEnabled] = useState(Boolean(s.mention_enabled ?? true));
-  const [mode, setMode] = useState<"reply" | "channel">(s.mention_response_mode === "channel" ? "channel" : "reply");
-  const [response, setResponse] = useState(String(s.mention_response ?? "Ahoy {user}! I'm on deck. Ask me for **help** or **status**, or use `/help` to explore the command navigator."));
-  const [cooldown, setCooldown] = useState(Number(s.mention_cooldown_seconds ?? 3));
+  const [enabled, setEnabled] = useState(Boolean(s["mention_enabled"] ?? true));
+  const [mode, setMode] = useState<"reply" | "channel">(s["mention_response_mode"] === "channel" ? "channel" : "reply");
+  const [response, setResponse] = useState(String(s["mention_response"] ?? "Ahoy {user}! I'm on deck. Ask me for **help** or **status**, or use `/help` to explore the command navigator."));
+  const [cooldown, setCooldown] = useState(Number(s["mention_cooldown_seconds"] ?? 3));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
 

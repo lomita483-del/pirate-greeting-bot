@@ -139,7 +139,7 @@ export function GiveawaysManagerPanel({ guildId, structure }: { guildId: string;
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {(["all", "running", "ended", "cancelled"] as const).map((value) => <Button key={value} size="sm" variant={status === value ? "default" : "outline"} onClick={() => setStatus(value)}>{value[0].toUpperCase() + value.slice(1)}</Button>)}
+          {(["all", "running", "ended", "cancelled"] as const).map((value) => <Button key={value} size="sm" variant={status === value ? "default" : "outline"} onClick={() => setStatus(value)}>{value.charAt(0).toUpperCase() + value.slice(1)}</Button>)}
           <Button size="sm" variant="outline" className="ml-auto" onClick={() => queryClient.invalidateQueries({ queryKey: ["giveaway-manager", guildId] })}><RefreshCw className="mr-2 h-4 w-4" />Refresh</Button>
         </div>
 

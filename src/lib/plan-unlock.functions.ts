@@ -43,16 +43,16 @@ export const getPlansAndTasks = createServerFn({ method: "GET" })
       server = row ?? {};
     }
     const progress = (task: Record<string, unknown>) => {
-      const type = String(task.task_type ?? "");
-      const target = Number(task.target_value ?? 0);
+      const type = String(task["task_type"] ?? "");
+      const target = Number(task["target_value"] ?? 0);
       let current = 0;
-      if (type === "message_count" || type === "messages") current = Number(server.message_count_total ?? 0);
-      else if (type === "voice_minutes") current = Number(server.voice_minutes_total ?? 0);
-      else if (type === "reaction_count" || type === "reactions") current = Number(server.reaction_count_total ?? 0);
-      else if (type === "member_count") current = Number(server.member_count ?? 0);
+      if (type === "message_count" || type === "messages") current = Number(server["message_count_total"] ?? 0);
+      else if (type === "voice_minutes") current = Number(server["voice_minutes_total"] ?? 0);
+      else if (type === "reaction_count" || type === "reactions") current = Number(server["reaction_count_total"] ?? 0);
+      else if (type === "member_count") current = Number(server["member_count"] ?? 0);
       return { current, target, complete: target > 0 && current >= target };
     };
-    return { guild: guildId ? { id: guildId, name: String(server.name ?? "Selected server") } : null, plans: (plans ?? []).map((plan) => ({ ...plan, tasks: (tasks ?? []).filter((task) => task.plan_id === plan.id).map((task) => ({ ...task, progress: progress(task) })) })) };
+    return { guild: guildId ? { id: guildId, name: String(server["name"] ?? "Selected server") } : null, plans: (plans ?? []).map((plan) => ({ ...plan, tasks: (tasks ?? []).filter((task) => task.plan_id === plan.id).map((task) => ({ ...task, progress: progress(task) })) })) };
   });
 
 export const requestPlanUnlock = createServerFn({ method: "POST" })
@@ -67,7 +67,7 @@ export const requestPlanUnlock = createServerFn({ method: "POST" })
       const { data: server } = await supabaseAdmin.from("servers").select("guild_id").eq("guild_id", data.guildId).eq("owner_id", session.userId).eq("bot_present", true).maybeSingle();
       if (!server) throw new Error("You do not control that connected server.");
     }
-    const { data: existing } = await supabaseAdmin.from("plan_unlock_requests").select("id,status").eq("requester_user_id", session.userId).eq("plan_id", data.planId).eq("guild_id", data.guildId ?? null).eq("status", "pending").maybeSingle();
+    const { data: existing } = await supabaseAdmin.from("plan_unlock_requests").select("id,status").eq("requester_user_id", session.userId).eq("plan_id", data.planId)[data.guildId ? "eq" : "is"]("guild_id", (data.guildId ?? null) as never).eq("status", "pending").maybeSingle();
     if (existing) return { ok: true, alreadyPending: true, requestId: existing.id };
     const { data: row, error } = await supabaseAdmin.from("plan_unlock_requests").insert({ requester_user_id: session.userId, requester_username: session.username, guild_id: data.guildId ?? null, plan_id: data.planId, unlock_method: data.method, status: "pending" }).select("id").single();
     if (error || !row) throw new Error("Could not submit the unlock request.");
