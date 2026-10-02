@@ -338,6 +338,7 @@ const sectionSchemas = {
     xp_ignored_channel_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(100),
     xp_ignored_role_ids: z.array(z.string().regex(/^\\d{5,25}$/)).max(100),
     level_up_message: z.string().max(500),
+    level_up_card_enabled: z.boolean(),
     level_up_channel_id: snowflake,
     economy_enabled: z.boolean(),
     daily_reward: z.number().int().min(0).max(1_000_000),
