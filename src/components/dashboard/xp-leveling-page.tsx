@@ -29,9 +29,9 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
     xp_enabled: settings.xp_enabled ?? true, xp_per_message: settings.xp_per_message ?? 7.5, xp_per_level: settings.xp_per_level ?? 200,
     rank_every_levels: settings.rank_every_levels ?? 2, xp_cooldown_seconds: settings.xp_cooldown_seconds ?? 60,
     xp_ignored_channel_ids: settings.xp_ignored_channel_ids ?? [], xp_ignored_role_ids: settings.xp_ignored_role_ids ?? [],
-    level_up_message: settings.level_up_message ?? "Ahoy {user}, you reached level {level}! ⚓", level_up_channel_id: settings.level_up_channel_id ?? null,
+    level_up_message: settings.level_up_message ?? "Ahoy {user}, you reached level {level}! ⚓", level_up_card_enabled: settings.level_up_card_enabled ?? true, level_up_channel_id: settings.level_up_channel_id ?? null,
   }, onSaved);
-  const roles = useDraft(guildId, "roles", { level_roles: Array.isArray(roleSettings.level_roles) ? roleSettings.level_roles : [] }, onSaved);
+  const roles = useDraft(guildId, "roles", { level_roles_enabled: roleSettings.level_roles_enabled ?? true, level_roles: Array.isArray(roleSettings.level_roles) ? roleSettings.level_roles : [] }, onSaved);
   const [calculatorXp, setCalculatorXp] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
@@ -59,7 +59,7 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
         ["Automatic XP", general.draft.xp_enabled ? "ON" : "OFF", MessageSquare], ["XP / message", formatXp(num(general.draft.xp_per_message, 7.5)), Gauge],
         ["XP / level", formatXp(perLevel), Trophy], ["Cooldown", `${num(general.draft.xp_cooldown_seconds, 60)}s`, Shield],
       ].map(([label, value, Icon]: any) => <div key={label} className="rounded-2xl border border-white/10 bg-white/[.03] p-4"><Icon className="mb-3 size-4 text-primary" /><p className="text-[10px] uppercase tracking-widest text-muted-foreground">{label}</p><p className="mt-1 text-lg font-black">{value}</p></div>)}</div>
-      <ToggleRow label="Award XP automatically from eligible messages" description="Bots and DMs are excluded by the real Discord message handler." checked={general.draft.xp_enabled} onChange={(v) => general.set("xp_enabled", v)} />
+      <div className="space-y-3"><ToggleRow label="Award XP automatically from eligible messages" description="Bots and DMs are excluded by the real Discord message handler." checked={general.draft.xp_enabled} onChange={(v) => general.set("xp_enabled", v)} /><ToggleRow label="Send automatic level-up announcement" description="Uses the configured level-up channel, message and card when a member reaches a new level." checked={general.draft.level_up_card_enabled} onChange={(v) => general.set("level_up_card_enabled", v)} /></div>
     </CardContent></Card>
 
     <Card className="glass border-0"><CardContent className="space-y-5 pt-6">
@@ -96,7 +96,7 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
     </CardContent></Card>
 
     <Card className="glass border-0"><CardContent className="space-y-5 pt-6">
-      <SectionHeader title="Automatic rank roles" description="Roles are granted when members reach their configured level threshold." badge="ROLE REWARDS" />
+      <SectionHeader title="Automatic rank roles" description="Roles are granted when members reach their configured level threshold." badge={roles.draft.level_roles_enabled ? "ENABLED" : "DISABLED"} /><ToggleRow label="Enable automatic level-role rewards" description="When disabled, the bot will calculate levels but will not add configured rank roles." checked={roles.draft.level_roles_enabled} onChange={(v) => roles.set("level_roles_enabled", v)} />
       <div className="space-y-3">{(roles.draft.level_roles ?? []).map((rule: any, index: number) => <div key={index} className="grid gap-3 rounded-2xl border border-white/10 bg-white/[.03] p-3 sm:grid-cols-[140px_1fr_auto]"><Field label="Level"><Input type="number" min={1} max={500} value={rule.level} onChange={(e) => updateRule(index, "level", e.target.value)} /></Field><Field label="Discord role"><PickerSelect value={rule.role_id} options={config.structure.roles} onChange={(v) => updateRule(index, "role_id", v)} placeholder="Select role" /></Field><Button type="button" variant="ghost" size="icon" className="self-end" onClick={() => removeRule(index)}><X className="size-4" /></Button></div>)}</div>
       <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={addRoleRule}><Plus className="mr-2 size-4" />Add level role</Button><SaveBar {...roles} /></div>
       <p className="text-xs text-muted-foreground">The bot must have Manage Roles and its highest role must be above each reward role.</p>
