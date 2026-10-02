@@ -13,7 +13,7 @@ import { SaveBar } from "./save-bar";
 import { Field, PickerSelect, SectionHeader, ToggleRow } from "./fields";
 import type { PanelProps } from "./types";
 import { PremiumGate } from "./premium-gate";
-import { adminAdjustXp } from "@/lib/xp-admin.functions";
+import { adminAdjustXp, adminXpAction } from "@/lib/xp-admin.functions";
 
 function num(value: unknown, fallback: number) { const parsed = Number(value); return Number.isFinite(parsed) ? parsed : fallback; }
 function levelForXp(xp: number, perLevel: number) { return Math.max(0, Math.floor((Math.max(0, xp) + perLevel - 0.0000001) / perLevel)); }
@@ -36,17 +36,20 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
   const [memberQuery, setMemberQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [adjustAmount, setAdjustAmount] = useState(100);
+  const [setAmount, setSetAmount] = useState(0);
   const adjust = useServerFn(adminAdjustXp);
+  const xpCommand = useServerFn(adminXpAction);
   const perLevel = num(general.draft.xp_per_level, 200);
   const calculatedLevel = levelForXp(num(calculatorXp, 0), perLevel);
   const calculatedTarget = xpForLevel(calculatedLevel + 1, perLevel);
   const progress = calculatedTarget > 0 ? Math.min(100, Math.max(0, (num(calculatorXp, 0) / calculatedTarget) * 100)) : 0;
   const memberSearch = useQuery({ queryKey: ["xp-member-search", guildId, memberQuery.trim()], queryFn: () => searchXpMembers({ data: { guildId, query: memberQuery.trim() } }), enabled: memberQuery.trim().length >= 2 });
   const adjustment = useMutation({
-    mutationFn: async (action: "give" | "remove") => adjust({ data: { guildId, userId: selectedMember.user_id, amount: adjustAmount, action, reason: "XP & Leveling dashboard adjustment" } }),
+    mutationFn: async (action: "give" | "remove" | "set") => adjust({ data: { guildId, userId: selectedMember.user_id, amount: action === "set" ? setAmount : adjustAmount, action, reason: "XP & Leveling dashboard adjustment" } }),
     onSuccess: (result) => { toast.success(`XP updated: ${formatXp(result.oldXp)} → ${formatXp(result.newXp)} XP (Level ${result.newLevel})`); setSelectedMember((m: any) => m ? { ...m, xp: result.newXp, level: result.newLevel } : m); void engagement.refetch(); },
     onError: (error: Error) => toast.error(error.message),
   });
+  const levelUp = useMutation({ mutationFn: () => xpCommand({ data: { guildId, action: "level-up", targets: selectedMember.user_id, amount: undefined, role: undefined } }), onSuccess: (result) => { toast.success(`Level-up applied to ${result.count} user(s).`); void engagement.refetch(); }, onError: (error: Error) => toast.error(error.message) });
   const addRoleRule = () => roles.set("level_roles", [...(roles.draft.level_roles ?? []), { level: 1, role_id: config.structure.roles[0]?.id ?? "" }]);
   const updateRule = (index: number, key: "level" | "role_id", value: string) => { const next = [...(roles.draft.level_roles ?? [])]; next[index] = { ...next[index], [key]: key === "level" ? Math.max(1, Number(value) || 1) : value }; roles.set("level_roles", next); };
   const removeRule = (index: number) => roles.set("level_roles", (roles.draft.level_roles ?? []).filter((_: any, i: number) => i !== index));
@@ -106,7 +109,7 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
       <SectionHeader title="Member progression" description="Search a real tracked member and adjust XP without leaving this page." badge="ADMIN" />
       <div className="flex gap-2"><Input value={memberQuery} onChange={(e) => setMemberQuery(e.target.value)} placeholder="Discord username or user ID" /><Button type="button" variant="outline"><Search className="size-4" /></Button></div>
       {memberSearch.data?.members?.length ? <div className="space-y-2">{memberSearch.data.members.map((member: any) => <button key={member.user_id} type="button" onClick={() => { setSelectedMember(member); setMemberQuery(member.username ?? member.user_id); }} className="flex w-full items-center gap-3 rounded-xl border border-white/10 bg-white/[.03] p-3 text-left hover:bg-white/[.06]"><Users className="size-4 text-primary" /><span className="min-w-0 flex-1 truncate">{member.username ?? member.user_id}</span><Badge>Lv {member.level}</Badge><span className="text-xs text-muted-foreground">{formatXp(Number(member.xp))} XP</span></button>)}</div> : null}
-      {selectedMember ? <div className="rounded-2xl border border-primary/20 bg-primary/[.04] p-4"><div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1"><p className="font-semibold">{selectedMember.username ?? selectedMember.user_id}</p><p className="text-xs text-muted-foreground">{selectedMember.user_id}</p></div><Badge variant="outline">Level {selectedMember.level}</Badge><Badge variant="outline">{formatXp(Number(selectedMember.xp))} XP</Badge></div><div className="mt-4 grid gap-3 sm:grid-cols-3"><Input type="number" min={1} value={adjustAmount} onChange={(e) => setAdjustAmount(Math.max(1, num(e.target.value, 100)))} /><Button disabled={adjustment.isPending} onClick={() => adjustment.mutate("give")}>Give XP</Button><Button variant="outline" disabled={adjustment.isPending} onClick={() => adjustment.mutate("remove")}>Remove XP</Button></div></div> : null}
+      {selectedMember ? <div className="rounded-2xl border border-primary/20 bg-primary/[.04] p-4"><div className="flex flex-wrap items-center gap-3"><div className="min-w-0 flex-1"><p className="font-semibold">{selectedMember.username ?? selectedMember.user_id}</p><p className="text-xs text-muted-foreground">{selectedMember.user_id}</p></div><Badge variant="outline">Level {selectedMember.level}</Badge><Badge variant="outline">{formatXp(Number(selectedMember.xp))} XP</Badge></div><div className="mt-4 grid gap-3 sm:grid-cols-5"><Input type="number" min={1} value={adjustAmount} onChange={(e) => setAdjustAmount(Math.max(1, num(e.target.value, 100)))} /><Button disabled={adjustment.isPending} onClick={() => adjustment.mutate("give")}>Give XP</Button><Button variant="outline" disabled={adjustment.isPending} onClick={() => adjustment.mutate("remove")}>Remove XP</Button><Button variant="outline" disabled={adjustment.isPending} onClick={() => adjustment.mutate("set")}>Set exact</Button><Button variant="outline" disabled={levelUp.isPending} onClick={() => levelUp.mutate()}>Level up</Button></div></div> : null}
     </CardContent></Card>
 
     <Card className="glass border-0"><CardContent className="space-y-5 pt-6">
