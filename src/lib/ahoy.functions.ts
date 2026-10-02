@@ -402,6 +402,7 @@ const sectionSchemas = {
     ignored_channel_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(25),
   }).partial(),
   roles: z.object({
+    level_roles_enabled: z.boolean(),
     auto_role_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(10),
     level_roles: z
       .array(z.object({ level: z.number().int().min(1).max(500), role_id: z.string().regex(/^\d{5,25}$/) }))
