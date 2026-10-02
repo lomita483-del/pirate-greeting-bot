@@ -61,24 +61,49 @@ class LevelService:
     async def config(self, guild_id: str) -> dict[str, Any]:
         return await self.settings.get(guild_id)
 
-    async def award(self, guild_id: str, member: Any) -> Optional[int]:
-        """Award configured XP for every eligible message and derive its level."""
+    async def award(self, guild_id: str, member: Any, channel_id: str | None = None) -> Optional[int]:
+        """Award configured XP for an eligible member message, respecting cooldowns and exclusions."""
         config = await self.settings.get(guild_id)
         if config and not config.get("xp_enabled", True):
             return None
 
+        ignored_channels = {str(x) for x in (config or {}).get("xp_ignored_channel_ids", []) if x}
+        if channel_id and str(channel_id) in ignored_channels:
+            return None
+
+        ignored_roles = {str(x) for x in (config or {}).get("xp_ignored_role_ids", []) if x}
+        member_roles = {str(getattr(role, "id", "")) for role in getattr(member, "roles", [])}
+        if ignored_roles.intersection(member_roles):
+            return None
+
         amount = _config_number(config or {}, "xp_per_message", DEFAULT_XP_PER_MESSAGE)
         per_level = _config_number(config or {}, "xp_per_level", DEFAULT_XP_PER_LEVEL)
+        cooldown = max(0, int((config or {}).get("xp_cooldown_seconds", 60) or 0))
 
         profile = await self.repo.get_xp(guild_id, str(member.id))
+        last_awarded_at = profile.get("last_awarded_at")
+        if cooldown > 0 and last_awarded_at:
+            try:
+                from datetime import datetime, timezone
+                last = datetime.fromisoformat(str(last_awarded_at).replace("Z", "+00:00"))
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                elapsed = (datetime.now(timezone.utc) - last).total_seconds()
+                if elapsed < cooldown:
+                    return None
+            except (TypeError, ValueError, OverflowError):
+                pass
+
+        profile = profile or {}
         current_xp = _xp(profile.get("xp", 0))
         current_messages = int(profile.get("messages", 0) or 0)
         previous_level = level_for_xp(current_xp, per_level)
-
         new_messages = current_messages + 1
         new_xp = current_xp + amount
         new_level = level_for_xp(new_xp, per_level)
 
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
         await self.repo.save_xp(
             {
                 "guild_id": guild_id,
@@ -87,7 +112,7 @@ class LevelService:
                 "xp": float(new_xp) if new_xp % 1 else int(new_xp),
                 "level": new_level,
                 "messages": new_messages,
-                "last_awarded_at": None,
+                "last_awarded_at": now,
             }
         )
         return new_level if new_level > previous_level else None
