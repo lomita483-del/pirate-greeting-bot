@@ -25,7 +25,7 @@ class XPEvents(commands.Cog):
             return
 
         try:
-            new_level = await self.bot.levels.award(str(message.guild.id), message.author)  # type: ignore[attr-defined]
+            new_level = await self.bot.levels.award(str(message.guild.id), message.author, str(message.channel.id))  # type: ignore[attr-defined]
             if new_level is None:
                 return
 
