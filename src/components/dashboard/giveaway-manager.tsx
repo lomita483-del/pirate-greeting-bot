@@ -85,9 +85,9 @@ export function GiveawaysManagerPanel({ guildId, structure }: { guildId: string;
   });
 
   const rows = query.data?.giveaways ?? [];
-  const visible = useMemo(() => status === "all" ? rows : rows.filter((r) => r.status === status), [rows, status]);
-  const running = rows.filter((r) => r.status === "running").length;
-  const totalEntries = rows.reduce((sum, r) => sum + (r.entry_count ?? 0), 0);
+  const visible = useMemo(() => status === "all" ? rows : rows.filter((r: { status: string }) => r.status === status), [rows, status]);
+  const running = rows.filter((r: { status: string }) => r.status === "running").length;
+  const totalEntries = rows.reduce((sum: number, r: { entry_count?: number }) => sum + (r.entry_count ?? 0), 0);
 
   const startEdit = (row: any) => {
     const settings = row.settings ?? {};
