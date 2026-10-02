@@ -1,2 +1,2 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-export const Route=createFileRoute("/dashboard/$guildId/stats")({component:()=> <Navigate to="/dashboard/$guildId/general"/>});
+export const Route=createFileRoute("/dashboard/$guildId/stats")({component:()=> <Navigate to="/dashboard/$guildId/general" params={(p: { guildId: string }) => p}/>});

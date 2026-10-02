@@ -29,7 +29,7 @@ function PricingPage() {
   const [guildId, setGuildId] = useState("");
   const entitlement = useQuery({ queryKey: ["entitlements"], queryFn: () => getMyEntitlements() });
   const guilds = useQuery({ queryKey: ["pricing-guilds"], queryFn: () => getStatahoyGuilds() });
-  useEffect(() => { if (!guildId && guilds.data?.guilds?.length) setGuildId(guilds.data.guilds[0].id); }, [guildId, guilds.data?.guilds]);
+  useEffect(() => { if (!guildId && guilds.data?.guilds?.length) setGuildId(guilds.data.guilds[0]!.id); }, [guildId, guilds.data?.guilds]);
   const plans = useQuery({ queryKey: ["plans-and-tasks", guildId], queryFn: () => getPlansAndTasks({ data: { guildId: guildId || undefined } }) });
   const requests = useQuery({ queryKey: ["my-plan-requests"], queryFn: () => listMyPlanUnlockRequests() });
   const requestMutation = useMutation({
