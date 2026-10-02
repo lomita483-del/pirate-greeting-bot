@@ -38,12 +38,17 @@ function AdminAdjustmentCard({ type, guildId }: { type: "xp" | "economy"; guildI
   const adjustEconomy = useServerFn(adminAdjustEconomy);
   const queryClient = useQueryClient();
   const mutation = useMutation({
-    mutationFn: () => isXp
-      ? adjustXp({ data: { guildId, userId: userId.trim(), amount, action, reason: reason.trim() || undefined } })
-      : adjustEconomy({ data: { guildId, userId: userId.trim(), amount, action, reason: reason.trim() || undefined } }),
-    onSuccess: (result) => {
-      if (isXp) toast.success(`XP updated: ${result.oldXp.toLocaleString()} → ${result.newXp.toLocaleString()} XP (Level ${result.newLevel})`);
-      else toast.success(`Balance updated: ${result.oldBalance.toLocaleString()} → ${result.newBalance.toLocaleString()}`);
+    mutationFn: async (): Promise<string> => {
+      const payload = { guildId, userId: userId.trim(), amount, action, ...(reason.trim() ? { reason: reason.trim() } : {}) };
+      if (isXp) {
+        const result = await adjustXp({ data: payload });
+        return `XP updated: ${result.oldXp.toLocaleString()} → ${result.newXp.toLocaleString()} XP (Level ${result.newLevel})`;
+      }
+      const result = await adjustEconomy({ data: payload });
+      return `Balance updated: ${result.oldBalance.toLocaleString()} → ${result.newBalance.toLocaleString()}`;
+    },
+    onSuccess: (message) => {
+      toast.success(message);
       setReason("");
       queryClient.invalidateQueries({ queryKey: ["engagement", guildId] });
       queryClient.invalidateQueries({ queryKey: ["ranks", guildId] });
