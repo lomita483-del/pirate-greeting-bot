@@ -335,6 +335,8 @@ const sectionSchemas = {
     xp_per_level: z.number().min(1).max(100000),
     rank_every_levels: z.number().int().min(1).max(100),
     xp_cooldown_seconds: z.number().int().min(0).max(3600),
+    xp_ignored_channel_ids: z.array(z.string().regex(/^\\d{5,25}$/)).max(100),
+    xp_ignored_role_ids: z.array(z.string().regex(/^\\d{5,25}$/)).max(100),
     level_up_message: z.string().max(500),
     level_up_channel_id: snowflake,
     economy_enabled: z.boolean(),
@@ -532,6 +534,34 @@ export const getEngagement = createServerFn({ method: "GET" })
       economy: economy.data ?? [],
       reminders: reminders.data ?? [],
     };
+  });
+
+export const searchXpMembers = createServerFn({ method: "GET" })
+  .inputValidator((data: unknown) =>
+    z.object({
+      guildId: z.string().regex(/^\d{5,25}$/),
+      query: z.string().min(2).max(100),
+    }).parse(data),
+  )
+  .handler(async ({ data }) => {
+    const { supabaseAdmin } = await authorize(data.guildId);
+    const query = data.query.trim();
+    let request = supabaseAdmin
+      .from("xp_profiles")
+      .select("user_id, username, xp, level, messages, last_awarded_at")
+      .eq("guild_id", data.guildId)
+      .order("xp", { ascending: false })
+      .limit(20);
+
+    if (/^\d{5,25}$/.test(query)) {
+      request = request.eq("user_id", query);
+    } else {
+      request = request.ilike("username", `%${query}%`);
+    }
+
+    const { data: members, error } = await request;
+    if (error) throw new Error("Could not search XP members.");
+    return { members: members ?? [] };
   });
 
 export const deleteReminder = createServerFn({ method: "POST" })
