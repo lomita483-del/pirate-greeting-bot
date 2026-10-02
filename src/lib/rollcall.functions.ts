@@ -1,3 +1,5 @@
+import type { Database } from "@/integrations/supabase/types";
+type RollCallResponseRow = Database["public"]["Tables"]["roll_call_responses"]["Row"];
 import { createServerFn } from "@tanstack/react-start";
 import { getRequestHeader } from "@tanstack/react-start/server";
 import { z } from "zod";
@@ -115,11 +117,11 @@ export const getRollCallDashboard = createServerFn({ method: "GET" }).inputValid
     ? await supabaseAdmin.from("roll_call_responses").select("*").in("roll_call_id", ids).order("responded_at", { ascending: true })
     : { data: [], error: null };
   if (responseError) throw new Error(responseError.message);
-  const grouped = new Map<string, Array<Record<string, unknown>>>();
+  const grouped = new Map<string, RollCallResponseRow[]>();
   for (const row of responses ?? []) {
     const key = String(row.roll_call_id);
     const list = grouped.get(key) ?? [];
-    list.push(row as Record<string, unknown>);
+    list.push(row as RollCallResponseRow);
     grouped.set(key, list);
   }
   const memberResults = await Promise.all(rows.filter((row) => row.status !== "open" || row.mode === "audit").map(async (row) => {
