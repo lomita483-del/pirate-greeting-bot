@@ -335,7 +335,7 @@ const sectionSchemas = {
     xp_per_level: z.number().min(1).max(100000),
     rank_every_levels: z.number().int().min(1).max(100),
     xp_cooldown_seconds: z.number().int().min(0).max(3600),
-    xp_ignored_channel_ids: z.array(z.string().regex(/^\\d{5,25}$/)).max(100),
+    xp_ignored_channel_ids: z.array(z.string().regex(/^\d{5,25}$/)).max(100),
     xp_ignored_role_ids: z.array(z.string().regex(/^\\d{5,25}$/)).max(100),
     level_up_message: z.string().max(500),
     level_up_channel_id: snowflake,
