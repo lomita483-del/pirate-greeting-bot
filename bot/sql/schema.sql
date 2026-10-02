@@ -297,6 +297,7 @@ CREATE TRIGGER welcome_settings_updated_at BEFORE UPDATE ON public.welcome_setti
 CREATE TABLE public.role_settings (
   guild_id TEXT PRIMARY KEY REFERENCES public.servers(guild_id) ON DELETE CASCADE,
   auto_role_ids TEXT[] NOT NULL DEFAULT '{}',
+  level_roles_enabled BOOLEAN NOT NULL DEFAULT true,
   level_roles JSONB NOT NULL DEFAULT '[]'::jsonb,
   role_menus JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
