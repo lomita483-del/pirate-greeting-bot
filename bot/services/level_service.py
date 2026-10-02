@@ -123,6 +123,8 @@ class LevelService:
             return []
 
         config = await self.settings.get(str(guild.id), "role_settings")
+        if not (config or {}).get("level_roles_enabled", True):
+            return []
         rules = (config or {}).get("level_roles") or []
         granted = []
 
