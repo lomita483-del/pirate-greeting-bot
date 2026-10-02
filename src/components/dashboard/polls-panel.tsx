@@ -52,7 +52,7 @@ export function PollsPanel({ guildId, structure }: { guildId: string; structure:
               <div className="mt-4 space-y-2">
                 {options.map((option, index) => { const count = counts[index] ?? 0; const percent = totalVotes ? Math.round((count / totalVotes) * 100) : 0; return <div key={`${row.id}-${index}`} className="space-y-1"><div className="flex items-center justify-between gap-3 text-xs"><span className="truncate">{String(option)}</span><span className="shrink-0 text-muted-foreground">{count.toLocaleString()} · {percent}%</span></div><div className="h-2 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-primary transition-all" style={{ width: `${Math.min(100, Math.round((count / max) * 100))}%` }} /></div></div>; })}
               </div>
-              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><BarChart3 className="h-3.5 w-3.5 text-primary" />{row.multi_choice ? "Multiple choice" : "Single choice"} · vote distribution updates from the Discord poll record.</div>
+              <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><BarChart3 className="h-3.5 w-3.5 text-primary" />{(row as { multi_choice?: boolean }).multi_choice ? "Multiple choice" : "Single choice"} · vote distribution updates from the Discord poll record.</div>
             </article>;
           })}
         </div>

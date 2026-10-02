@@ -20,11 +20,11 @@ export function AppUpdatesPanel() {
   async function publish() {
     setSaving(true); setMessage("");
     try {
-      await publishAppRelease({
+      await publishAppRelease({ data: {
         platform, version, build:Number(build), minimum_supported_version:minimum,
         download_url:url, release_notes:notes.split("\n").map(v=>v.trim()).filter(Boolean),
         force_update:force, published:true,
-      });
+      } });
       setMessage("Update published. Installed Ahoy apps will detect the new build.");
       void query.refetch();
     } catch(e) { setMessage(e instanceof Error ? e.message : "Could not publish update."); }

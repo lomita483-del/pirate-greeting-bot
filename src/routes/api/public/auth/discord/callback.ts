@@ -9,7 +9,7 @@ import {
 } from "@/lib/discord.server";
 
 function getDiscordRedirectUri(request: Request): string {
-  const configured = process.env.DISCORD_REDIRECT_URI?.trim();
+  const configured = process.env["DISCORD_REDIRECT_URI"]?.trim();
   if (configured) return configured;
 
   const url = new URL(request.url);
@@ -65,8 +65,8 @@ export const Route = createFileRoute("/api/public/auth/discord/callback")({
           const message = error instanceof Error ? error.message : String(error);
           console.error("Discord OAuth callback failed", {
             message,
-            hasClientId: Boolean(process.env.DISCORD_CLIENT_ID),
-            hasClientSecret: Boolean(process.env.DISCORD_CLIENT_SECRET),
+            hasClientId: Boolean(process.env["DISCORD_CLIENT_ID"]),
+            hasClientSecret: Boolean(process.env["DISCORD_CLIENT_SECRET"]),
             redirectUri: getDiscordRedirectUri(request),
           });
 

@@ -26,7 +26,7 @@ export const Route = createFileRoute("/calendar/$guildId")({
     <main className="mx-auto max-w-2xl px-6 py-24 text-center">
       <AlertTriangle className="mx-auto size-7 text-gold" />
       <h1 className="mt-4 text-xl font-bold">Calendar could not be loaded</h1>
-      <p className="mt-2 text-sm text-muted-foreground">{error.message}</p>
+      <p className="mt-2 text-sm text-muted-foreground">{error instanceof Error ? error.message : String(error)}</p>
       <Button asChild variant="outline" className="mt-5 gap-2"><Link to="/"><ArrowLeft className="size-4" />Back to Home</Link></Button>
     </main>
   ),

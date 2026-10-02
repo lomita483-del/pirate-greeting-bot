@@ -10,7 +10,7 @@ function CatchAllRoute() {
   const match = location.pathname.match(/^\/statahoy\/([^/]+)\/activity\/?$/);
 
   if (match) {
-    return <StatahoyUserActivityContent guildId={match[1]} />;
+    return <StatahoyUserActivityContent guildId={match[1] ?? ""} />;
   }
 
   return <Navigate to="/" replace />;

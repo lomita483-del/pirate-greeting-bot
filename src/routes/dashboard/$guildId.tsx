@@ -22,7 +22,7 @@ export const Route = createFileRoute("/dashboard/$guildId")({
     ],
   }),
   component: GuildDashboardLayout,
-  errorComponent: ({ error }) => <div className="mx-auto max-w-2xl px-6 py-24 text-center"><AlertTriangle className="mx-auto h-6 w-6 text-gold" /><p className="mt-4 text-sm text-muted-foreground">{error.message}</p></div>,
+  errorComponent: ({ error }) => <div className="mx-auto max-w-2xl px-6 py-24 text-center"><AlertTriangle className="mx-auto h-6 w-6 text-gold" /><p className="mt-4 text-sm text-muted-foreground">{error instanceof Error ? error.message : String(error)}</p></div>,
 });
 
 function guildIcon(id: string, icon: string | null) { return icon ? `https://cdn.discordapp.com/icons/${id}/${icon}.png?size=64` : null; }

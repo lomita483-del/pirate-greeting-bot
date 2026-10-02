@@ -24,7 +24,7 @@ export const Route = createFileRoute("/dashboard/$guildId/community")({
           <div className="space-y-6">
             <ReactionRolesPanel guildId={guildId} structure={config.structure} />
             <GiveawaysManagerPanel guildId={guildId} structure={config.structure} />
-            <PollsPanel guildId={guildId} />
+            <PollsPanel guildId={guildId} structure={config.structure} />
             <StarboardPanel guildId={guildId} config={config} onSaved={refresh} />
           </div>
         )}

@@ -3,7 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { authorizeUrl, sealState } from "@/lib/discord.server";
 
 function getDiscordRedirectUri(request: Request): string {
-  const configured = process.env.DISCORD_REDIRECT_URI?.trim();
+  const configured = process.env["DISCORD_REDIRECT_URI"]?.trim();
   if (configured) return configured;
 
   const url = new URL(request.url);

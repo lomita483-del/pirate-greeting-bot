@@ -28,7 +28,7 @@ function CalendarEntry() {
   // server selector for switching between servers.
   useEffect(() => {
     if (guilds.length > 0) {
-      void navigate({ to: "/calendar/$guildId", params: { guildId: guilds[0].id }, replace: true });
+      void navigate({ to: "/calendar/$guildId", params: { guildId: guilds[0]!.id }, replace: true });
     }
   }, [guilds, navigate]);
 
