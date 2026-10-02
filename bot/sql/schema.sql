@@ -37,6 +37,8 @@ CREATE TABLE public.server_settings (
     xp_per_level NUMERIC(10,1) NOT NULL DEFAULT 200 CHECK (xp_per_level > 0),
     rank_every_levels INTEGER NOT NULL DEFAULT 2 CHECK (rank_every_levels > 0),
   xp_cooldown_seconds INTEGER NOT NULL DEFAULT 60 CHECK (xp_cooldown_seconds BETWEEN 0 AND 3600),
+  xp_ignored_channel_ids TEXT[] NOT NULL DEFAULT '{}',
+  xp_ignored_role_ids TEXT[] NOT NULL DEFAULT '{}',
   level_up_message TEXT NOT NULL DEFAULT 'Ahoy {user}, you reached level {level}! ⚓',
   level_up_channel_id TEXT,
   economy_enabled BOOLEAN NOT NULL DEFAULT false,
