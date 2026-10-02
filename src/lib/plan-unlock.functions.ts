@@ -67,7 +67,7 @@ export const requestPlanUnlock = createServerFn({ method: "POST" })
       const { data: server } = await supabaseAdmin.from("servers").select("guild_id").eq("guild_id", data.guildId).eq("owner_id", session.userId).eq("bot_present", true).maybeSingle();
       if (!server) throw new Error("You do not control that connected server.");
     }
-    const { data: existing } = await supabaseAdmin.from("plan_unlock_requests").select("id,status").eq("requester_user_id", session.userId).eq("plan_id", data.planId)[data.guildId ? "eq" : "is"]("guild_id", (data.guildId ?? null) as never).eq("status", "pending").maybeSingle();
+    const { data: existing } = await supabaseAdmin.from("plan_unlock_requests").select("id,status").eq("requester_user_id", session.userId).eq("plan_id", data.planId).eq("guild_id", data.guildId as string).eq("status", "pending").maybeSingle();
     if (existing) return { ok: true, alreadyPending: true, requestId: existing.id };
     const { data: row, error } = await supabaseAdmin.from("plan_unlock_requests").insert({ requester_user_id: session.userId, requester_username: session.username, guild_id: data.guildId ?? null, plan_id: data.planId, unlock_method: data.method, status: "pending" }).select("id").single();
     if (error || !row) throw new Error("Could not submit the unlock request.");
