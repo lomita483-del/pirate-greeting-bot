@@ -36,7 +36,6 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
   const [memberQuery, setMemberQuery] = useState("");
   const [selectedMember, setSelectedMember] = useState<any>(null);
   const [adjustAmount, setAdjustAmount] = useState(100);
-  const [setAmount, setSetAmount] = useState(0);
   const adjust = useServerFn(adminAdjustXp);
   const xpCommand = useServerFn(adminXpAction);
   const perLevel = num(general.draft.xp_per_level, 200);
@@ -45,7 +44,7 @@ export function XpLevelingPage({ guildId, config, onSaved }: PanelProps) {
   const progress = calculatedTarget > 0 ? Math.min(100, Math.max(0, (num(calculatorXp, 0) / calculatedTarget) * 100)) : 0;
   const memberSearch = useQuery({ queryKey: ["xp-member-search", guildId, memberQuery.trim()], queryFn: () => searchXpMembers({ data: { guildId, query: memberQuery.trim() } }), enabled: memberQuery.trim().length >= 2 });
   const adjustment = useMutation({
-    mutationFn: async (action: "give" | "remove" | "set") => adjust({ data: { guildId, userId: selectedMember.user_id, amount: action === "set" ? setAmount : adjustAmount, action, reason: "XP & Leveling dashboard adjustment" } }),
+    mutationFn: async (action: "give" | "remove" | "set") => adjust({ data: { guildId, userId: selectedMember.user_id, amount: adjustAmount, action, reason: "XP & Leveling dashboard adjustment" } }),
     onSuccess: (result) => { toast.success(`XP updated: ${formatXp(result.oldXp)} → ${formatXp(result.newXp)} XP (Level ${result.newLevel})`); setSelectedMember((m: any) => m ? { ...m, xp: result.newXp, level: result.newLevel } : m); void engagement.refetch(); },
     onError: (error: Error) => toast.error(error.message),
   });
