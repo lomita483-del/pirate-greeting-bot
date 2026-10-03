@@ -97,14 +97,6 @@ async def get_case(self,guild_id,case_number):
 async def user_cases(self,guild_id,user_id,limit=50):
     rows=await self.db.try_run(lambda c:c.table("moderation_cases").select("*").eq("guild_id",guild_id).eq("target_id",user_id).order("created_at",desc=True).limit(limit).execute()); return getattr(rows,"data",None) or []
 
-async def emit_event(self,payload):
-    # Command audit history is intentionally not persisted.
-    return None
-async def write_audit_log(self,payload):
-    # Command audit history is intentionally not persisted.
-    return None
-async def recent_audit_logs(self,guild_id,limit=10):
-    rows=await self.db.try_run(lambda c:c.table("audit_logs").select("*").eq("guild_id",guild_id).order("created_at",desc=True).limit(limit).execute()); return getattr(rows,"data",None) or []
 async def list_welcome_messages(self,guild_id):
     rows=await self.db.try_run(lambda c:c.table("welcome_messages").select("*").eq("guild_id",guild_id).eq("enabled",True).order("position").limit(3).execute()); return getattr(rows,"data",None) or []
 async def list_embed_template_names(self,guild_id):
