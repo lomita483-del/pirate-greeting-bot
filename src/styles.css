@@ -144,3 +144,19 @@
     background-color: transparent !important;
   }
 }
+
+/* Admin background switch: Current = pirate artwork, Previous = classic dashboard background. */
+html[data-admin-theme="classic"] .ahoy-watermark {
+  display: none;
+}
+
+html[data-admin-theme="classic"] body {
+  background-image:
+    radial-gradient(70rem 46rem at 8% -14%, oklch(0.865 0.158 86 / 12%), transparent 58%),
+    radial-gradient(56rem 38rem at 96% -6%, oklch(0.7 0.115 205 / 10%), transparent 60%),
+    linear-gradient(180deg, oklch(0.152 0.045 254), oklch(0.118 0.034 256) 70%);
+}
+
+html[data-admin-theme="current"] .ahoy-watermark {
+  display: block;
+}
