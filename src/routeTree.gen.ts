@@ -26,7 +26,6 @@ import { Route as StatahoyIndexRouteImport } from './routes/statahoy/index'
 import { Route as StatahoyGuildIdRouteImport } from './routes/statahoy/$guildId'
 import { Route as ApiPublicInviteRouteImport } from './routes/api/public/invite'
 import { Route as DashboardGuildIdIndexRouteImport } from './routes/dashboard/$guildId.index'
-import { Route as DashboardGuildIdActivityRouteImport } from './routes/dashboard/$guildId.activity'
 import { Route as DashboardGuildIdAutomationRouteImport } from './routes/dashboard/$guildId.automation'
 import { Route as DashboardGuildIdAutomodRouteImport } from './routes/dashboard/$guildId.automod'
 import { Route as DashboardGuildIdCalendarRouteImport } from './routes/dashboard/$guildId.calendar'
@@ -142,12 +141,6 @@ const DashboardGuildIdIndexRoute = DashboardGuildIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => DashboardGuildIdRoute,
 } as any)
-const DashboardGuildIdActivityRoute =
-  DashboardGuildIdActivityRouteImport.update({
-    id: '/activity',
-    path: '/activity',
-    getParentRoute: () => DashboardGuildIdRoute,
-  } as any)
 const DashboardGuildIdAutomationRoute =
   DashboardGuildIdAutomationRouteImport.update({
     id: '/automation',
@@ -321,7 +314,6 @@ export interface FileRoutesByFullPath {
   '/dashboard/': typeof DashboardIndexRoute
   '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
-  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
   '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
@@ -368,7 +360,6 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardIndexRoute
   '/statahoy': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
-  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
   '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
@@ -417,7 +408,6 @@ export interface FileRoutesById {
   '/dashboard/': typeof DashboardIndexRoute
   '/statahoy/': typeof StatahoyIndexRoute
   '/api/public/invite': typeof ApiPublicInviteRoute
-  '/dashboard/$guildId/activity': typeof DashboardGuildIdActivityRoute
   '/dashboard/$guildId/automation': typeof DashboardGuildIdAutomationRoute
   '/dashboard/$guildId/automod': typeof DashboardGuildIdAutomodRoute
   '/dashboard/$guildId/calendar': typeof DashboardGuildIdCalendarRoute
@@ -741,13 +731,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardGuildIdIndexRouteImport
       parentRoute: typeof DashboardGuildIdRoute
     }
-    '/dashboard/$guildId/activity': {
-      id: '/dashboard/$guildId/activity'
-      path: '/activity'
-      fullPath: '/dashboard/$guildId/activity'
-      preLoaderRoute: typeof DashboardGuildIdActivityRouteImport
-      parentRoute: typeof DashboardGuildIdRoute
-    }
     '/dashboard/$guildId/automation': {
       id: '/dashboard/$guildId/automation'
       path: '/automation'
@@ -960,7 +943,6 @@ const OwnerConsoleRouteWithChildren = OwnerConsoleRoute._addFileChildren(
 )
 
 interface DashboardGuildIdRouteChildren {
-  DashboardGuildIdActivityRoute: typeof DashboardGuildIdActivityRoute
   DashboardGuildIdAutomationRoute: typeof DashboardGuildIdAutomationRoute
   DashboardGuildIdAutomodRoute: typeof DashboardGuildIdAutomodRoute
   DashboardGuildIdCalendarRoute: typeof DashboardGuildIdCalendarRoute
@@ -984,7 +966,6 @@ interface DashboardGuildIdRouteChildren {
 }
 
 const DashboardGuildIdRouteChildren: DashboardGuildIdRouteChildren = {
-  DashboardGuildIdActivityRoute: DashboardGuildIdActivityRoute,
   DashboardGuildIdAutomationRoute: DashboardGuildIdAutomationRoute,
   DashboardGuildIdAutomodRoute: DashboardGuildIdAutomodRoute,
   DashboardGuildIdCalendarRoute: DashboardGuildIdCalendarRoute,
