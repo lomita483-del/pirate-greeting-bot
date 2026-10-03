@@ -1089,34 +1089,6 @@ export const requestBotAction = createServerFn({ method: "POST" })
 /* Activity log                                                      */
 /* ---------------------------------------------------------------- */
 
-export const getActivityLog = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) =>
-    z
-      .object({
-        guildId: z.string().regex(/^\d{5,25}$/),
-        category: z.string().max(40).optional(),
-        userId: z.string().max(25).optional(),
-        page: z.number().int().min(0).max(500).default(0),
-      })
-      .parse(data),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await authorize(data.guildId);
-    const pageSize = 50;
-    let query = supabaseAdmin
-      .from("activity_logs")
-      .select("*", { count: "exact" })
-      .eq("guild_id", data.guildId);
-    if (data.category && data.category !== "all") query = query.eq("category", data.category);
-    if (data.userId) query = query.eq("actor_id", data.userId);
-
-    const { data: rows, count } = await query
-      .order("created_at", { ascending: false })
-      .range(data.page * pageSize, data.page * pageSize + pageSize - 1);
-
-    return { entries: rows ?? [], total: count ?? 0, page: data.page, pageSize };
-  });
-
 /* ---------------------------------------------------------------- */
 /* Server stats, ranks and member profiles                           */
 /* ---------------------------------------------------------------- */
@@ -1593,41 +1565,5 @@ export const saveCommandConfigBulk = createServerFn({ method: "POST" })
     }
     return { ok: true, updated: rows.length };
   });
-
-/** Audit trail for this server only — never mixed with other servers. */
-export const getAuditLog = createServerFn({ method: "GET" })
-  .inputValidator((data: unknown) =>
-    z
-      .object({
-        guildId: z.string().regex(/^\d{5,25}$/),
-        limit: z.number().int().min(1).max(200).optional(),
-      })
-      .parse(data),
-  )
-  .handler(async ({ data }) => {
-    const { supabaseAdmin } = await authorize(data.guildId);
-    const { data: rows, error } = await supabaseAdmin
-      .from("audit_logs")
-      .select("*")
-      .eq("guild_id", data.guildId)
-      .order("created_at", { ascending: false })
-      .limit(data.limit ?? 50);
-    if (error) {
-      console.error("Audit log read failed", error);
-      return { entries: [] };
-    }
-    return {
-      entries: (rows ?? []).map((r) => ({
-        id: r.id as string,
-        action: r.action as string,
-        actorId: (r.actor_id as string | null) ?? null,
-        targetId: (r.target_id as string | null) ?? null,
-        resourceType: (r.resource_type as string | null) ?? null,
-        reason: (r.reason as string | null) ?? null,
-        createdAt: r.created_at as string,
-      })),
-    };
-  });
-
 
 
