@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { AdminThemeToggle } from "@/components/admin/admin-theme-toggle";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Activity, AlertTriangle, Bell, CheckCircle2, Crown, Database, Gauge, Home, Inbox, LayoutDashboard, ListChecks, Menu, RefreshCw, Rocket, Server, Settings, Shield, ShieldBan, UserRound, Users, Wrench, X } from "lucide-react";
 import { useEffect, useState, type ComponentType, type ReactNode } from "react";
@@ -75,7 +76,7 @@ function AdminConsole() {
         <span className="hidden rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-emerald-300 md:inline-flex">● Live Operations</span>
         <Button variant="outline" size="icon" className="rounded-2xl border-white/10 bg-white/[.04]" onClick={() => jump("notifications")} aria-label="Open notifications"><Bell /></Button>
         <Link to="/dashboard" className="hidden sm:block"><Button variant="outline" size="icon" className="rounded-2xl border-white/10 bg-white/[.04]" aria-label="Open server dashboard"><LayoutDashboard /></Button></Link>
-      </div>
+      <div className="ml-auto"><AdminThemeToggle /></div></div>
     </header>
     {menu ? <NavOverlay tab={tab} onSelect={jump} /> : null}
     <main className="mx-auto max-w-[1440px] space-y-6 px-3 py-5 sm:px-6 lg:px-8">
